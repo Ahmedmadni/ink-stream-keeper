@@ -215,6 +215,113 @@ export type Database = {
           },
         ]
       }
+      vault_categories: {
+        Row: {
+          color: string
+          created_at: string
+          icon: string
+          id: string
+          name: string
+          sort_order: number
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          name: string
+          sort_order?: number
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          name?: string
+          sort_order?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      vault_entries: {
+        Row: {
+          category_id: string | null
+          created_at: string
+          id: string
+          label: string
+          notes: string
+          password_ct: string
+          password_iv: string
+          updated_at: string
+          url: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string
+          id?: string
+          label: string
+          notes?: string
+          password_ct: string
+          password_iv: string
+          updated_at?: string
+          url?: string
+          user_id: string
+          username?: string
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string
+          id?: string
+          label?: string
+          notes?: string
+          password_ct?: string
+          password_iv?: string
+          updated_at?: string
+          url?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vault_entries_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "vault_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vault_settings: {
+        Row: {
+          created_at: string
+          kdf_salt: string
+          updated_at: string
+          user_id: string
+          verifier_ct: string
+          verifier_iv: string
+        }
+        Insert: {
+          created_at?: string
+          kdf_salt: string
+          updated_at?: string
+          user_id: string
+          verifier_ct: string
+          verifier_iv: string
+        }
+        Update: {
+          created_at?: string
+          kdf_salt?: string
+          updated_at?: string
+          user_id?: string
+          verifier_ct?: string
+          verifier_iv?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
