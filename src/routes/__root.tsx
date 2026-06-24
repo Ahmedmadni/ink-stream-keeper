@@ -91,8 +91,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "apple-mobile-web-app-title", content: "MemoFlow" },
       { name: "twitter:title", content: "MemoFlow — ملاحظات ومهام بالعربية" },
       { name: "twitter:description", content: "تطبيق سريع وآمن لتدوين الملاحظات وإدارة المهام بالعربية. تصنيفات مخصصة، بحث ذكي، تثبيت كتطبيق على الهاتف." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f620e3ed-d02f-4b9d-b0fa-ccf1f09cccda/id-preview-8972aa09--c357f296-dbad-4d33-991e-76d86c92e6d0.lovable.app-1782307452418.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f620e3ed-d02f-4b9d-b0fa-ccf1f09cccda/id-preview-8972aa09--c357f296-dbad-4d33-991e-76d86c92e6d0.lovable.app-1782307452418.png" },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/sHg6QnS04TcmbXVlhYYOOD3JhZB2/social-images/social-1782327353094-ChatGPT_Image_Jun_24,_2026,_09_55_35_PM.webp" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/sHg6QnS04TcmbXVlhYYOOD3JhZB2/social-images/social-1782327353094-ChatGPT_Image_Jun_24,_2026,_09_55_35_PM.webp" },
     ],
     links: [
       {
