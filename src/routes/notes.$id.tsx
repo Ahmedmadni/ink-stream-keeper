@@ -1,7 +1,9 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { ArrowRight, Pin, Star, Share2, Trash2, Image as ImageIcon, Paperclip, Type, Pencil, Shapes } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ArrowRight, Pin, Star, Trash2, Paperclip, FileText, Download, X, Check as CheckIcon } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { actions, formatRelative, useStore } from "@/lib/store";
+import { actions, formatRelative, useStore, type Attachment } from "@/lib/store";
+import { RichEditor } from "@/components/RichEditor";
 
 export const Route = createFileRoute("/notes/$id")({
   head: ({ params }) => ({
@@ -23,6 +25,11 @@ function NoteDetail() {
   const router = useRouter();
   const note = useStore((s) => s.notes.find((n) => n.id === id));
   const cat = useStore((s) => s.categories.find((c) => c.id === note?.categoryId));
+  const [editing, setEditing] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const initialContent = useMemo(() => note?.content ?? "", [note?.id]);
+  const [draft, setDraft] = useState(initialContent);
+  const [title, setTitle] = useState(note?.title ?? "");
 
   if (!note) {
     return (
@@ -37,13 +44,51 @@ function NoteDetail() {
     );
   }
 
+  const save = () => {
+    actions.updateNote(note.id, { title: title.trim() || note.title, content: draft });
+    setDirty(false);
+    setEditing(false);
+  };
+
+  const onAttach = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const att: Attachment = {
+        id: `a_${Date.now()}`,
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        dataUrl: reader.result as string,
+      };
+      actions.updateNote(note.id, {
+        attachments: [...(note.attachments ?? []), att],
+        hasAttachment: true,
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeAttachment = (aid: string) => {
+    const next = (note.attachments ?? []).filter((a) => a.id !== aid);
+    actions.updateNote(note.id, { attachments: next, hasAttachment: next.length > 0 });
+  };
+
   return (
     <AppShell>
-      <header className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] items-center gap-2 px-4 pb-2 pt-5">
+      <header className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto] items-center gap-2 px-4 pb-2 pt-5">
         <button onClick={() => router.history.back()} className="grid size-10 shrink-0 place-items-center rounded-full bg-card shadow-card" aria-label="رجوع">
           <ArrowRight className="size-5" />
         </button>
         <div className="min-w-0" />
+        {editing ? (
+          <button onClick={save} className="grid h-10 shrink-0 place-items-center rounded-full gradient-primary px-4 text-xs font-bold text-primary-foreground shadow-fab" aria-label="حفظ">
+            <span className="flex items-center gap-1"><CheckIcon className="size-4" /> حفظ</span>
+          </button>
+        ) : (
+          <button onClick={() => setEditing(true)} className="grid h-10 shrink-0 place-items-center rounded-full bg-primary-soft px-4 text-xs font-bold text-primary shadow-card" aria-label="تحرير">
+            تحرير
+          </button>
+        )}
         <button onClick={() => actions.togglePin(note.id)} className="grid size-10 shrink-0 place-items-center rounded-full bg-card shadow-card" aria-label="تثبيت">
           <Pin className={`size-4 ${note.pinned ? "rotate-45 text-primary" : "text-muted-foreground"}`} />
         </button>
@@ -56,10 +101,19 @@ function NoteDetail() {
       </header>
 
       <div className="px-5 pt-4">
-        <h1 className="text-2xl font-extrabold leading-tight">
-          <span className="me-2">{note.emoji}</span>
-          {note.title}
-        </h1>
+        {editing ? (
+          <input
+            value={title}
+            onChange={(e) => { setTitle(e.target.value); setDirty(true); }}
+            placeholder="عنوان الملاحظة"
+            className="w-full bg-transparent text-2xl font-extrabold leading-tight outline-none placeholder:text-muted-foreground/50"
+          />
+        ) : (
+          <h1 className="text-2xl font-extrabold leading-tight">
+            <span className="me-2">{note.emoji}</span>
+            {note.title}
+          </h1>
+        )}
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {cat && (
             <span className="rounded-full bg-primary-soft px-3 py-1 text-xs font-semibold text-primary">
@@ -67,57 +121,68 @@ function NoteDetail() {
             </span>
           )}
           <span className="text-xs text-muted-foreground">آخر تعديل {formatRelative(note.updatedAt)}</span>
+          {dirty && <span className="text-[10px] font-bold text-warning">• تغييرات غير محفوظة</span>}
         </div>
 
-        <div className="mt-6 rounded-2xl bg-card p-5 shadow-card">
-          <p className="whitespace-pre-line text-[15px] leading-relaxed text-foreground">{note.content}</p>
+        <div className="mt-5">
+          {editing ? (
+            <RichEditor
+              value={draft}
+              onChange={(html) => { setDraft(html); setDirty(true); }}
+              onAddAttachment={onAttach}
+              placeholder="اكتب محتوى الملاحظة..."
+            />
+          ) : (
+            <article
+              className="prose-mf rounded-2xl bg-card p-5 shadow-card"
+              dir="rtl"
+              dangerouslySetInnerHTML={{ __html: renderHtml(note.content) }}
+            />
+          )}
         </div>
 
-        <div className="mt-4 rounded-2xl border border-warning/30 bg-warning/10 p-4">
-          <p className="mb-2 flex items-center gap-2 text-sm font-bold">
-            <Star className="size-4 fill-warning text-warning" /> أشياء يجب تجربتها
-          </p>
-          <ul className="space-y-2 text-sm">
-            <li className="flex items-center gap-2"><Check /> زيارة رجال ألمع</li>
-            <li className="flex items-center gap-2"><Check /> تجربة العسل الجبلي</li>
-            <li className="flex items-center gap-2"><Check /> التخييم في الجبال</li>
-          </ul>
-        </div>
-
-        <p className="mt-6 text-xs text-muted-foreground">
-          محرر النص الغني، الأشكال، والصور قادمة قريباً ضمن خارطة الطريق.
-        </p>
-      </div>
-
-      <div className="fixed inset-x-0 bottom-20 z-30 mx-auto max-w-md px-5">
-        <div className="flex items-center justify-around rounded-2xl bg-card px-3 py-2.5 shadow-elevated">
-          <ToolBtn icon={Shapes} label="أشكال" />
-          <ToolBtn icon={Pencil} label="رسم" />
-          <ToolBtn icon={ImageIcon} label="صورة" />
-          <ToolBtn icon={Paperclip} label="ملحق" />
-          <ToolBtn icon={Type} label="نص" />
-          <ToolBtn icon={Share2} label="مشاركة" />
-        </div>
+        {note.attachments && note.attachments.length > 0 && (
+          <section className="mt-6">
+            <h2 className="mb-2 flex items-center gap-2 text-sm font-bold">
+              <Paperclip className="size-4 text-primary" /> المرفقات ({note.attachments.length})
+            </h2>
+            <ul className="space-y-2">
+              {note.attachments.map((a) => (
+                <li key={a.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 rounded-2xl bg-card p-3 shadow-card">
+                  {a.type.startsWith("image/") ? (
+                    <img src={a.dataUrl} alt={a.name} className="size-12 rounded-lg object-cover" />
+                  ) : (
+                    <div className="grid size-12 place-items-center rounded-lg bg-primary-soft text-primary"><FileText className="size-5" /></div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{a.name}</p>
+                    <p className="text-[11px] text-muted-foreground">{formatSize(a.size)}</p>
+                  </div>
+                  <a href={a.dataUrl} download={a.name} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:text-primary" aria-label="تنزيل"><Download className="size-4" /></a>
+                  <button onClick={() => removeAttachment(a.id)} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:text-destructive" aria-label="حذف"><X className="size-4" /></button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
     </AppShell>
   );
 }
 
-function ToolBtn({ icon: Icon, label }: { icon: typeof Pin; label: string }) {
-  return (
-    <button className="flex flex-col items-center gap-0.5 rounded-lg px-2 py-1 text-[10px] font-semibold text-muted-foreground transition-colors hover:text-primary">
-      <Icon className="size-5" />
-      <span>{label}</span>
-    </button>
-  );
+function renderHtml(value: string): string {
+  if (!value) return "<p class='text-muted-foreground'>لا يوجد محتوى بعد. اضغط «تحرير» للبدء.</p>";
+  const trimmed = value.trim();
+  if (trimmed.startsWith("<")) return value;
+  return trimmed.split(/\n+/).map((l) => `<p>${escapeHtml(l)}</p>`).join("");
 }
 
-function Check() {
-  return (
-    <span className="grid size-4 shrink-0 place-items-center rounded-md bg-primary text-primary-foreground">
-      <svg viewBox="0 0 16 16" className="size-2.5" fill="none" stroke="currentColor" strokeWidth="3">
-        <path d="M3 8l3 3 6-6" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </span>
-  );
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+}
+
+function formatSize(b: number): string {
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+  return `${(b / 1024 / 1024).toFixed(1)} MB`;
 }
