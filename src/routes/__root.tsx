@@ -83,12 +83,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "author", content: "MemoFlow" },
       { name: "theme-color", content: "#2D6CDF" },
       { property: "og:title", content: "MemoFlow — ملاحظات ومهام بالعربية" },
-      { property: "og:description", content: "تطبيق ملاحظات ومهام احترافي، سريع، يدعم العربية بالكامل." },
+      { property: "og:description", content: "تطبيق سريع وآمن لتدوين الملاحظات وإدارة المهام بالعربية. تصنيفات مخصصة، بحث ذكي، تثبيت كتطبيق على الهاتف." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "default" },
       { name: "apple-mobile-web-app-title", content: "MemoFlow" },
+      { name: "twitter:title", content: "MemoFlow — ملاحظات ومهام بالعربية" },
+      { name: "twitter:description", content: "تطبيق سريع وآمن لتدوين الملاحظات وإدارة المهام بالعربية. تصنيفات مخصصة، بحث ذكي، تثبيت كتطبيق على الهاتف." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f620e3ed-d02f-4b9d-b0fa-ccf1f09cccda/id-preview-8972aa09--c357f296-dbad-4d33-991e-76d86c92e6d0.lovable.app-1782307452418.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f620e3ed-d02f-4b9d-b0fa-ccf1f09cccda/id-preview-8972aa09--c357f296-dbad-4d33-991e-76d86c92e6d0.lovable.app-1782307452418.png" },
     ],
     links: [
       {
