@@ -110,7 +110,7 @@ function Index() {
                 key={c.id}
                 className="flex flex-col items-center gap-1.5 rounded-2xl bg-card p-3 shadow-card"
               >
-                <div className={`grid size-10 shrink-0 place-items-center rounded-xl bg-${c.color === "primary" ? "primary-soft" : c.color}/15 text-${c.color === "primary" ? "primary" : c.color}`}>
+                <div className={`grid size-10 shrink-0 place-items-center rounded-xl ${toneBg(c.color)}`}>
                   <Icon className="size-5" />
                 </div>
                 <p className="line-clamp-1 text-center text-[11px] font-semibold">{c.name}</p>
