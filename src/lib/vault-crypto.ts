@@ -9,9 +9,9 @@ function b64encode(buf: ArrayBuffer | Uint8Array): string {
   for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
   return btoa(s);
 }
-function b64decode(s: string): Uint8Array {
+function b64decode(s: string): Uint8Array<ArrayBuffer> {
   const bin = atob(s);
-  const out = new Uint8Array(bin.length);
+  const out = new Uint8Array(new ArrayBuffer(bin.length));
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
 }
@@ -39,12 +39,12 @@ export async function deriveKey(pin: string, saltB64: string): Promise<CryptoKey
 }
 
 export function randomSaltB64(): string {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const salt = crypto.getRandomValues(new Uint8Array(new ArrayBuffer(16)));
   return b64encode(salt);
 }
 
 export async function encryptString(plain: string, key: CryptoKey): Promise<{ iv: string; ct: string }> {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const iv = crypto.getRandomValues(new Uint8Array(new ArrayBuffer(12)));
   const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc.encode(plain));
   return { iv: b64encode(iv), ct: b64encode(ct) };
 }
