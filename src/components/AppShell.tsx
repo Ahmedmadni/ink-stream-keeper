@@ -2,13 +2,20 @@ import { Link, useLocation } from "@tanstack/react-router";
 import { Home, NotebookText, CheckSquare, Settings, Plus } from "lucide-react";
 import type { ReactNode } from "react";
 
-const nav = [
+type NavItem = {
+  to: "/" | "/notes" | "/create" | "/tasks" | "/settings";
+  label: string;
+  icon: typeof Home;
+  primary?: boolean;
+};
+
+const nav: NavItem[] = [
   { to: "/", label: "الرئيسية", icon: Home },
   { to: "/notes", label: "الملاحظات", icon: NotebookText },
   { to: "/create", label: "إنشاء", icon: Plus, primary: true },
   { to: "/tasks", label: "المهام", icon: CheckSquare },
   { to: "/settings", label: "الإعدادات", icon: Settings },
-] as const;
+];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
