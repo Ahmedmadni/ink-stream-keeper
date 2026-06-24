@@ -1,9 +1,9 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { Home, NotebookText, CheckSquare, Settings, Plus } from "lucide-react";
+import { Home, NotebookText, CheckSquare, Settings, Plus, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 
 type NavItem = {
-  to: "/" | "/notes" | "/create" | "/tasks" | "/settings";
+  to: "/" | "/notes" | "/create" | "/tasks" | "/vault" | "/settings";
   label: string;
   icon: typeof Home;
   primary?: boolean;
@@ -14,7 +14,8 @@ const nav: NavItem[] = [
   { to: "/notes", label: "الملاحظات", icon: NotebookText },
   { to: "/create", label: "إنشاء", icon: Plus, primary: true },
   { to: "/tasks", label: "المهام", icon: CheckSquare },
-  { to: "/settings", label: "الإعدادات", icon: Settings },
+  { to: "/vault", label: "الخزنة", icon: ShieldCheck },
+  { to: "/settings", label: "إعدادات", icon: Settings },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -44,7 +45,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Link
                 key={item.to}
                 to={item.to}
-                className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-[11px] font-medium transition-colors ${
+                className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 text-[10px] font-medium transition-colors ${
                   active ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
