@@ -41,6 +41,21 @@ const iconMap: Record<string, typeof Notebook> = {
   GraduationCap,
 };
 
+function toneBg(tone: string) {
+  switch (tone) {
+    case "warning":
+      return "bg-warning/15 text-warning";
+    case "success":
+      return "bg-success/15 text-success";
+    case "destructive":
+      return "bg-destructive/15 text-destructive";
+    case "accent":
+      return "bg-accent text-accent-foreground";
+    default:
+      return "bg-primary-soft text-primary";
+  }
+}
+
 function Index() {
   const user = useStore((s) => s.user);
   const notes = useStore((s) => s.notes);
