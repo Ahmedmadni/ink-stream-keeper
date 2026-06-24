@@ -13,6 +13,7 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedVaultRouteImport } from './routes/_authenticated/vault'
 import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/tasks'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedNotesRouteImport } from './routes/_authenticated/notes'
@@ -36,6 +37,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedVaultRoute = AuthenticatedVaultRouteImport.update({
+  id: '/vault',
+  path: '/vault',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedTasksRoute = AuthenticatedTasksRouteImport.update({
@@ -72,6 +78,7 @@ export interface FileRoutesByFullPath {
   '/notes': typeof AuthenticatedNotesRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRoute
   '/tasks': typeof AuthenticatedTasksRoute
+  '/vault': typeof AuthenticatedVaultRoute
   '/notes/$id': typeof AuthenticatedNotesIdRoute
 }
 export interface FileRoutesByTo {
@@ -81,6 +88,7 @@ export interface FileRoutesByTo {
   '/notes': typeof AuthenticatedNotesRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRoute
   '/tasks': typeof AuthenticatedTasksRoute
+  '/vault': typeof AuthenticatedVaultRoute
   '/': typeof AuthenticatedIndexRoute
   '/notes/$id': typeof AuthenticatedNotesIdRoute
 }
@@ -93,6 +101,7 @@ export interface FileRoutesById {
   '/_authenticated/notes': typeof AuthenticatedNotesRouteWithChildren
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/tasks': typeof AuthenticatedTasksRoute
+  '/_authenticated/vault': typeof AuthenticatedVaultRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/notes/$id': typeof AuthenticatedNotesIdRoute
 }
@@ -106,6 +115,7 @@ export interface FileRouteTypes {
     | '/notes'
     | '/settings'
     | '/tasks'
+    | '/vault'
     | '/notes/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -115,6 +125,7 @@ export interface FileRouteTypes {
     | '/notes'
     | '/settings'
     | '/tasks'
+    | '/vault'
     | '/'
     | '/notes/$id'
   id:
@@ -126,6 +137,7 @@ export interface FileRouteTypes {
     | '/_authenticated/notes'
     | '/_authenticated/settings'
     | '/_authenticated/tasks'
+    | '/_authenticated/vault'
     | '/_authenticated/'
     | '/_authenticated/notes/$id'
   fileRoutesById: FileRoutesById
@@ -164,6 +176,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/vault': {
+      id: '/_authenticated/vault'
+      path: '/vault'
+      fullPath: '/vault'
+      preLoaderRoute: typeof AuthenticatedVaultRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/tasks': {
@@ -220,6 +239,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedNotesRoute: typeof AuthenticatedNotesRouteWithChildren
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTasksRoute: typeof AuthenticatedTasksRoute
+  AuthenticatedVaultRoute: typeof AuthenticatedVaultRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
 
@@ -228,6 +248,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedNotesRoute: AuthenticatedNotesRouteWithChildren,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTasksRoute: AuthenticatedTasksRoute,
+  AuthenticatedVaultRoute: AuthenticatedVaultRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }
 
