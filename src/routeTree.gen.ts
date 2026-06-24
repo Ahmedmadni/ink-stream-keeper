@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TasksRouteImport } from './routes/tasks'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as NotesRouteImport } from './routes/notes'
 import { Route as CreateRouteImport } from './routes/create'
 import { Route as IndexRouteImport } from './routes/index'
@@ -18,6 +19,11 @@ import { Route as NotesIdRouteImport } from './routes/notes.$id'
 const TasksRoute = TasksRouteImport.update({
   id: '/tasks',
   path: '/tasks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotesRoute = NotesRouteImport.update({
@@ -45,6 +51,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/create': typeof CreateRoute
   '/notes': typeof NotesRouteWithChildren
+  '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/notes/$id': typeof NotesIdRoute
 }
@@ -52,6 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/create': typeof CreateRoute
   '/notes': typeof NotesRouteWithChildren
+  '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/notes/$id': typeof NotesIdRoute
 }
@@ -60,21 +68,30 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/create': typeof CreateRoute
   '/notes': typeof NotesRouteWithChildren
+  '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/notes/$id': typeof NotesIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/create' | '/notes' | '/tasks' | '/notes/$id'
+  fullPaths: '/' | '/create' | '/notes' | '/settings' | '/tasks' | '/notes/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/create' | '/notes' | '/tasks' | '/notes/$id'
-  id: '__root__' | '/' | '/create' | '/notes' | '/tasks' | '/notes/$id'
+  to: '/' | '/create' | '/notes' | '/settings' | '/tasks' | '/notes/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/create'
+    | '/notes'
+    | '/settings'
+    | '/tasks'
+    | '/notes/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CreateRoute: typeof CreateRoute
   NotesRoute: typeof NotesRouteWithChildren
+  SettingsRoute: typeof SettingsRoute
   TasksRoute: typeof TasksRoute
 }
 
@@ -85,6 +102,13 @@ declare module '@tanstack/react-router' {
       path: '/tasks'
       fullPath: '/tasks'
       preLoaderRoute: typeof TasksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notes': {
@@ -132,6 +156,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CreateRoute: CreateRoute,
   NotesRoute: NotesRouteWithChildren,
+  SettingsRoute: SettingsRoute,
   TasksRoute: TasksRoute,
 }
 export const routeTree = rootRouteImport
