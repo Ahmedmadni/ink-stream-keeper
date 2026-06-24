@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRight, Pin, Star, Trash2, Paperclip, FileText, Download, X, Check as CheckIcon } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { actions, formatRelative, useStore, type Attachment } from "@/lib/store";
