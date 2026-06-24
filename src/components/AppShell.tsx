@@ -13,8 +13,9 @@ const nav: NavItem[] = [
   { to: "/", label: "الرئيسية", icon: Home },
   { to: "/notes", label: "الملاحظات", icon: NotebookText },
   { to: "/create", label: "إنشاء", icon: Plus, primary: true },
+  { to: "/tasks", label: "المهام", icon: CheckSquare },
   { to: "/vault", label: "الخزنة", icon: ShieldCheck },
-  { to: "/settings", label: "الإعدادات", icon: Settings },
+  { to: "/settings", label: "إعدادات", icon: Settings },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
