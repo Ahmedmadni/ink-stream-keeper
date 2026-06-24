@@ -1,9 +1,9 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { Home, NotebookText, CheckSquare, Settings, Plus } from "lucide-react";
+import { Home, NotebookText, CheckSquare, Settings, Plus, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 
 type NavItem = {
-  to: "/" | "/notes" | "/create" | "/tasks" | "/settings";
+  to: "/" | "/notes" | "/create" | "/tasks" | "/vault" | "/settings";
   label: string;
   icon: typeof Home;
   primary?: boolean;
@@ -13,7 +13,7 @@ const nav: NavItem[] = [
   { to: "/", label: "الرئيسية", icon: Home },
   { to: "/notes", label: "الملاحظات", icon: NotebookText },
   { to: "/create", label: "إنشاء", icon: Plus, primary: true },
-  { to: "/tasks", label: "المهام", icon: CheckSquare },
+  { to: "/vault", label: "الخزنة", icon: ShieldCheck },
   { to: "/settings", label: "الإعدادات", icon: Settings },
 ];
 
