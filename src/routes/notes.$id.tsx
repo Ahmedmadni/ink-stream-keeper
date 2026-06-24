@@ -27,9 +27,14 @@ function NoteDetail() {
   const cat = useStore((s) => s.categories.find((c) => c.id === note?.categoryId));
   const [editing, setEditing] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const initialContent = useMemo(() => note?.content ?? "", [note?.id]);
-  const [draft, setDraft] = useState(initialContent);
+  const [draft, setDraft] = useState(note?.content ?? "");
   const [title, setTitle] = useState(note?.title ?? "");
+  useEffect(() => {
+    setDraft(note?.content ?? "");
+    setTitle(note?.title ?? "");
+    setEditing(false);
+    setDirty(false);
+  }, [id]);
 
   if (!note) {
     return (
