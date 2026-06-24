@@ -4,7 +4,7 @@ import { Search, Paperclip, Pin, Star, Filter } from "lucide-react";
 import { AppShell, PageHeader } from "@/components/AppShell";
 import { useStore, formatRelative } from "@/lib/store";
 
-export const Route = createFileRoute("/notes")({
+export const Route = createFileRoute("/_authenticated/notes")({
   head: () => ({
     meta: [
       { title: "MemoFlow — كل الملاحظات" },

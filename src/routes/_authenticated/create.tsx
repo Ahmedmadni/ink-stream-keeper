@@ -5,7 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { actions, useStore, type Attachment } from "@/lib/store";
 import { RichEditor } from "@/components/RichEditor";
 
-export const Route = createFileRoute("/create")({
+export const Route = createFileRoute("/_authenticated/create")({
   head: () => ({
     meta: [
       { title: "MemoFlow — إنشاء" },

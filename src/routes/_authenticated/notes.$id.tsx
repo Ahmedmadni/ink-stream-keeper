@@ -5,7 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { actions, formatRelative, useStore, type Attachment } from "@/lib/store";
 import { RichEditor } from "@/components/RichEditor";
 
-export const Route = createFileRoute("/notes/$id")({
+export const Route = createFileRoute("/_authenticated/notes/$id")({
   head: ({ params }) => ({
     meta: [
       { title: `MemoFlow — ملاحظة ${params.id}` },

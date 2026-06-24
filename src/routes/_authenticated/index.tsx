@@ -19,7 +19,7 @@ import {
 import { AppShell } from "@/components/AppShell";
 import { useStore, formatRelative, greeting } from "@/lib/store";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
     meta: [
       { title: "MemoFlow — الرئيسية" },

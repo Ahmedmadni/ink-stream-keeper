@@ -5,7 +5,7 @@ import { AppShell, PageHeader } from "@/components/AppShell";
 import { actions, formatTime, useStore } from "@/lib/store";
 import type { Task } from "@/lib/store";
 
-export const Route = createFileRoute("/tasks")({
+export const Route = createFileRoute("/_authenticated/tasks")({
   head: () => ({
     meta: [
       { title: "MemoFlow — المهام" },
