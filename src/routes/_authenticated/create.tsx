@@ -1,11 +1,11 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
-import { ArrowRight, NotebookPen, CheckSquare, ShoppingCart, Pencil, Image as ImageIcon, Mic } from "lucide-react";
+import { ArrowRight, NotebookPen, CheckSquare, ShoppingCart, Pencil, Image as ImageIcon, Mic, Loader2 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { actions, useStore, type Attachment } from "@/lib/store";
+import { useAddNote, useAddTask, useCategories, useUploadAttachment } from "@/lib/data";
 import { RichEditor } from "@/components/RichEditor";
 
-export const Route = createFileRoute("/create")({
+export const Route = createFileRoute("/_authenticated/create")({
   head: () => ({
     meta: [
       { title: "MemoFlow — إنشاء" },
@@ -20,18 +20,24 @@ type Mode = "menu" | "note" | "task";
 function CreatePage() {
   const [mode, setMode] = useState<Mode>("menu");
   const router = useRouter();
-  const categories = useStore((s) => s.categories);
+  const { data: categories = [] } = useCategories();
+  const addNote = useAddNote();
+  const uploadAtt = useUploadAttachment();
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [categoryId, setCategoryId] = useState("ideas");
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [categoryId, setCategoryId] = useState<string>("");
 
   if (mode === "menu") {
     const items = [
       { icon: NotebookPen, label: "ملاحظة جديدة", desc: "نص حر مع تنسيق", onClick: () => setMode("note") },
       { icon: CheckSquare, label: "مهمة جديدة", desc: "مع وقت وأولوية", onClick: () => setMode("task") },
-      { icon: ShoppingCart, label: "قائمة مشتريات", desc: "تجميع سريع", onClick: () => { setCategoryId("shopping"); setMode("note"); } },
+      { icon: ShoppingCart, label: "قائمة مشتريات", desc: "تجميع سريع", onClick: () => {
+          const shop = categories.find((c) => c.name === "مشتريات");
+          if (shop) setCategoryId(shop.id);
+          setMode("note");
+      } },
       { icon: Pencil, label: "رسم حر", desc: "قريباً", onClick: () => {}, disabled: true },
       { icon: ImageIcon, label: "إدراج صورة", desc: "قريباً", onClick: () => {}, disabled: true },
       { icon: Mic, label: "تسجيل صوتي", desc: "قريباً", onClick: () => {}, disabled: true },
@@ -48,12 +54,7 @@ function CreatePage() {
 
         <div className="mt-6 grid grid-cols-2 gap-3 px-5">
           {items.map((it) => (
-            <button
-              key={it.label}
-              onClick={it.onClick}
-              disabled={it.disabled}
-              className="flex flex-col items-start gap-3 rounded-2xl bg-card p-4 text-right shadow-card transition-transform active:scale-[0.98] disabled:opacity-50"
-            >
+            <button key={it.label} onClick={it.onClick} disabled={it.disabled} className="flex flex-col items-start gap-3 rounded-2xl bg-card p-4 text-right shadow-card transition-transform active:scale-[0.98] disabled:opacity-50">
               <div className="grid size-12 place-items-center rounded-xl gradient-primary text-primary-foreground">
                 <it.icon className="size-6" />
               </div>
@@ -73,55 +74,39 @@ function CreatePage() {
       <AppShell>
         <FormHeader title="ملاحظة جديدة" onBack={() => setMode("menu")} />
         <div className="space-y-3 px-5 pt-4">
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="العنوان..."
-            className="w-full rounded-2xl bg-card px-4 py-3 text-lg font-bold outline-none shadow-card placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary"
-          />
-          <select
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-            className="w-full rounded-2xl bg-card px-4 py-3 text-sm font-semibold outline-none shadow-card"
-          >
-            {categories.filter((c) => c.id !== "all").map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="العنوان..." className="w-full rounded-2xl bg-card px-4 py-3 text-lg font-bold outline-none shadow-card placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary" />
+          <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="w-full rounded-2xl bg-card px-4 py-3 text-sm font-semibold outline-none shadow-card">
+            <option value="">بدون تصنيف</option>
+            {categories.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
           </select>
           <RichEditor
             value={content}
             onChange={setContent}
             placeholder="ابدأ الكتابة... استخدم الشريط لتنسيق النص وإضافة قوائم وصور."
-            onAddAttachment={(file) => {
-              const reader = new FileReader();
-              reader.onload = () => {
-                setAttachments((prev) => [
-                  ...prev,
-                  { id: `a_${Date.now()}`, name: file.name, type: file.type, size: file.size, dataUrl: reader.result as string },
-                ]);
-              };
-              reader.readAsDataURL(file);
-            }}
+            onAddAttachment={(file) => setPendingFiles((p) => [...p, file])}
           />
-          {attachments.length > 0 && (
-            <p className="text-xs text-muted-foreground">📎 {attachments.length} مرفق سيتم حفظه مع الملاحظة</p>
+          {pendingFiles.length > 0 && (
+            <p className="text-xs text-muted-foreground">📎 {pendingFiles.length} مرفق سيُرفع بعد الحفظ</p>
           )}
+          {addNote.error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive">{(addNote.error as Error).message}</p>}
           <button
-            onClick={() => {
+            disabled={addNote.isPending}
+            onClick={async () => {
               if (!title.trim()) return;
-              const id = actions.addNote({
+              const note = await addNote.mutateAsync({
                 title: title.trim(),
                 content: content.trim(),
-                categoryId,
+                categoryId: categoryId || null,
                 emoji: "📝",
-                attachments: attachments.length ? attachments : undefined,
-                hasAttachment: attachments.length > 0,
               });
-              router.navigate({ to: "/notes/$id", params: { id } });
+              for (const file of pendingFiles) {
+                await uploadAtt.mutateAsync({ noteId: note.id, file });
+              }
+              router.navigate({ to: "/notes/$id", params: { id: note.id } });
             }}
-            className="w-full rounded-2xl gradient-primary py-3.5 text-sm font-bold text-primary-foreground shadow-fab"
+            className="grid w-full place-items-center rounded-2xl gradient-primary py-3.5 text-sm font-bold text-primary-foreground shadow-fab disabled:opacity-70"
           >
-            حفظ الملاحظة
+            {addNote.isPending ? <Loader2 className="size-5 animate-spin" /> : "حفظ الملاحظة"}
           </button>
         </div>
       </AppShell>
@@ -148,51 +133,40 @@ function FormHeader({ title, onBack }: { title: string; onBack: () => void }) {
 }
 
 function TaskForm({ onDone }: { onDone: () => void }) {
+  const addTask = useAddTask();
   const [title, setTitle] = useState("");
   const [time, setTime] = useState("");
   const [priority, setPriority] = useState<"low" | "med" | "high">("med");
 
   return (
     <div className="space-y-3 px-5 pt-4">
-      <input
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="عنوان المهمة..."
-        className="w-full rounded-2xl bg-card px-4 py-3 text-lg font-bold outline-none shadow-card placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary"
-      />
+      <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="عنوان المهمة..." className="w-full rounded-2xl bg-card px-4 py-3 text-lg font-bold outline-none shadow-card placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary" />
       <div className="grid grid-cols-2 gap-3">
-        <input
-          type="time"
-          value={time}
-          onChange={(e) => setTime(e.target.value)}
-          className="rounded-2xl bg-card px-4 py-3 text-sm outline-none shadow-card"
-        />
-        <select
-          value={priority}
-          onChange={(e) => setPriority(e.target.value as "low" | "med" | "high")}
-          className="rounded-2xl bg-card px-4 py-3 text-sm font-semibold outline-none shadow-card"
-        >
+        <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="rounded-2xl bg-card px-4 py-3 text-sm outline-none shadow-card" />
+        <select value={priority} onChange={(e) => setPriority(e.target.value as "low" | "med" | "high")} className="rounded-2xl bg-card px-4 py-3 text-sm font-semibold outline-none shadow-card">
           <option value="low">أولوية منخفضة</option>
           <option value="med">أولوية متوسطة</option>
           <option value="high">أولوية عالية</option>
         </select>
       </div>
+      {addTask.error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive">{(addTask.error as Error).message}</p>}
       <button
-        onClick={() => {
+        disabled={addTask.isPending}
+        onClick={async () => {
           if (!title.trim()) return;
-          let due: number | undefined;
+          let due_at: string | null = null;
           if (time) {
             const [h, m] = time.split(":").map(Number);
             const d = new Date();
             d.setHours(h, m, 0, 0);
-            due = d.getTime();
+            due_at = d.toISOString();
           }
-          actions.addTask({ title: title.trim(), due, priority });
+          await addTask.mutateAsync({ title: title.trim(), due_at, priority });
           onDone();
         }}
-        className="w-full rounded-2xl gradient-primary py-3.5 text-sm font-bold text-primary-foreground shadow-fab"
+        className="grid w-full place-items-center rounded-2xl gradient-primary py-3.5 text-sm font-bold text-primary-foreground shadow-fab disabled:opacity-70"
       >
-        حفظ المهمة
+        {addTask.isPending ? <Loader2 className="size-5 animate-spin" /> : "حفظ المهمة"}
       </button>
     </div>
   );
