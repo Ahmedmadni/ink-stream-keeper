@@ -1,0 +1,16 @@
+{
+  "name": "MemoFlow — ملاحظات ومهام",
+  "short_name": "MemoFlow",
+  "description": "تطبيق ملاحظات ومهام احترافي بالعربية مع دعم RTL.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F4F7FB",
+  "theme_color": "#2D6CDF",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
