@@ -2,7 +2,8 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowRight, NotebookPen, CheckSquare, ShoppingCart, Pencil, Image as ImageIcon, Mic } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { actions, useStore } from "@/lib/store";
+import { actions, useStore, type Attachment } from "@/lib/store";
+import { RichEditor } from "@/components/RichEditor";
 
 export const Route = createFileRoute("/create")({
   head: () => ({
@@ -23,6 +24,7 @@ function CreatePage() {
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [categoryId, setCategoryId] = useState("ideas");
 
   if (mode === "menu") {
@@ -86,17 +88,35 @@ function CreatePage() {
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
-          <textarea
+          <RichEditor
             value={content}
-            onChange={(e) => setContent(e.target.value)}
-            rows={10}
-            placeholder="ابدأ الكتابة..."
-            className="w-full resize-none rounded-2xl bg-card px-4 py-3 text-sm leading-relaxed outline-none shadow-card placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary"
+            onChange={setContent}
+            placeholder="ابدأ الكتابة... استخدم الشريط لتنسيق النص وإضافة قوائم وصور."
+            onAddAttachment={(file) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                setAttachments((prev) => [
+                  ...prev,
+                  { id: `a_${Date.now()}`, name: file.name, type: file.type, size: file.size, dataUrl: reader.result as string },
+                ]);
+              };
+              reader.readAsDataURL(file);
+            }}
           />
+          {attachments.length > 0 && (
+            <p className="text-xs text-muted-foreground">📎 {attachments.length} مرفق سيتم حفظه مع الملاحظة</p>
+          )}
           <button
             onClick={() => {
               if (!title.trim()) return;
-              const id = actions.addNote({ title: title.trim(), content: content.trim(), categoryId, emoji: "📝" });
+              const id = actions.addNote({
+                title: title.trim(),
+                content: content.trim(),
+                categoryId,
+                emoji: "📝",
+                attachments: attachments.length ? attachments : undefined,
+                hasAttachment: attachments.length > 0,
+              });
               router.navigate({ to: "/notes/$id", params: { id } });
             }}
             className="w-full rounded-2xl gradient-primary py-3.5 text-sm font-bold text-primary-foreground shadow-fab"

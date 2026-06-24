@@ -11,7 +11,7 @@ export type Category = {
 export type Note = {
   id: string;
   title: string;
-  content: string;
+  content: string; // HTML (TipTap)
   categoryId: string;
   pinned?: boolean;
   favorite?: boolean;
@@ -19,6 +19,15 @@ export type Note = {
   updatedAt: number;
   hasAttachment?: boolean;
   emoji?: string;
+  attachments?: Attachment[];
+};
+
+export type Attachment = {
+  id: string;
+  name: string;
+  type: string; // mime
+  size: number;
+  dataUrl: string; // base64
 };
 
 export type Task = {
