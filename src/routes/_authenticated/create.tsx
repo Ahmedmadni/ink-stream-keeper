@@ -166,33 +166,72 @@ function FormHeader({ title, onBack }: { title: string; onBack: () => void }) {
 function TaskForm({ onDone }: { onDone: () => void }) {
   const addTask = useAddTask();
   const [title, setTitle] = useState("");
+  const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [time, setTime] = useState("");
   const [priority, setPriority] = useState<"low" | "med" | "high">("med");
+  const [reminderOffset, setReminderOffset] = useState<string>("none");
+  const [recurrence, setRecurrence] = useState<"none" | "daily" | "weekly" | "monthly">("none");
 
   return (
     <div className="space-y-3 px-5 pt-4">
       <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="عنوان المهمة..." className="w-full rounded-2xl bg-card px-4 py-3 text-lg font-bold outline-none shadow-card placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary" />
       <div className="grid grid-cols-2 gap-3">
-        <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="rounded-2xl bg-card px-4 py-3 text-sm outline-none shadow-card" />
+        <label className="rounded-2xl bg-card px-4 py-3 text-xs shadow-card">
+          <span className="block text-[10px] font-bold text-muted-foreground">التاريخ</span>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full bg-transparent text-sm outline-none" />
+        </label>
+        <label className="rounded-2xl bg-card px-4 py-3 text-xs shadow-card">
+          <span className="block text-[10px] font-bold text-muted-foreground">الوقت</span>
+          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full bg-transparent text-sm outline-none" />
+        </label>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
         <select value={priority} onChange={(e) => setPriority(e.target.value as "low" | "med" | "high")} className="rounded-2xl bg-card px-4 py-3 text-sm font-semibold outline-none shadow-card">
           <option value="low">أولوية منخفضة</option>
           <option value="med">أولوية متوسطة</option>
           <option value="high">أولوية عالية</option>
         </select>
+        <select value={recurrence} onChange={(e) => setRecurrence(e.target.value as typeof recurrence)} className="rounded-2xl bg-card px-4 py-3 text-sm font-semibold outline-none shadow-card">
+          <option value="none">بدون تكرار</option>
+          <option value="daily">يوميًا</option>
+          <option value="weekly">أسبوعيًا</option>
+          <option value="monthly">شهريًا</option>
+        </select>
       </div>
+      <select
+        value={reminderOffset}
+        onChange={(e) => setReminderOffset(e.target.value)}
+        disabled={!time}
+        className="w-full rounded-2xl bg-card px-4 py-3 text-sm font-semibold outline-none shadow-card disabled:opacity-60"
+      >
+        <option value="none">بدون تذكير</option>
+        <option value="0">عند الموعد</option>
+        <option value="5">قبل 5 دقائق</option>
+        <option value="15">قبل 15 دقيقة</option>
+        <option value="30">قبل 30 دقيقة</option>
+        <option value="60">قبل ساعة</option>
+        <option value="1440">قبل يوم</option>
+      </select>
       {addTask.error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive">{(addTask.error as Error).message}</p>}
       <button
         disabled={addTask.isPending}
         onClick={async () => {
           if (!title.trim()) return;
           let due_at: string | null = null;
+          let reminder_at: string | null = null;
           if (time) {
             const [h, m] = time.split(":").map(Number);
-            const d = new Date();
-            d.setHours(h, m, 0, 0);
+            const [y, mo, dd] = date.split("-").map(Number);
+            const d = new Date(y, mo - 1, dd, h, m, 0, 0);
             due_at = d.toISOString();
+            if (reminderOffset !== "none") {
+              reminder_at = new Date(d.getTime() - Number(reminderOffset) * 60_000).toISOString();
+              if (typeof Notification !== "undefined" && Notification.permission === "default") {
+                Notification.requestPermission().catch(() => {});
+              }
+            }
           }
-          await addTask.mutateAsync({ title: title.trim(), due_at, priority });
+          await addTask.mutateAsync({ title: title.trim(), due_at, reminder_at, priority, recurrence });
           onDone();
         }}
         className="grid w-full place-items-center rounded-2xl gradient-primary py-3.5 text-sm font-bold text-primary-foreground shadow-fab disabled:opacity-70"
