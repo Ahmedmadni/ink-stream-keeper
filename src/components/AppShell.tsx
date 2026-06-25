@@ -1,6 +1,7 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { Home, NotebookText, CheckSquare, Settings, Plus, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
+import { useTaskReminders } from "@/hooks/use-task-reminders";
 
 type NavItem = {
   to: "/" | "/notes" | "/create" | "/tasks" | "/vault" | "/settings";
@@ -20,6 +21,7 @@ const nav: NavItem[] = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
+  useTaskReminders();
   return (
     <div className="min-h-dvh bg-background text-foreground">
       <div className="mx-auto max-w-md pb-28">{children}</div>
