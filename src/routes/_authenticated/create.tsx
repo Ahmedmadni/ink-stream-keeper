@@ -42,9 +42,9 @@ function CreatePage() {
           if (shop) setCategoryId(shop.id);
           setMode("note");
       } },
-      { icon: Pencil, label: "رسم حر", desc: "لوحة رسم بالأصابع", onClick: () => setMode("draw") },
-      { icon: ImageIcon, label: "إدراج صورة", desc: "من المعرض أو الكاميرا", onClick: () => setMode("image") },
-      { icon: Mic, label: "تسجيل صوتي", desc: "ملاحظة صوتية", onClick: () => setMode("voice") },
+      { icon: Pencil, label: "رسم حر", desc: "لوحة رسم بالأصابع", onClick: () => setMode("draw"), disabled: false },
+      { icon: ImageIcon, label: "إدراج صورة", desc: "من المعرض أو الكاميرا", onClick: () => setMode("image"), disabled: false },
+      { icon: Mic, label: "تسجيل صوتي", desc: "ملاحظة صوتية", onClick: () => setMode("voice"), disabled: false },
     ];
     return (
       <AppShell>
