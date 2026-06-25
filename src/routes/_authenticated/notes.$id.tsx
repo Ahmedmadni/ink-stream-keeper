@@ -125,21 +125,33 @@ function NoteDetail() {
               <Paperclip className="size-4 text-primary" /> المرفقات ({attachments.length})
             </h2>
             <ul className="space-y-2">
-              {attachments.map((a) => (
-                <li key={a.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 rounded-2xl bg-card p-3 shadow-card">
-                  {a.mime_type.startsWith("image/") && a.url ? (
-                    <img src={a.url} alt={a.name} className="size-12 rounded-lg object-cover" />
-                  ) : (
-                    <div className="grid size-12 place-items-center rounded-lg bg-primary-soft text-primary"><FileText className="size-5" /></div>
-                  )}
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{a.name}</p>
-                    <p className="text-[11px] text-muted-foreground">{formatSize(a.size_bytes)}</p>
-                  </div>
-                  <a href={a.url} target="_blank" rel="noreferrer" download={a.name} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:text-primary" aria-label="تنزيل"><Download className="size-4" /></a>
-                  <button onClick={() => removeAtt.mutate({ id: a.id, noteId: note.id, path: a.storage_path })} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:text-destructive" aria-label="حذف"><X className="size-4" /></button>
-                </li>
-              ))}
+              {attachments.map((a) => {
+                const isImage = a.mime_type.startsWith("image/");
+                const isAudio = a.mime_type.startsWith("audio/");
+                return (
+                  <li key={a.id} className="rounded-2xl bg-card p-3 shadow-card">
+                    {isImage && a.url && (
+                      <a href={a.url} target="_blank" rel="noreferrer" className="mb-3 block overflow-hidden rounded-xl">
+                        <img src={a.url} alt={a.name} className="max-h-[400px] w-full object-contain" />
+                      </a>
+                    )}
+                    {isAudio && a.url && (
+                      <audio src={a.url} controls className="mb-3 w-full" />
+                    )}
+                    <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3">
+                      <div className="grid size-10 place-items-center rounded-lg bg-primary-soft text-primary">
+                        <FileText className="size-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold">{a.name}</p>
+                        <p className="text-[11px] text-muted-foreground">{formatSize(a.size_bytes)}</p>
+                      </div>
+                      <a href={a.url} target="_blank" rel="noreferrer" download={a.name} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:text-primary" aria-label="تنزيل"><Download className="size-4" /></a>
+                      <button onClick={() => removeAtt.mutate({ id: a.id, noteId: note.id, path: a.storage_path })} className="grid size-9 place-items-center rounded-lg text-muted-foreground hover:text-destructive" aria-label="حذف"><X className="size-4" /></button>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </section>
         )}
