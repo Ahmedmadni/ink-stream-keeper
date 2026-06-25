@@ -177,6 +177,8 @@ export type Database = {
           due_at: string | null
           id: string
           priority: string
+          recurrence: string
+          reminder_at: string | null
           title: string
           updated_at: string
           user_id: string
@@ -189,6 +191,8 @@ export type Database = {
           due_at?: string | null
           id?: string
           priority?: string
+          recurrence?: string
+          reminder_at?: string | null
           title: string
           updated_at?: string
           user_id: string
@@ -201,6 +205,8 @@ export type Database = {
           due_at?: string | null
           id?: string
           priority?: string
+          recurrence?: string
+          reminder_at?: string | null
           title?: string
           updated_at?: string
           user_id?: string
