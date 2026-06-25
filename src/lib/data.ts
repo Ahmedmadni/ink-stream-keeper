@@ -39,6 +39,8 @@ export type Task = {
   description: string | null;
   done: boolean;
   due_at: string | null;
+  reminder_at: string | null;
+  recurrence: "none" | "daily" | "weekly" | "monthly";
   priority: "low" | "med" | "high";
   created_at: string;
   updated_at: string;
@@ -226,12 +228,21 @@ export function useDeleteNote() {
 export function useAddTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { title: string; due_at?: string | null; priority?: "low" | "med" | "high"; category_id?: string | null }) => {
+    mutationFn: async (input: {
+      title: string;
+      due_at?: string | null;
+      reminder_at?: string | null;
+      recurrence?: "none" | "daily" | "weekly" | "monthly";
+      priority?: "low" | "med" | "high";
+      category_id?: string | null;
+    }) => {
       const uid = await currentUserId();
       const { error } = await supabase.from("tasks").insert({
         user_id: uid,
         title: input.title,
         due_at: input.due_at ?? null,
+        reminder_at: input.reminder_at ?? null,
+        recurrence: input.recurrence ?? "none",
         priority: input.priority ?? "med",
         category_id: input.category_id ?? null,
       });
@@ -244,12 +255,34 @@ export function useAddTask() {
 export function useToggleTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, done }: { id: string; done: boolean }) => {
+    mutationFn: async ({ id, done, task }: { id: string; done: boolean; task?: Task }) => {
+      // Recurring + completing → advance due_at/reminder_at to next occurrence
+      if (done && task && task.recurrence !== "none" && task.due_at) {
+        const next = advanceDate(new Date(task.due_at), task.recurrence);
+        const nextReminder = task.reminder_at
+          ? new Date(next.getTime() - (new Date(task.due_at).getTime() - new Date(task.reminder_at).getTime())).toISOString()
+          : null;
+        const { error } = await supabase.from("tasks").update({
+          due_at: next.toISOString(),
+          reminder_at: nextReminder,
+          done: false,
+        }).eq("id", id);
+        if (error) throw error;
+        return;
+      }
       const { error } = await supabase.from("tasks").update({ done }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.tasks }),
   });
+}
+
+function advanceDate(d: Date, rec: "daily" | "weekly" | "monthly" | "none"): Date {
+  const out = new Date(d);
+  if (rec === "daily") out.setDate(out.getDate() + 1);
+  else if (rec === "weekly") out.setDate(out.getDate() + 7);
+  else if (rec === "monthly") out.setMonth(out.getMonth() + 1);
+  return out;
 }
 
 export function useDeleteTask() {
