@@ -1,6 +1,10 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
-import { ArrowRight, NotebookPen, CheckSquare, ShoppingCart, Pencil, Image as ImageIcon, Mic, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  ArrowRight, NotebookPen, CheckSquare, ShoppingCart, Pencil,
+  Image as ImageIcon, Mic, Loader2, Eraser, Trash, Camera,
+  Play, Pause, Square, RotateCcw,
+} from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { useAddNote, useAddTask, useCategories, useUploadAttachment } from "@/lib/data";
 import { RichEditor } from "@/components/RichEditor";
@@ -15,7 +19,7 @@ export const Route = createFileRoute("/_authenticated/create")({
   component: CreatePage,
 });
 
-type Mode = "menu" | "note" | "task";
+type Mode = "menu" | "note" | "task" | "image" | "draw" | "voice";
 
 function CreatePage() {
   const [mode, setMode] = useState<Mode>("menu");
@@ -38,9 +42,9 @@ function CreatePage() {
           if (shop) setCategoryId(shop.id);
           setMode("note");
       } },
-      { icon: Pencil, label: "رسم حر", desc: "قريباً", onClick: () => {}, disabled: true },
-      { icon: ImageIcon, label: "إدراج صورة", desc: "قريباً", onClick: () => {}, disabled: true },
-      { icon: Mic, label: "تسجيل صوتي", desc: "قريباً", onClick: () => {}, disabled: true },
+      { icon: Pencil, label: "رسم حر", desc: "لوحة رسم بالأصابع", onClick: () => setMode("draw") },
+      { icon: ImageIcon, label: "إدراج صورة", desc: "من المعرض أو الكاميرا", onClick: () => setMode("image") },
+      { icon: Mic, label: "تسجيل صوتي", desc: "ملاحظة صوتية", onClick: () => setMode("voice") },
     ];
     return (
       <AppShell>
@@ -109,6 +113,33 @@ function CreatePage() {
             {addNote.isPending ? <Loader2 className="size-5 animate-spin" /> : "حفظ الملاحظة"}
           </button>
         </div>
+      </AppShell>
+    );
+  }
+
+  if (mode === "image") {
+    return (
+      <AppShell>
+        <FormHeader title="ملاحظة صورة" onBack={() => setMode("menu")} />
+        <ImageNoteForm onDone={(id) => router.navigate({ to: "/notes/$id", params: { id } })} />
+      </AppShell>
+    );
+  }
+
+  if (mode === "draw") {
+    return (
+      <AppShell>
+        <FormHeader title="رسم حر" onBack={() => setMode("menu")} />
+        <DrawForm onDone={(id) => router.navigate({ to: "/notes/$id", params: { id } })} />
+      </AppShell>
+    );
+  }
+
+  if (mode === "voice") {
+    return (
+      <AppShell>
+        <FormHeader title="تسجيل صوتي" onBack={() => setMode("menu")} />
+        <VoiceForm onDone={(id) => router.navigate({ to: "/notes/$id", params: { id } })} />
       </AppShell>
     );
   }
