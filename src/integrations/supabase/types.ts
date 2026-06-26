@@ -88,6 +88,72 @@ export type Database = {
         }
         Relationships: []
       }
+      item_attachments: {
+        Row: {
+          created_at: string
+          id: string
+          item_id: string
+          item_type: string
+          mime_type: string
+          name: string
+          size_bytes: number
+          storage_path: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_id: string
+          item_type: string
+          mime_type: string
+          name: string
+          size_bytes: number
+          storage_path: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_id?: string
+          item_type?: string
+          mime_type?: string
+          name?: string
+          size_bytes?: number
+          storage_path?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      item_comments: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          item_id: string
+          item_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          item_id: string
+          item_type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          item_id?: string
+          item_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       notes: {
         Row: {
           archived: boolean
@@ -168,6 +234,91 @@ export type Database = {
         }
         Relationships: []
       }
+      subtasks: {
+        Row: {
+          created_at: string
+          done: boolean
+          due_at: string | null
+          id: string
+          sort_order: number
+          task_id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          done?: boolean
+          due_at?: string | null
+          id?: string
+          sort_order?: number
+          task_id: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          done?: boolean
+          due_at?: string | null
+          id?: string
+          sort_order?: number
+          task_id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subtasks_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_checklist: {
+        Row: {
+          created_at: string
+          done: boolean
+          id: string
+          sort_order: number
+          task_id: string
+          text: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          done?: boolean
+          id?: string
+          sort_order?: number
+          task_id: string
+          text: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          done?: boolean
+          id?: string
+          sort_order?: number
+          task_id?: string
+          text?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_checklist_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           category_id: string | null
@@ -176,9 +327,15 @@ export type Database = {
           done: boolean
           due_at: string | null
           id: string
+          links: string[]
+          notes: string | null
           priority: string
+          progress: number
           recurrence: string
           reminder_at: string | null
+          start_at: string | null
+          status: string
+          tags: string[]
           title: string
           updated_at: string
           user_id: string
@@ -190,9 +347,15 @@ export type Database = {
           done?: boolean
           due_at?: string | null
           id?: string
+          links?: string[]
+          notes?: string | null
           priority?: string
+          progress?: number
           recurrence?: string
           reminder_at?: string | null
+          start_at?: string | null
+          status?: string
+          tags?: string[]
           title: string
           updated_at?: string
           user_id: string
@@ -204,9 +367,15 @@ export type Database = {
           done?: boolean
           due_at?: string | null
           id?: string
+          links?: string[]
+          notes?: string | null
           priority?: string
+          progress?: number
           recurrence?: string
           reminder_at?: string | null
+          start_at?: string | null
+          status?: string
+          tags?: string[]
           title?: string
           updated_at?: string
           user_id?: string

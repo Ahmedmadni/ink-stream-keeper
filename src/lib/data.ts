@@ -44,6 +44,44 @@ export type Task = {
   priority: "low" | "med" | "high";
   created_at: string;
   updated_at: string;
+  status?: "todo" | "in_progress" | "blocked" | "done";
+  start_at?: string | null;
+  progress?: number;
+  tags?: string[];
+  links?: string[];
+  notes?: string | null;
+};
+
+export type TaskExt = Task & {
+  status: "todo" | "in_progress" | "blocked" | "done";
+  start_at: string | null;
+  progress: number;
+  tags: string[];
+  links: string[];
+  notes: string | null;
+};
+
+export type ChecklistItem = {
+  id: string;
+  user_id: string;
+  task_id: string;
+  text: string;
+  done: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Subtask = {
+  id: string;
+  user_id: string;
+  task_id: string;
+  title: string;
+  done: boolean;
+  due_at: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
 };
 
 export type Profile = {
@@ -74,6 +112,9 @@ export const keys = {
   note: (id: string) => ["notes", id] as const,
   attachments: (noteId: string) => ["attachments", noteId] as const,
   tasks: ["tasks"] as const,
+  task: (id: string) => ["tasks", id] as const,
+  checklist: (taskId: string) => ["task_checklist", taskId] as const,
+  subtasks: (taskId: string) => ["subtasks", taskId] as const,
 };
 
 export const categoriesQuery = queryOptions({
@@ -364,3 +405,143 @@ export function useDeleteAttachment() {
 }
 
 export function tsOf(s: string): number { return new Date(s).getTime(); }
+
+// ----------------- task detail / checklist / subtasks -----------------
+
+export function useTask(id: string) {
+  return useQuery({
+    queryKey: keys.task(id),
+    queryFn: async (): Promise<TaskExt | null> => {
+      const { data, error } = await supabase.from("tasks").select("*").eq("id", id).maybeSingle();
+      if (error) throw error;
+      return (data as TaskExt | null) ?? null;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useUpdateTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, patch }: { id: string; patch: Partial<TaskExt> }) => {
+      const { error } = await supabase.from("tasks").update(patch).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: keys.tasks });
+      qc.invalidateQueries({ queryKey: keys.task(vars.id) });
+    },
+  });
+}
+
+export function useChecklist(taskId: string) {
+  return useQuery({
+    queryKey: keys.checklist(taskId),
+    queryFn: async (): Promise<ChecklistItem[]> => {
+      const { data, error } = await supabase
+        .from("task_checklist")
+        .select("*")
+        .eq("task_id", taskId)
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as ChecklistItem[];
+    },
+    enabled: !!taskId,
+  });
+}
+
+export function useAddChecklistItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ taskId, text, sort }: { taskId: string; text: string; sort: number }) => {
+      const uid = await currentUserId();
+      const { error } = await supabase.from("task_checklist").insert({
+        user_id: uid, task_id: taskId, text, sort_order: sort,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: keys.checklist(vars.taskId) }),
+  });
+}
+
+export function useUpdateChecklistItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, patch }: { id: string; taskId: string; patch: Partial<ChecklistItem> }) => {
+      const { error } = await supabase.from("task_checklist").update(patch).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: keys.checklist(vars.taskId) }),
+  });
+}
+
+export function useDeleteChecklistItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: string; taskId: string }) => {
+      const { error } = await supabase.from("task_checklist").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: keys.checklist(vars.taskId) }),
+  });
+}
+
+export function useSubtasks(taskId: string) {
+  return useQuery({
+    queryKey: keys.subtasks(taskId),
+    queryFn: async (): Promise<Subtask[]> => {
+      const { data, error } = await supabase
+        .from("subtasks")
+        .select("*")
+        .eq("task_id", taskId)
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as Subtask[];
+    },
+    enabled: !!taskId,
+  });
+}
+
+export function useAddSubtask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ taskId, title, sort }: { taskId: string; title: string; sort: number }) => {
+      const uid = await currentUserId();
+      const { error } = await supabase.from("subtasks").insert({
+        user_id: uid, task_id: taskId, title, sort_order: sort,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: keys.subtasks(vars.taskId) }),
+  });
+}
+
+export function useUpdateSubtask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, patch }: { id: string; taskId: string; patch: Partial<Subtask> }) => {
+      const { error } = await supabase.from("subtasks").update(patch).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: keys.subtasks(vars.taskId) }),
+  });
+}
+
+export function useDeleteSubtask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: string; taskId: string }) => {
+      const { error } = await supabase.from("subtasks").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: keys.subtasks(vars.taskId) }),
+  });
+}
+
+/** Auto progress = (#done checklist + #done subtasks) / total. Returns 0..100. */
+export function computeProgress(checklist: ChecklistItem[], subs: Subtask[]): number {
+  const total = checklist.length + subs.length;
+  if (total === 0) return 0;
+  const done = checklist.filter(c => c.done).length + subs.filter(s => s.done).length;
+  return Math.round((done / total) * 100);
+}
