@@ -46,6 +46,38 @@ export type Task = {
   updated_at: string;
 };
 
+export type TaskExt = Task & {
+  status: "todo" | "in_progress" | "blocked" | "done";
+  start_at: string | null;
+  progress: number;
+  tags: string[];
+  links: string[];
+  notes: string | null;
+};
+
+export type ChecklistItem = {
+  id: string;
+  user_id: string;
+  task_id: string;
+  text: string;
+  done: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Subtask = {
+  id: string;
+  user_id: string;
+  task_id: string;
+  title: string;
+  done: boolean;
+  due_at: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Profile = {
   id: string;
   display_name: string | null;
@@ -74,6 +106,9 @@ export const keys = {
   note: (id: string) => ["notes", id] as const,
   attachments: (noteId: string) => ["attachments", noteId] as const,
   tasks: ["tasks"] as const,
+  task: (id: string) => ["tasks", id] as const,
+  checklist: (taskId: string) => ["task_checklist", taskId] as const,
+  subtasks: (taskId: string) => ["subtasks", taskId] as const,
 };
 
 export const categoriesQuery = queryOptions({
