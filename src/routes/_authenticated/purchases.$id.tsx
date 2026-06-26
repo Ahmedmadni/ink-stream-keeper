@@ -78,6 +78,7 @@ function PurchaseDetail() {
   ];
 
   async function onDeleteList() {
+    if (!list) return;
     if (!confirm("حذف القائمة كاملة؟")) return;
     await deleteList.mutateAsync(list.id);
     router.navigate({ to: "/purchases" });
