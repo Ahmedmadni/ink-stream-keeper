@@ -44,6 +44,12 @@ export type Task = {
   priority: "low" | "med" | "high";
   created_at: string;
   updated_at: string;
+  status?: "todo" | "in_progress" | "blocked" | "done";
+  start_at?: string | null;
+  progress?: number;
+  tags?: string[];
+  links?: string[];
+  notes?: string | null;
 };
 
 export type TaskExt = Task & {
