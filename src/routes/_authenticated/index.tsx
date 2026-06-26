@@ -5,6 +5,8 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { useCategories, useNotes, useProfile, useTasks, tsOf, type Category, type Note } from "@/lib/data";
+import { usePurchaseLists, useAllPurchaseStats } from "@/lib/purchases";
+import { formatCurrency } from "@/lib/item-types";
 import { formatRelative, greeting, plainTextFromHtml } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/")({
@@ -36,6 +38,8 @@ function Index() {
   const { data: notes = [] } = useNotes();
   const { data: tasks = [] } = useTasks();
   const { data: categories = [] } = useCategories();
+  const { data: purchaseLists = [] } = usePurchaseLists();
+  const { data: purchaseStats = [] } = useAllPurchaseStats();
 
   const ideasCat = categories.find((c) => c.name === "أفكار");
   const stats = {
