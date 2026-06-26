@@ -16,9 +16,11 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedVaultRouteImport } from './routes/_authenticated/vault'
 import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/tasks'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedPurchasesRouteImport } from './routes/_authenticated/purchases'
 import { Route as AuthenticatedNotesRouteImport } from './routes/_authenticated/notes'
 import { Route as AuthenticatedCreateRouteImport } from './routes/_authenticated/create'
 import { Route as AuthenticatedTasksIdRouteImport } from './routes/_authenticated/tasks.$id'
+import { Route as AuthenticatedPurchasesIdRouteImport } from './routes/_authenticated/purchases.$id'
 import { Route as AuthenticatedNotesIdRouteImport } from './routes/_authenticated/notes.$id'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -55,6 +57,11 @@ const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedPurchasesRoute = AuthenticatedPurchasesRouteImport.update({
+  id: '/purchases',
+  path: '/purchases',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedNotesRoute = AuthenticatedNotesRouteImport.update({
   id: '/notes',
   path: '/notes',
@@ -70,6 +77,12 @@ const AuthenticatedTasksIdRoute = AuthenticatedTasksIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => AuthenticatedTasksRoute,
 } as any)
+const AuthenticatedPurchasesIdRoute =
+  AuthenticatedPurchasesIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => AuthenticatedPurchasesRoute,
+  } as any)
 const AuthenticatedNotesIdRoute = AuthenticatedNotesIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -82,10 +95,12 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/create': typeof AuthenticatedCreateRoute
   '/notes': typeof AuthenticatedNotesRouteWithChildren
+  '/purchases': typeof AuthenticatedPurchasesRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRoute
   '/tasks': typeof AuthenticatedTasksRouteWithChildren
   '/vault': typeof AuthenticatedVaultRoute
   '/notes/$id': typeof AuthenticatedNotesIdRoute
+  '/purchases/$id': typeof AuthenticatedPurchasesIdRoute
   '/tasks/$id': typeof AuthenticatedTasksIdRoute
 }
 export interface FileRoutesByTo {
@@ -93,11 +108,13 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/create': typeof AuthenticatedCreateRoute
   '/notes': typeof AuthenticatedNotesRouteWithChildren
+  '/purchases': typeof AuthenticatedPurchasesRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRoute
   '/tasks': typeof AuthenticatedTasksRouteWithChildren
   '/vault': typeof AuthenticatedVaultRoute
   '/': typeof AuthenticatedIndexRoute
   '/notes/$id': typeof AuthenticatedNotesIdRoute
+  '/purchases/$id': typeof AuthenticatedPurchasesIdRoute
   '/tasks/$id': typeof AuthenticatedTasksIdRoute
 }
 export interface FileRoutesById {
@@ -107,11 +124,13 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_authenticated/create': typeof AuthenticatedCreateRoute
   '/_authenticated/notes': typeof AuthenticatedNotesRouteWithChildren
+  '/_authenticated/purchases': typeof AuthenticatedPurchasesRouteWithChildren
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/tasks': typeof AuthenticatedTasksRouteWithChildren
   '/_authenticated/vault': typeof AuthenticatedVaultRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/notes/$id': typeof AuthenticatedNotesIdRoute
+  '/_authenticated/purchases/$id': typeof AuthenticatedPurchasesIdRoute
   '/_authenticated/tasks/$id': typeof AuthenticatedTasksIdRoute
 }
 export interface FileRouteTypes {
@@ -122,10 +141,12 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/create'
     | '/notes'
+    | '/purchases'
     | '/settings'
     | '/tasks'
     | '/vault'
     | '/notes/$id'
+    | '/purchases/$id'
     | '/tasks/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -133,11 +154,13 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/create'
     | '/notes'
+    | '/purchases'
     | '/settings'
     | '/tasks'
     | '/vault'
     | '/'
     | '/notes/$id'
+    | '/purchases/$id'
     | '/tasks/$id'
   id:
     | '__root__'
@@ -146,11 +169,13 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/_authenticated/create'
     | '/_authenticated/notes'
+    | '/_authenticated/purchases'
     | '/_authenticated/settings'
     | '/_authenticated/tasks'
     | '/_authenticated/vault'
     | '/_authenticated/'
     | '/_authenticated/notes/$id'
+    | '/_authenticated/purchases/$id'
     | '/_authenticated/tasks/$id'
   fileRoutesById: FileRoutesById
 }
@@ -211,6 +236,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/purchases': {
+      id: '/_authenticated/purchases'
+      path: '/purchases'
+      fullPath: '/purchases'
+      preLoaderRoute: typeof AuthenticatedPurchasesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/notes': {
       id: '/_authenticated/notes'
       path: '/notes'
@@ -231,6 +263,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/tasks/$id'
       preLoaderRoute: typeof AuthenticatedTasksIdRouteImport
       parentRoute: typeof AuthenticatedTasksRoute
+    }
+    '/_authenticated/purchases/$id': {
+      id: '/_authenticated/purchases/$id'
+      path: '/$id'
+      fullPath: '/purchases/$id'
+      preLoaderRoute: typeof AuthenticatedPurchasesIdRouteImport
+      parentRoute: typeof AuthenticatedPurchasesRoute
     }
     '/_authenticated/notes/$id': {
       id: '/_authenticated/notes/$id'
@@ -253,6 +292,20 @@ const AuthenticatedNotesRouteChildren: AuthenticatedNotesRouteChildren = {
 const AuthenticatedNotesRouteWithChildren =
   AuthenticatedNotesRoute._addFileChildren(AuthenticatedNotesRouteChildren)
 
+interface AuthenticatedPurchasesRouteChildren {
+  AuthenticatedPurchasesIdRoute: typeof AuthenticatedPurchasesIdRoute
+}
+
+const AuthenticatedPurchasesRouteChildren: AuthenticatedPurchasesRouteChildren =
+  {
+    AuthenticatedPurchasesIdRoute: AuthenticatedPurchasesIdRoute,
+  }
+
+const AuthenticatedPurchasesRouteWithChildren =
+  AuthenticatedPurchasesRoute._addFileChildren(
+    AuthenticatedPurchasesRouteChildren,
+  )
+
 interface AuthenticatedTasksRouteChildren {
   AuthenticatedTasksIdRoute: typeof AuthenticatedTasksIdRoute
 }
@@ -267,6 +320,7 @@ const AuthenticatedTasksRouteWithChildren =
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedCreateRoute: typeof AuthenticatedCreateRoute
   AuthenticatedNotesRoute: typeof AuthenticatedNotesRouteWithChildren
+  AuthenticatedPurchasesRoute: typeof AuthenticatedPurchasesRouteWithChildren
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTasksRoute: typeof AuthenticatedTasksRouteWithChildren
   AuthenticatedVaultRoute: typeof AuthenticatedVaultRoute
@@ -276,6 +330,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCreateRoute: AuthenticatedCreateRoute,
   AuthenticatedNotesRoute: AuthenticatedNotesRouteWithChildren,
+  AuthenticatedPurchasesRoute: AuthenticatedPurchasesRouteWithChildren,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTasksRoute: AuthenticatedTasksRouteWithChildren,
   AuthenticatedVaultRoute: AuthenticatedVaultRoute,

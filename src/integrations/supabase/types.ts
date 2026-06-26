@@ -234,6 +234,140 @@ export type Database = {
         }
         Relationships: []
       }
+      purchase_items: {
+        Row: {
+          actual_price: number | null
+          barcode: string | null
+          brand: string | null
+          created_at: string
+          expected_price: number
+          id: string
+          image_url: string | null
+          notes: string | null
+          purchase_list_id: string
+          purchased: boolean
+          purchased_at: string | null
+          quantity: number
+          sort_order: number
+          store_name: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          actual_price?: number | null
+          barcode?: string | null
+          brand?: string | null
+          created_at?: string
+          expected_price?: number
+          id?: string
+          image_url?: string | null
+          notes?: string | null
+          purchase_list_id: string
+          purchased?: boolean
+          purchased_at?: string | null
+          quantity?: number
+          sort_order?: number
+          store_name?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          actual_price?: number | null
+          barcode?: string | null
+          brand?: string | null
+          created_at?: string
+          expected_price?: number
+          id?: string
+          image_url?: string | null
+          notes?: string | null
+          purchase_list_id?: string
+          purchased?: boolean
+          purchased_at?: string | null
+          quantity?: number
+          sort_order?: number
+          store_name?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_items_purchase_list_id_fkey"
+            columns: ["purchase_list_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_list_stats"
+            referencedColumns: ["purchase_list_id"]
+          },
+          {
+            foreignKeyName: "purchase_items_purchase_list_id_fkey"
+            columns: ["purchase_list_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_lists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_lists: {
+        Row: {
+          budget: number
+          category_id: string | null
+          created_at: string
+          currency: string
+          description: string | null
+          end_date: string | null
+          id: string
+          notes: string | null
+          priority: string
+          start_date: string | null
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          budget?: number
+          category_id?: string | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          notes?: string | null
+          priority?: string
+          start_date?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          budget?: number
+          category_id?: string | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          notes?: string | null
+          priority?: string
+          start_date?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_lists_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subtasks: {
         Row: {
           created_at: string
@@ -499,7 +633,19 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      purchase_list_stats: {
+        Row: {
+          actual_total: number | null
+          expected_total: number | null
+          items_count: number | null
+          progress: number | null
+          purchase_list_id: string | null
+          purchased_count: number | null
+          remaining_amount: number | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
