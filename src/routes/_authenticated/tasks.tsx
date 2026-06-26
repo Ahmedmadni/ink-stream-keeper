@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Search, Filter, Check, Bell, Repeat, CalendarDays, List, ChevronRight, ChevronLeft } from "lucide-react";
 import { AppShell, PageHeader } from "@/components/AppShell";
@@ -100,12 +100,13 @@ function TasksPage() {
 function TaskRow({ task, onToggle }: { task: Task; onToggle: () => void }) {
   const dot = task.priority === "high" ? "bg-destructive" : task.priority === "med" ? "bg-warning" : "bg-success";
   const recLabel = task.recurrence === "daily" ? "يومي" : task.recurrence === "weekly" ? "أسبوعي" : task.recurrence === "monthly" ? "شهري" : null;
+  const progress = task.progress ?? 0;
   return (
     <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl bg-card p-4 shadow-card">
       <button onClick={onToggle} className={`grid size-6 shrink-0 place-items-center rounded-md border-2 transition-colors ${task.done ? "border-primary bg-primary text-primary-foreground" : "border-border bg-transparent"}`} aria-label={task.done ? "إلغاء الإنجاز" : "إنجاز"}>
         {task.done && <Check className="size-4" strokeWidth={3} />}
       </button>
-      <div className="min-w-0">
+      <Link to="/tasks/$id" params={{ id: task.id }} className="min-w-0 block">
         <p className={`truncate text-sm font-bold ${task.done ? "text-muted-foreground line-through" : ""}`}>{task.title}</p>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
           {task.due_at && <span className="text-primary">{formatTime(tsOf(task.due_at))}</span>}
@@ -115,8 +116,16 @@ function TaskRow({ task, onToggle }: { task: Task; onToggle: () => void }) {
           {recLabel && (
             <span className="inline-flex items-center gap-0.5 text-muted-foreground"><Repeat className="size-3" /> {recLabel}</span>
           )}
+          {progress > 0 && !task.done && (
+            <span className="text-muted-foreground">{progress}%</span>
+          )}
         </div>
-      </div>
+        {progress > 0 && !task.done && (
+          <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-secondary">
+            <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+          </div>
+        )}
+      </Link>
       <span className={`block size-2.5 shrink-0 rounded-full ${dot}`} aria-hidden />
     </div>
   );
