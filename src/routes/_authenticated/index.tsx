@@ -114,6 +114,37 @@ function Index() {
         </div>
       </section>
 
+      {purchaseLists.length > 0 && (
+        <section className="px-5 pt-6">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-base font-bold">
+              <ShoppingCart className="size-4 text-success" /> قوائم المشتريات
+            </h2>
+            <Link to="/purchases" className="text-xs font-semibold text-primary">عرض الكل</Link>
+          </div>
+          <div className="space-y-2.5">
+            {purchaseLists.slice(0, 3).map((l) => {
+              const s = purchaseStats.find((x) => x.purchase_list_id === l.id);
+              return (
+                <Link key={l.id} to="/purchases/$id" params={{ id: l.id }}
+                      className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl bg-card p-3.5 shadow-card transition-transform active:scale-[0.98]">
+                  <span className="grid size-10 place-items-center rounded-xl bg-success/15 text-success">
+                    <ShoppingCart className="size-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold">{l.title}</p>
+                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                      {(s?.purchased_count ?? 0)}/{(s?.items_count ?? 0)} · {formatCurrency(s?.actual_total ?? 0, l.currency)} / {formatCurrency(l.budget, l.currency)}
+                    </p>
+                  </div>
+                  <span className="rounded-md bg-primary-soft px-2 py-0.5 text-[11px] font-bold text-primary">{s?.progress ?? 0}%</span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {pinned.length > 0 && (
         <section className="px-5 pt-6">
           <h2 className="mb-3 flex items-center gap-2 text-base font-bold">
