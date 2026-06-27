@@ -22,6 +22,7 @@ import { Route as AuthenticatedCreateRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedTasksIdRouteImport } from './routes/_authenticated/tasks.$id'
 import { Route as AuthenticatedPurchasesIdRouteImport } from './routes/_authenticated/purchases.$id'
 import { Route as AuthenticatedNotesIdRouteImport } from './routes/_authenticated/notes.$id'
+import { Route as AuthenticatedItemsNewTypeRouteImport } from './routes/_authenticated/items.new.$type'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -88,6 +89,12 @@ const AuthenticatedNotesIdRoute = AuthenticatedNotesIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => AuthenticatedNotesRoute,
 } as any)
+const AuthenticatedItemsNewTypeRoute =
+  AuthenticatedItemsNewTypeRouteImport.update({
+    id: '/items/new/$type',
+    path: '/items/new/$type',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -102,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/notes/$id': typeof AuthenticatedNotesIdRoute
   '/purchases/$id': typeof AuthenticatedPurchasesIdRoute
   '/tasks/$id': typeof AuthenticatedTasksIdRoute
+  '/items/new/$type': typeof AuthenticatedItemsNewTypeRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -116,6 +124,7 @@ export interface FileRoutesByTo {
   '/notes/$id': typeof AuthenticatedNotesIdRoute
   '/purchases/$id': typeof AuthenticatedPurchasesIdRoute
   '/tasks/$id': typeof AuthenticatedTasksIdRoute
+  '/items/new/$type': typeof AuthenticatedItemsNewTypeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -132,6 +141,7 @@ export interface FileRoutesById {
   '/_authenticated/notes/$id': typeof AuthenticatedNotesIdRoute
   '/_authenticated/purchases/$id': typeof AuthenticatedPurchasesIdRoute
   '/_authenticated/tasks/$id': typeof AuthenticatedTasksIdRoute
+  '/_authenticated/items/new/$type': typeof AuthenticatedItemsNewTypeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -148,6 +158,7 @@ export interface FileRouteTypes {
     | '/notes/$id'
     | '/purchases/$id'
     | '/tasks/$id'
+    | '/items/new/$type'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -162,6 +173,7 @@ export interface FileRouteTypes {
     | '/notes/$id'
     | '/purchases/$id'
     | '/tasks/$id'
+    | '/items/new/$type'
   id:
     | '__root__'
     | '/_authenticated'
@@ -177,6 +189,7 @@ export interface FileRouteTypes {
     | '/_authenticated/notes/$id'
     | '/_authenticated/purchases/$id'
     | '/_authenticated/tasks/$id'
+    | '/_authenticated/items/new/$type'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -278,6 +291,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedNotesIdRouteImport
       parentRoute: typeof AuthenticatedNotesRoute
     }
+    '/_authenticated/items/new/$type': {
+      id: '/_authenticated/items/new/$type'
+      path: '/items/new/$type'
+      fullPath: '/items/new/$type'
+      preLoaderRoute: typeof AuthenticatedItemsNewTypeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -325,6 +345,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedTasksRoute: typeof AuthenticatedTasksRouteWithChildren
   AuthenticatedVaultRoute: typeof AuthenticatedVaultRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedItemsNewTypeRoute: typeof AuthenticatedItemsNewTypeRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -335,6 +356,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedTasksRoute: AuthenticatedTasksRouteWithChildren,
   AuthenticatedVaultRoute: AuthenticatedVaultRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedItemsNewTypeRoute: AuthenticatedItemsNewTypeRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

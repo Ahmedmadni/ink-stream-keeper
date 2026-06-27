@@ -70,11 +70,11 @@ export const purchaseListSchema: ItemTypeSchema<PurchaseListRow> = {
 };
 
 export function purchaseValuesToInput(v: Record<string, unknown>) {
-  const budget = v.budget === "" || v.budget == null ? null : Number(v.budget);
+  const budget = v.budget === "" || v.budget == null ? undefined : Number(v.budget);
   return {
     title: String(v.title || "").trim(),
-    description: (v.description as string) || null,
-    store: (v.store as string) || null,
+    description: (v.description as string) || undefined,
+    store: (v.store as string) || undefined,
     budget,
     currency: (v.currency as string) || "SAR",
     status: (v.status as "active" | "completed" | "archived") || "active",
