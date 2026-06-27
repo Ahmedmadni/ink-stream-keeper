@@ -28,7 +28,6 @@ function CreatePage() {
   const { data: categories = [] } = useCategories();
   const addNote = useAddNote();
   const uploadAtt = useUploadAttachment();
-  const createPurchase = useCreatePurchaseList();
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -38,14 +37,10 @@ function CreatePage() {
   if (mode === "menu") {
     const items = [
       { icon: NotebookPen, label: "ملاحظة جديدة", desc: "نص حر مع تنسيق", onClick: () => setMode("note") },
-      { icon: CheckSquare, label: "مهمة جديدة", desc: "مع وقت وأولوية", onClick: () => setMode("task") },
-      { icon: ShoppingCart, label: "قائمة مشتريات", desc: "ميزانية ومتاجر", onClick: async () => {
-          const shop = categories.find((c) => c.name === "مشتريات");
-          const created = await createPurchase.mutateAsync({
-            title: "قائمة جديدة", category_id: shop?.id ?? null,
-          });
-          router.navigate({ to: "/purchases/$id", params: { id: created.id } });
-      } },
+      { icon: CheckSquare, label: "مهمة جديدة", desc: "نموذج ديناميكي",
+        onClick: () => router.navigate({ to: "/items/new/$type", params: { type: "task" } }) },
+      { icon: ShoppingCart, label: "قائمة مشتريات", desc: "نموذج ديناميكي",
+        onClick: () => router.navigate({ to: "/items/new/$type", params: { type: "purchase_list" } }) },
       { icon: Pencil, label: "رسم حر", desc: "لوحة رسم بالأصابع", onClick: () => setMode("draw"), disabled: false },
       { icon: ImageIcon, label: "إدراج صورة", desc: "من المعرض أو الكاميرا", onClick: () => setMode("image"), disabled: false },
       { icon: Mic, label: "تسجيل صوتي", desc: "ملاحظة صوتية", onClick: () => setMode("voice"), disabled: false },
