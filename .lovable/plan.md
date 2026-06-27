@@ -1,79 +1,81 @@
-# خطة تطوير MemoFlow إلى منصة إنتاجية احترافية
 
-التطوير سيتم على مراحل متتابعة، وفي نهاية كل مرحلة سأعرض تقريراً وأنتظر موافقتك قبل الانتقال للمرحلة التالية — كما طلبت.
+# المرحلة 3 — Dynamic Item Engine
 
----
+الهدف: بناء محرك واحد يقرأ Schema لكل نوع ويولّد تلقائياً: نموذج الإنشاء، عرض التفاصيل، بطاقات القائمة، وقواعد التحقق — بحيث لا يحتاج أي نوع جديد (Learning / Goal / Project / Travel / Maintenance) إلى صفحات مخصصة.
 
-## تحليل الوضع الحالي (موجز)
+تنفيذ **تدريجي وغير كاسر** — كل ملفات Task و Purchase List الحالية تبقى تعمل كما هي. المحرك يُبنى بجانبها ثم نحوّل أجزاء محددة فقط.
 
-**ما هو موجود ويعمل:**
-- مصادقة (Email + Google + Apple) مع طبقة `_authenticated` وملف شخصي.
-- جداول: `profiles`, `categories`, `notes`, `attachments`, `tasks`, `vault_*`.
-- ملاحظات: نص، إيموجي، تثبيت/مفضلة/أرشيف، مرفقات، صور، رسم حر، تسجيل صوتي.
-- مهام: عنوان، أولوية، استحقاق، تذكيرات، تكرار (يومي/أسبوعي/شهري)، عرض قائمة وتقويم.
-- خزنة كلمات سر مشفّرة برقم PIN.
-- تصنيفات افتراضية تُنشأ تلقائياً للمستخدم الجديد.
+## البنية المقترحة
 
-**نقاط الضعف الرئيسية:**
-- المهام بسيطة (لا checklist / sub-tasks / مرفقات / نسبة إنجاز / تواريخ بداية).
-- لا يوجد نظام مشتريات حقيقي، ولا خطط تعلم، ولا أهداف.
-- لوحة التحكم (`index`) محدودة الإحصاءات.
-- لا توجد بنية Dynamic Item Types موحّدة.
-- لا توجد تهيئة Capacitor ولا بنية إعلانات.
+```text
+src/lib/engine/
+  types.ts              # FieldType, FieldSchema, ItemTypeSchema, LayoutNode
+  registry.ts           # تسجيل الـ schemas لكل ItemTypeKey
+  validation.ts         # محرك تحقق مبني على Zod من Schema
+  schemas/
+    task.schema.ts      # تعريف Task بصيغة Schema (مع التوافق الحالي)
+    purchase.schema.ts  # تعريف Purchase List
+    purchase-item.schema.ts
 
----
+src/components/dynamic/
+  DynamicField.tsx       # يرسم حقلاً واحداً حسب type
+  DynamicSection.tsx     # عنوان + وصف + محتوى
+  DynamicForm.tsx        # Renderer كامل (Sections/Grid/Tabs/Accordion)
+  DynamicHeader.tsx      # رأس صفحة التفاصيل (أيقونة/لون/حالة)
+  DynamicStatistics.tsx  # شريط KPI من تعريف الإحصائيات
+  DynamicDetail.tsx      # عرض القراءة للحقول
+  DynamicSummaryCard.tsx # بطاقة عنصر في القائمة
+  DynamicAttachments.tsx # موحّد عبر item_attachments
+  DynamicChecklist.tsx   # يلفّ EditableChecklistRow الحالي
+  DynamicComments.tsx    # عبر item_comments
+  DynamicTimeline.tsx    # مراحل/تواريخ
+  DynamicGallery.tsx     # صور متعددة
+  fields/                # محرّرات الحقول (Text, Money, Date, Tags, …)
+```
 
-## المراحل
+## أنواع الحقول المدعومة في v1
 
-### المرحلة 1 — توحيد البنية + ترقية المهام (الأساس)
-- إضافة حقول للمهام: `description`, `status`, `start_at`, `progress`, `tags[]`, `links[]`, `notes`.
-- جدولان جديدان: `task_checklist` و `subtasks` (مع ترتيب وحالة إكمال).
-- جدول موحّد `item_attachments` يدعم أي نوع عنصر (task/shopping/learning/goal) — بدون كسر `attachments` الحالية للملاحظات.
-- جدول `comments` عام لكل العناصر.
-- صفحة تفاصيل مهمة مستقلة `/tasks/$id` فيها كل ما سبق + حساب نسبة الإنجاز تلقائياً.
-- تحديث صفحة `tasks` لعرض النسبة وعدد الـ subtasks.
+text, textarea, rich_text, number, money, date, time, date_range, select, multi_select, checkbox, radio, tags, url, email, phone, image, gallery, attachment, checklist, subtasks, progress, rating, color, icon, duration, currency.
+(location/barcode تُسجَّل في الـtypes لكن تُرسم لاحقاً — لا تكسر شيئاً.)
 
-### المرحلة 2 — قوائم المشتريات
-- جدولان: `shopping_lists` (ميزانية، تواريخ، متاجر، إجماليات محسوبة) و `shopping_items` (سعر متوقع/فعلي، متجر، كمية، صورة، حالة شراء).
-- صفحات: `/shopping`, `/shopping/$id` مع حساب فوري للإجماليات والمتبقي.
+كل حقل في Schema:
+`{ name, label, type, required?, defaultValue?, placeholder?, options?, validation?, visibleWhen?, group?, width?, order?, help? }`.
 
-### المرحلة 3 — خطط التعلم
-- جدول `learning_plans` + `learning_lessons` (checklist للدروس).
-- الحقول: منصة، مدرّب، طريقة، ساعات، تكلفة، شهادة، نسبة إنجاز.
-- صفحات: `/learning`, `/learning/$id`.
+## محركات فرعية
 
-### المرحلة 4 — الأهداف
-- جدول `goals` + `goal_milestones` (مراحل تنفيذ + checklist).
-- صفحات: `/goals`, `/goals/$id`.
+- **Validation Engine**: يبني schema Zod من الـFieldSchema (required/min/max/regex/email/url/range)، ويطبّق `visibleWhen` قبل التحقق.
+- **Layout Engine**: عقد `section | card | tabs | accordion | grid` مع `columns: 1|2|3|4` وعرض responsive.
+- **Form Renderer**: يأخذ `ItemTypeSchema + initialValues + onSubmit`، يبني RHF + zodResolver تلقائياً.
+- **Detail Renderer**: نفس الـschema لكن قراءة فقط مع تنسيق حسب النوع (Money → عملة، Date → تاريخ عربي، Tags → Badges…).
+- **Summary Renderer**: يقرأ `list.primary / secondary / metrics` من الـschema لرسم بطاقات موحّدة.
 
-### المرحلة 5 — Dynamic Item Types وصفحة إنشاء موحّدة
-- إعادة هيكلة `/create` لتعرض حقولاً ديناميكية حسب النوع المختار (ملاحظة/مهمة/شراء/تعلم/هدف).
-- مكوّن `<DynamicForm schema={...}>` يقرأ مخطط الحقول من تعريف مركزي.
+## التحويل التدريجي (بدون كسر)
 
-### المرحلة 6 — ترقية لوحة التحكم
-- بطاقات إحصاء (ملاحظات/مهام/خطط/أهداف/قوائم شراء/نسبة الإنجاز العامة).
-- أقسام: المهام القادمة، المتأخرة، أكثر التصنيفات، آخر العناصر.
-- Skeleton loading + Empty states موحّدة.
+1. **Task**: إضافة زر "إضافة عبر النموذج الديناميكي" داخل `tasks.$id.tsx` و`create.tsx` يستخدم `DynamicForm` فوق نفس hooks (`useAddTask`/`useUpdateTask`). الكود القديم يبقى كـfallback.
+2. **Purchase List**: `purchases.tsx` إنشاء قائمة جديدة عبر `DynamicForm`. `purchase_items` تكتسب `DynamicChecklist` كغلاف فوق `EditableChecklistRow`.
+3. **Attachments/Comments**: مكوّنات `DynamicAttachments` و`DynamicComments` تستخدم جداول `item_attachments`/`item_comments` الموجودة فعلاً — تصبح متاحة لأي نوع لاحق.
 
-### المرحلة 7 — UI/UX polish
-- مراجعة Spacing/Typography/Cards/Buttons/Forms.
-- إضافة Framer Motion transitions خفيفة، Skeletons، Empty states.
-- تحسين Responsive لشاشات Tablet/Desktop دون تغيير الهوية البصرية.
+> لن نُعيد كتابة `tasks.$id.tsx` أو `purchases.$id.tsx` بالكامل في هذه المرحلة. نضيف "نقاط حقن" ديناميكية فقط.
 
-### المرحلة 8 — جاهزية Capacitor + الإعلانات + الأداء
-- إعداد `capacitor.config.ts` ومكوّن `<SafeArea>`.
-- طبقات تجريد: `notifications`, `share`, `camera`, `storage` (تعمل web الآن، قابلة للتبديل لاحقاً إلى Capacitor plugins).
-- مكوّن `<AdSlot placement="...">` معطّل افتراضياً، يتحكم به مفتاح في الإعدادات.
-- تحسينات أداء: code-splitting للصفحات الكبيرة، `useMemo`/`select` في الاستعلامات، Virtual list لقوائم المهام/الملاحظات الطويلة.
+## إضافة نوع جديد لاحقاً = 4 خطوات فقط
 
----
+1. أضف ItemType في `item-types.ts` (موجود).
+2. أضف ملف `schemas/<type>.schema.ts`.
+3. عرّف الإحصائيات (دالة `computeStats(items)`).
+4. أنشئ route بسيطين `list` و`$id` يستدعيان `<DynamicForm/>` و`<DynamicDetail/>`.
 
-## ملاحظات تنفيذية
-- كل migration تتبع GRANT + RLS بسياسة `auth.uid() = user_id`.
-- لن أحذف أي جدول أو صفحة حالية. الإضافات فقط أو توسيع حقول قائمة.
-- بعد كل مرحلة: تقرير (ما تم / ما تحسّن / الملفات / الأثر) ثم انتظار موافقتك.
+## ما لن يتغيّر في هذه المرحلة
 
----
+- لا تعديلات على قاعدة البيانات.
+- لا تغيير على `data.ts`/`purchases.ts` العامة (فقط إضافات صغيرة عند اللزوم).
+- لا حذف لأي مكوّن حالي (`SummaryCard`, `ProgressCard`, `StatisticsCard`, `EditableChecklistRow`) — المكونات الديناميكية تلفّها.
 
-## أبدأ بالمرحلة 1؟
-هل توافق على البدء فوراً بالمرحلة 1 (ترقية بنية المهام + checklist/subtasks + صفحة تفاصيل المهمة)؟
+## تقرير نهاية المرحلة (سيتم تسليمه)
+
+- عدد الـschemas المُعرّفة.
+- عدد مكونات `Dynamic*` القابلة لإعادة الاستخدام.
+- ما تم تحويله فعلياً في Task و Purchase List.
+- ما تبقّى للتحويل اللاحق (مثلاً Calendar view للمهام، صفحة Detail الكاملة).
+- جاهزية إضافة Learning Plan في خطوة واحدة (Schema فقط).
+
+هل أبدأ التنفيذ؟
