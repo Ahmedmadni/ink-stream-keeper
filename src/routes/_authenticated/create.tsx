@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight, NotebookPen, CheckSquare, ShoppingCart, Pencil,
   Image as ImageIcon, Mic, Loader2, Eraser, Trash, Camera,
-  Play, Pause, Square, RotateCcw,
+  Play, Pause, Square, RotateCcw, FolderKanban,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { useAddNote, useAddTask, useCategories, useUploadAttachment } from "@/lib/data";
@@ -41,6 +41,8 @@ function CreatePage() {
         onClick: () => router.navigate({ to: "/items/new/$type", params: { type: "task" } }) },
       { icon: ShoppingCart, label: "قائمة مشتريات", desc: "نموذج ديناميكي",
         onClick: () => router.navigate({ to: "/items/new/$type", params: { type: "purchase_list" } }) },
+      { icon: FolderKanban, label: "مساحة عمل", desc: "تجميع كل ما يخصّ مشروعاً",
+        onClick: () => router.navigate({ to: "/workspaces" }) },
       { icon: Pencil, label: "رسم حر", desc: "لوحة رسم بالأصابع", onClick: () => setMode("draw"), disabled: false },
       { icon: ImageIcon, label: "إدراج صورة", desc: "من المعرض أو الكاميرا", onClick: () => setMode("image"), disabled: false },
       { icon: Mic, label: "تسجيل صوتي", desc: "ملاحظة صوتية", onClick: () => setMode("voice"), disabled: false },

@@ -20,6 +20,7 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedPurchasesRouteImport } from './routes/_authenticated/purchases'
 import { Route as AuthenticatedNotesRouteImport } from './routes/_authenticated/notes'
 import { Route as AuthenticatedCreateRouteImport } from './routes/_authenticated/create'
+import { Route as AuthenticatedWorkspacesIdRouteImport } from './routes/_authenticated/workspaces.$id'
 import { Route as AuthenticatedTasksIdRouteImport } from './routes/_authenticated/tasks.$id'
 import { Route as AuthenticatedPurchasesIdRouteImport } from './routes/_authenticated/purchases.$id'
 import { Route as AuthenticatedNotesIdRouteImport } from './routes/_authenticated/notes.$id'
@@ -79,6 +80,12 @@ const AuthenticatedCreateRoute = AuthenticatedCreateRouteImport.update({
   path: '/create',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedWorkspacesIdRoute =
+  AuthenticatedWorkspacesIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => AuthenticatedWorkspacesRoute,
+  } as any)
 const AuthenticatedTasksIdRoute = AuthenticatedTasksIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -112,10 +119,11 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/tasks': typeof AuthenticatedTasksRouteWithChildren
   '/vault': typeof AuthenticatedVaultRoute
-  '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/workspaces': typeof AuthenticatedWorkspacesRouteWithChildren
   '/notes/$id': typeof AuthenticatedNotesIdRoute
   '/purchases/$id': typeof AuthenticatedPurchasesIdRoute
   '/tasks/$id': typeof AuthenticatedTasksIdRoute
+  '/workspaces/$id': typeof AuthenticatedWorkspacesIdRoute
   '/items/new/$type': typeof AuthenticatedItemsNewTypeRoute
 }
 export interface FileRoutesByTo {
@@ -127,11 +135,12 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/tasks': typeof AuthenticatedTasksRouteWithChildren
   '/vault': typeof AuthenticatedVaultRoute
-  '/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/workspaces': typeof AuthenticatedWorkspacesRouteWithChildren
   '/': typeof AuthenticatedIndexRoute
   '/notes/$id': typeof AuthenticatedNotesIdRoute
   '/purchases/$id': typeof AuthenticatedPurchasesIdRoute
   '/tasks/$id': typeof AuthenticatedTasksIdRoute
+  '/workspaces/$id': typeof AuthenticatedWorkspacesIdRoute
   '/items/new/$type': typeof AuthenticatedItemsNewTypeRoute
 }
 export interface FileRoutesById {
@@ -145,11 +154,12 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/tasks': typeof AuthenticatedTasksRouteWithChildren
   '/_authenticated/vault': typeof AuthenticatedVaultRoute
-  '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
+  '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRouteWithChildren
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/notes/$id': typeof AuthenticatedNotesIdRoute
   '/_authenticated/purchases/$id': typeof AuthenticatedPurchasesIdRoute
   '/_authenticated/tasks/$id': typeof AuthenticatedTasksIdRoute
+  '/_authenticated/workspaces/$id': typeof AuthenticatedWorkspacesIdRoute
   '/_authenticated/items/new/$type': typeof AuthenticatedItemsNewTypeRoute
 }
 export interface FileRouteTypes {
@@ -168,6 +178,7 @@ export interface FileRouteTypes {
     | '/notes/$id'
     | '/purchases/$id'
     | '/tasks/$id'
+    | '/workspaces/$id'
     | '/items/new/$type'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -184,6 +195,7 @@ export interface FileRouteTypes {
     | '/notes/$id'
     | '/purchases/$id'
     | '/tasks/$id'
+    | '/workspaces/$id'
     | '/items/new/$type'
   id:
     | '__root__'
@@ -201,6 +213,7 @@ export interface FileRouteTypes {
     | '/_authenticated/notes/$id'
     | '/_authenticated/purchases/$id'
     | '/_authenticated/tasks/$id'
+    | '/_authenticated/workspaces/$id'
     | '/_authenticated/items/new/$type'
   fileRoutesById: FileRoutesById
 }
@@ -289,6 +302,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCreateRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/workspaces/$id': {
+      id: '/_authenticated/workspaces/$id'
+      path: '/$id'
+      fullPath: '/workspaces/$id'
+      preLoaderRoute: typeof AuthenticatedWorkspacesIdRouteImport
+      parentRoute: typeof AuthenticatedWorkspacesRoute
+    }
     '/_authenticated/tasks/$id': {
       id: '/_authenticated/tasks/$id'
       path: '/$id'
@@ -356,6 +376,20 @@ const AuthenticatedTasksRouteChildren: AuthenticatedTasksRouteChildren = {
 const AuthenticatedTasksRouteWithChildren =
   AuthenticatedTasksRoute._addFileChildren(AuthenticatedTasksRouteChildren)
 
+interface AuthenticatedWorkspacesRouteChildren {
+  AuthenticatedWorkspacesIdRoute: typeof AuthenticatedWorkspacesIdRoute
+}
+
+const AuthenticatedWorkspacesRouteChildren: AuthenticatedWorkspacesRouteChildren =
+  {
+    AuthenticatedWorkspacesIdRoute: AuthenticatedWorkspacesIdRoute,
+  }
+
+const AuthenticatedWorkspacesRouteWithChildren =
+  AuthenticatedWorkspacesRoute._addFileChildren(
+    AuthenticatedWorkspacesRouteChildren,
+  )
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedCreateRoute: typeof AuthenticatedCreateRoute
   AuthenticatedNotesRoute: typeof AuthenticatedNotesRouteWithChildren
@@ -363,7 +397,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTasksRoute: typeof AuthenticatedTasksRouteWithChildren
   AuthenticatedVaultRoute: typeof AuthenticatedVaultRoute
-  AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
+  AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRouteWithChildren
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedItemsNewTypeRoute: typeof AuthenticatedItemsNewTypeRoute
 }
@@ -375,7 +409,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTasksRoute: AuthenticatedTasksRouteWithChildren,
   AuthenticatedVaultRoute: AuthenticatedVaultRoute,
-  AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
+  AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRouteWithChildren,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedItemsNewTypeRoute: AuthenticatedItemsNewTypeRoute,
 }
