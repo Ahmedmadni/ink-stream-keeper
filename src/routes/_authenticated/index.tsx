@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Bell, Search, Pin, Notebook, Lightbulb, CheckSquare, ShoppingCart, Lock,
-  Briefcase, GraduationCap, Star, Plus, Sliders,
+  Briefcase, GraduationCap, Star, Plus, Sliders, FolderKanban,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { useCategories, useNotes, useProfile, useTasks, tsOf, type Category, type Note } from "@/lib/data";
 import { usePurchaseLists, useAllPurchaseStats } from "@/lib/purchases";
+import { useWorkspaces, useAllWorkspaceStats } from "@/lib/workspaces";
 import { formatCurrency } from "@/lib/item-types";
 import { formatRelative, greeting, plainTextFromHtml } from "@/lib/format";
 
@@ -40,6 +41,8 @@ function Index() {
   const { data: categories = [] } = useCategories();
   const { data: purchaseLists = [] } = usePurchaseLists();
   const { data: purchaseStats = [] } = useAllPurchaseStats();
+  const { data: workspaces = [] } = useWorkspaces();
+  const { data: wsStats = [] } = useAllWorkspaceStats();
 
   const ideasCat = categories.find((c) => c.name === "أفكار");
   const stats = {
@@ -112,6 +115,41 @@ function Index() {
             <span className="text-[11px] font-semibold">إضافة</span>
           </Link>
         </div>
+      </section>
+
+      <section className="px-5 pt-6">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-base font-bold">
+            <FolderKanban className="size-4 text-primary" /> مساحات العمل
+          </h2>
+          <Link to="/workspaces" className="text-xs font-semibold text-primary">عرض الكل</Link>
+        </div>
+        {workspaces.length === 0 ? (
+          <Link to="/workspaces" className="grid place-items-center rounded-2xl border-2 border-dashed border-border bg-card/50 p-6 text-center text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary">
+            <FolderKanban className="mb-1 size-6" />
+            ابدأ بإنشاء أول مساحة عمل
+          </Link>
+        ) : (
+          <div className="flex gap-2.5 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            {workspaces.filter((w) => !w.archived).slice(0, 6).map((w) => {
+              const s = wsStats.find((x) => x.workspace_id === w.id);
+              return (
+                <Link key={w.id} to="/workspaces/$id" params={{ id: w.id }} className="w-40 shrink-0 overflow-hidden rounded-2xl bg-card shadow-card">
+                  <div className="grid h-16 w-full place-items-center bg-primary-soft text-primary">
+                    {w.cover_url ? <img src={w.cover_url} alt="" className="size-full object-cover" /> : <FolderKanban className="size-7" />}
+                  </div>
+                  <div className="p-2.5">
+                    <p className="truncate text-xs font-bold">{w.name}</p>
+                    <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-secondary">
+                      <div className="h-full bg-primary" style={{ width: `${s?.progress ?? 0}%` }} />
+                    </div>
+                    <p className="mt-1 text-[10px] text-muted-foreground">{s?.items_count ?? 0} عنصر · {s?.progress ?? 0}%</p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {purchaseLists.length > 0 && (
