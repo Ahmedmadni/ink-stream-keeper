@@ -368,6 +368,63 @@ export type Database = {
           },
         ]
       }
+      smart_collections: {
+        Row: {
+          color: string
+          created_at: string
+          filters: Json
+          icon: string
+          id: string
+          item_type: string
+          name: string
+          position: number
+          updated_at: string
+          user_id: string
+          workspace_id: string | null
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          filters?: Json
+          icon?: string
+          id?: string
+          item_type: string
+          name: string
+          position?: number
+          updated_at?: string
+          user_id: string
+          workspace_id?: string | null
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          filters?: Json
+          icon?: string
+          id?: string
+          item_type?: string
+          name?: string
+          position?: number
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "smart_collections_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_stats"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "smart_collections_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subtasks: {
         Row: {
           created_at: string
@@ -631,6 +688,207 @@ export type Database = {
         }
         Relationships: []
       }
+      workspace_activity: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          item_id: string | null
+          item_type: string | null
+          meta: Json
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          item_id?: string | null
+          item_type?: string | null
+          meta?: Json
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          item_id?: string | null
+          item_type?: string | null
+          meta?: Json
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_activity_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_stats"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "workspace_activity_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_items: {
+        Row: {
+          added_at: string
+          id: string
+          item_id: string
+          item_type: string
+          position: number
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          added_at?: string
+          id?: string
+          item_id: string
+          item_type: string
+          position?: number
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          added_at?: string
+          id?: string
+          item_id?: string
+          item_type?: string
+          position?: number
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_items_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_stats"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "workspace_items_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_links: {
+        Row: {
+          created_at: string
+          description: string | null
+          favicon: string | null
+          id: string
+          position: number
+          title: string
+          updated_at: string
+          url: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          favicon?: string | null
+          id?: string
+          position?: number
+          title: string
+          updated_at?: string
+          url: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          favicon?: string | null
+          id?: string
+          position?: number
+          title?: string
+          updated_at?: string
+          url?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_links_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_stats"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "workspace_links_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspaces: {
+        Row: {
+          archived: boolean
+          color: string
+          cover_url: string | null
+          created_at: string
+          description: string | null
+          end_date: string | null
+          favorite: boolean
+          icon: string
+          id: string
+          name: string
+          position: number
+          start_date: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archived?: boolean
+          color?: string
+          cover_url?: string | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          favorite?: boolean
+          icon?: string
+          id?: string
+          name: string
+          position?: number
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archived?: boolean
+          color?: string
+          cover_url?: string | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          favorite?: boolean
+          icon?: string
+          id?: string
+          name?: string
+          position?: number
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       purchase_list_stats: {
@@ -643,6 +901,26 @@ export type Database = {
           purchased_count: number | null
           remaining_amount: number | null
           user_id: string | null
+        }
+        Relationships: []
+      }
+      workspace_stats: {
+        Row: {
+          done_tasks: number | null
+          goals_count: number | null
+          items_count: number | null
+          last_activity: string | null
+          learning_count: number | null
+          maintenance_count: number | null
+          notes_count: number | null
+          progress: number | null
+          projects_count: number | null
+          purchases_count: number | null
+          tasks_count: number | null
+          total_tasks: number | null
+          travel_count: number | null
+          user_id: string | null
+          workspace_id: string | null
         }
         Relationships: []
       }

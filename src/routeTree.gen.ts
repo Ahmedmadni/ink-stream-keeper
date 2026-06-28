@@ -13,12 +13,14 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as AuthenticatedVaultRouteImport } from './routes/_authenticated/vault'
 import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/tasks'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedPurchasesRouteImport } from './routes/_authenticated/purchases'
 import { Route as AuthenticatedNotesRouteImport } from './routes/_authenticated/notes'
 import { Route as AuthenticatedCreateRouteImport } from './routes/_authenticated/create'
+import { Route as AuthenticatedWorkspacesIdRouteImport } from './routes/_authenticated/workspaces.$id'
 import { Route as AuthenticatedTasksIdRouteImport } from './routes/_authenticated/tasks.$id'
 import { Route as AuthenticatedPurchasesIdRouteImport } from './routes/_authenticated/purchases.$id'
 import { Route as AuthenticatedNotesIdRouteImport } from './routes/_authenticated/notes.$id'
@@ -41,6 +43,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
+  id: '/workspaces',
+  path: '/workspaces',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedVaultRoute = AuthenticatedVaultRouteImport.update({
@@ -73,6 +80,12 @@ const AuthenticatedCreateRoute = AuthenticatedCreateRouteImport.update({
   path: '/create',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedWorkspacesIdRoute =
+  AuthenticatedWorkspacesIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => AuthenticatedWorkspacesRoute,
+  } as any)
 const AuthenticatedTasksIdRoute = AuthenticatedTasksIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -106,9 +119,11 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/tasks': typeof AuthenticatedTasksRouteWithChildren
   '/vault': typeof AuthenticatedVaultRoute
+  '/workspaces': typeof AuthenticatedWorkspacesRouteWithChildren
   '/notes/$id': typeof AuthenticatedNotesIdRoute
   '/purchases/$id': typeof AuthenticatedPurchasesIdRoute
   '/tasks/$id': typeof AuthenticatedTasksIdRoute
+  '/workspaces/$id': typeof AuthenticatedWorkspacesIdRoute
   '/items/new/$type': typeof AuthenticatedItemsNewTypeRoute
 }
 export interface FileRoutesByTo {
@@ -120,10 +135,12 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/tasks': typeof AuthenticatedTasksRouteWithChildren
   '/vault': typeof AuthenticatedVaultRoute
+  '/workspaces': typeof AuthenticatedWorkspacesRouteWithChildren
   '/': typeof AuthenticatedIndexRoute
   '/notes/$id': typeof AuthenticatedNotesIdRoute
   '/purchases/$id': typeof AuthenticatedPurchasesIdRoute
   '/tasks/$id': typeof AuthenticatedTasksIdRoute
+  '/workspaces/$id': typeof AuthenticatedWorkspacesIdRoute
   '/items/new/$type': typeof AuthenticatedItemsNewTypeRoute
 }
 export interface FileRoutesById {
@@ -137,10 +154,12 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/tasks': typeof AuthenticatedTasksRouteWithChildren
   '/_authenticated/vault': typeof AuthenticatedVaultRoute
+  '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRouteWithChildren
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/notes/$id': typeof AuthenticatedNotesIdRoute
   '/_authenticated/purchases/$id': typeof AuthenticatedPurchasesIdRoute
   '/_authenticated/tasks/$id': typeof AuthenticatedTasksIdRoute
+  '/_authenticated/workspaces/$id': typeof AuthenticatedWorkspacesIdRoute
   '/_authenticated/items/new/$type': typeof AuthenticatedItemsNewTypeRoute
 }
 export interface FileRouteTypes {
@@ -155,9 +174,11 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tasks'
     | '/vault'
+    | '/workspaces'
     | '/notes/$id'
     | '/purchases/$id'
     | '/tasks/$id'
+    | '/workspaces/$id'
     | '/items/new/$type'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -169,10 +190,12 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tasks'
     | '/vault'
+    | '/workspaces'
     | '/'
     | '/notes/$id'
     | '/purchases/$id'
     | '/tasks/$id'
+    | '/workspaces/$id'
     | '/items/new/$type'
   id:
     | '__root__'
@@ -185,10 +208,12 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/tasks'
     | '/_authenticated/vault'
+    | '/_authenticated/workspaces'
     | '/_authenticated/'
     | '/_authenticated/notes/$id'
     | '/_authenticated/purchases/$id'
     | '/_authenticated/tasks/$id'
+    | '/_authenticated/workspaces/$id'
     | '/_authenticated/items/new/$type'
   fileRoutesById: FileRoutesById
 }
@@ -226,6 +251,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/workspaces': {
+      id: '/_authenticated/workspaces'
+      path: '/workspaces'
+      fullPath: '/workspaces'
+      preLoaderRoute: typeof AuthenticatedWorkspacesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/vault': {
@@ -269,6 +301,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/create'
       preLoaderRoute: typeof AuthenticatedCreateRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/workspaces/$id': {
+      id: '/_authenticated/workspaces/$id'
+      path: '/$id'
+      fullPath: '/workspaces/$id'
+      preLoaderRoute: typeof AuthenticatedWorkspacesIdRouteImport
+      parentRoute: typeof AuthenticatedWorkspacesRoute
     }
     '/_authenticated/tasks/$id': {
       id: '/_authenticated/tasks/$id'
@@ -337,6 +376,20 @@ const AuthenticatedTasksRouteChildren: AuthenticatedTasksRouteChildren = {
 const AuthenticatedTasksRouteWithChildren =
   AuthenticatedTasksRoute._addFileChildren(AuthenticatedTasksRouteChildren)
 
+interface AuthenticatedWorkspacesRouteChildren {
+  AuthenticatedWorkspacesIdRoute: typeof AuthenticatedWorkspacesIdRoute
+}
+
+const AuthenticatedWorkspacesRouteChildren: AuthenticatedWorkspacesRouteChildren =
+  {
+    AuthenticatedWorkspacesIdRoute: AuthenticatedWorkspacesIdRoute,
+  }
+
+const AuthenticatedWorkspacesRouteWithChildren =
+  AuthenticatedWorkspacesRoute._addFileChildren(
+    AuthenticatedWorkspacesRouteChildren,
+  )
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedCreateRoute: typeof AuthenticatedCreateRoute
   AuthenticatedNotesRoute: typeof AuthenticatedNotesRouteWithChildren
@@ -344,6 +397,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTasksRoute: typeof AuthenticatedTasksRouteWithChildren
   AuthenticatedVaultRoute: typeof AuthenticatedVaultRoute
+  AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRouteWithChildren
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedItemsNewTypeRoute: typeof AuthenticatedItemsNewTypeRoute
 }
@@ -355,6 +409,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTasksRoute: AuthenticatedTasksRouteWithChildren,
   AuthenticatedVaultRoute: AuthenticatedVaultRoute,
+  AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRouteWithChildren,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedItemsNewTypeRoute: AuthenticatedItemsNewTypeRoute,
 }
