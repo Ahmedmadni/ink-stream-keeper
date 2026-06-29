@@ -18,6 +18,7 @@ import { Route as AuthenticatedVaultRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/tasks'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedPurchasesRouteImport } from './routes/_authenticated/purchases'
+import { Route as AuthenticatedPlansRouteImport } from './routes/_authenticated/plans'
 import { Route as AuthenticatedNotesRouteImport } from './routes/_authenticated/notes'
 import { Route as AuthenticatedCreateRouteImport } from './routes/_authenticated/create'
 import { Route as AuthenticatedWorkspacesIdRouteImport } from './routes/_authenticated/workspaces.$id'
@@ -70,6 +71,11 @@ const AuthenticatedPurchasesRoute = AuthenticatedPurchasesRouteImport.update({
   path: '/purchases',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedPlansRoute = AuthenticatedPlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedNotesRoute = AuthenticatedNotesRouteImport.update({
   id: '/notes',
   path: '/notes',
@@ -115,6 +121,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/create': typeof AuthenticatedCreateRoute
   '/notes': typeof AuthenticatedNotesRouteWithChildren
+  '/plans': typeof AuthenticatedPlansRoute
   '/purchases': typeof AuthenticatedPurchasesRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRoute
   '/tasks': typeof AuthenticatedTasksRouteWithChildren
@@ -131,6 +138,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/create': typeof AuthenticatedCreateRoute
   '/notes': typeof AuthenticatedNotesRouteWithChildren
+  '/plans': typeof AuthenticatedPlansRoute
   '/purchases': typeof AuthenticatedPurchasesRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRoute
   '/tasks': typeof AuthenticatedTasksRouteWithChildren
@@ -150,6 +158,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_authenticated/create': typeof AuthenticatedCreateRoute
   '/_authenticated/notes': typeof AuthenticatedNotesRouteWithChildren
+  '/_authenticated/plans': typeof AuthenticatedPlansRoute
   '/_authenticated/purchases': typeof AuthenticatedPurchasesRouteWithChildren
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/tasks': typeof AuthenticatedTasksRouteWithChildren
@@ -170,6 +179,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/create'
     | '/notes'
+    | '/plans'
     | '/purchases'
     | '/settings'
     | '/tasks'
@@ -186,6 +196,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/create'
     | '/notes'
+    | '/plans'
     | '/purchases'
     | '/settings'
     | '/tasks'
@@ -204,6 +215,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/_authenticated/create'
     | '/_authenticated/notes'
+    | '/_authenticated/plans'
     | '/_authenticated/purchases'
     | '/_authenticated/settings'
     | '/_authenticated/tasks'
@@ -286,6 +298,13 @@ declare module '@tanstack/react-router' {
       path: '/purchases'
       fullPath: '/purchases'
       preLoaderRoute: typeof AuthenticatedPurchasesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/plans': {
+      id: '/_authenticated/plans'
+      path: '/plans'
+      fullPath: '/plans'
+      preLoaderRoute: typeof AuthenticatedPlansRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/notes': {
@@ -393,6 +412,7 @@ const AuthenticatedWorkspacesRouteWithChildren =
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedCreateRoute: typeof AuthenticatedCreateRoute
   AuthenticatedNotesRoute: typeof AuthenticatedNotesRouteWithChildren
+  AuthenticatedPlansRoute: typeof AuthenticatedPlansRoute
   AuthenticatedPurchasesRoute: typeof AuthenticatedPurchasesRouteWithChildren
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTasksRoute: typeof AuthenticatedTasksRouteWithChildren
@@ -405,6 +425,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCreateRoute: AuthenticatedCreateRoute,
   AuthenticatedNotesRoute: AuthenticatedNotesRouteWithChildren,
+  AuthenticatedPlansRoute: AuthenticatedPlansRoute,
   AuthenticatedPurchasesRoute: AuthenticatedPurchasesRouteWithChildren,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTasksRoute: AuthenticatedTasksRouteWithChildren,
