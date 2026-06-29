@@ -24,6 +24,7 @@ import { Route as AuthenticatedCreateRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedWorkspacesIdRouteImport } from './routes/_authenticated/workspaces.$id'
 import { Route as AuthenticatedTasksIdRouteImport } from './routes/_authenticated/tasks.$id'
 import { Route as AuthenticatedPurchasesIdRouteImport } from './routes/_authenticated/purchases.$id'
+import { Route as AuthenticatedPlansIdRouteImport } from './routes/_authenticated/plans.$id'
 import { Route as AuthenticatedNotesIdRouteImport } from './routes/_authenticated/notes.$id'
 import { Route as AuthenticatedPlansNewTypeRouteImport } from './routes/_authenticated/plans.new.$type'
 import { Route as AuthenticatedItemsNewTypeRouteImport } from './routes/_authenticated/items.new.$type'
@@ -104,6 +105,11 @@ const AuthenticatedPurchasesIdRoute =
     path: '/$id',
     getParentRoute: () => AuthenticatedPurchasesRoute,
   } as any)
+const AuthenticatedPlansIdRoute = AuthenticatedPlansIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AuthenticatedPlansRoute,
+} as any)
 const AuthenticatedNotesIdRoute = AuthenticatedNotesIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -135,6 +141,7 @@ export interface FileRoutesByFullPath {
   '/vault': typeof AuthenticatedVaultRoute
   '/workspaces': typeof AuthenticatedWorkspacesRouteWithChildren
   '/notes/$id': typeof AuthenticatedNotesIdRoute
+  '/plans/$id': typeof AuthenticatedPlansIdRoute
   '/purchases/$id': typeof AuthenticatedPurchasesIdRoute
   '/tasks/$id': typeof AuthenticatedTasksIdRoute
   '/workspaces/$id': typeof AuthenticatedWorkspacesIdRoute
@@ -154,6 +161,7 @@ export interface FileRoutesByTo {
   '/workspaces': typeof AuthenticatedWorkspacesRouteWithChildren
   '/': typeof AuthenticatedIndexRoute
   '/notes/$id': typeof AuthenticatedNotesIdRoute
+  '/plans/$id': typeof AuthenticatedPlansIdRoute
   '/purchases/$id': typeof AuthenticatedPurchasesIdRoute
   '/tasks/$id': typeof AuthenticatedTasksIdRoute
   '/workspaces/$id': typeof AuthenticatedWorkspacesIdRoute
@@ -175,6 +183,7 @@ export interface FileRoutesById {
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRouteWithChildren
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/notes/$id': typeof AuthenticatedNotesIdRoute
+  '/_authenticated/plans/$id': typeof AuthenticatedPlansIdRoute
   '/_authenticated/purchases/$id': typeof AuthenticatedPurchasesIdRoute
   '/_authenticated/tasks/$id': typeof AuthenticatedTasksIdRoute
   '/_authenticated/workspaces/$id': typeof AuthenticatedWorkspacesIdRoute
@@ -196,6 +205,7 @@ export interface FileRouteTypes {
     | '/vault'
     | '/workspaces'
     | '/notes/$id'
+    | '/plans/$id'
     | '/purchases/$id'
     | '/tasks/$id'
     | '/workspaces/$id'
@@ -215,6 +225,7 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/'
     | '/notes/$id'
+    | '/plans/$id'
     | '/purchases/$id'
     | '/tasks/$id'
     | '/workspaces/$id'
@@ -235,6 +246,7 @@ export interface FileRouteTypes {
     | '/_authenticated/workspaces'
     | '/_authenticated/'
     | '/_authenticated/notes/$id'
+    | '/_authenticated/plans/$id'
     | '/_authenticated/purchases/$id'
     | '/_authenticated/tasks/$id'
     | '/_authenticated/workspaces/$id'
@@ -355,6 +367,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPurchasesIdRouteImport
       parentRoute: typeof AuthenticatedPurchasesRoute
     }
+    '/_authenticated/plans/$id': {
+      id: '/_authenticated/plans/$id'
+      path: '/$id'
+      fullPath: '/plans/$id'
+      preLoaderRoute: typeof AuthenticatedPlansIdRouteImport
+      parentRoute: typeof AuthenticatedPlansRoute
+    }
     '/_authenticated/notes/$id': {
       id: '/_authenticated/notes/$id'
       path: '/$id'
@@ -391,10 +410,12 @@ const AuthenticatedNotesRouteWithChildren =
   AuthenticatedNotesRoute._addFileChildren(AuthenticatedNotesRouteChildren)
 
 interface AuthenticatedPlansRouteChildren {
+  AuthenticatedPlansIdRoute: typeof AuthenticatedPlansIdRoute
   AuthenticatedPlansNewTypeRoute: typeof AuthenticatedPlansNewTypeRoute
 }
 
 const AuthenticatedPlansRouteChildren: AuthenticatedPlansRouteChildren = {
+  AuthenticatedPlansIdRoute: AuthenticatedPlansIdRoute,
   AuthenticatedPlansNewTypeRoute: AuthenticatedPlansNewTypeRoute,
 }
 
