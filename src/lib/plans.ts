@@ -191,7 +191,7 @@ export function useCreatePlan() {
         tags: input.tags ?? [],
         type_data: input.type_data ?? {},
       };
-      const { data, error } = await supabase.from("plans").insert(payload).select("*").single();
+      const { data, error } = await supabase.from("plans").insert(payload as never).select("*").single();
       if (error) throw error;
       return data as unknown as Plan;
     },
@@ -206,7 +206,7 @@ export function useUpdatePlan() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: Partial<Plan> }) => {
-      const { error } = await supabase.from("plans").update(patch).eq("id", id);
+      const { error } = await supabase.from("plans").update(patch as never).eq("id", id);
       if (error) throw error;
     },
     onSuccess: (_d, v) => {
