@@ -204,6 +204,283 @@ export type Database = {
           },
         ]
       }
+      plan_links: {
+        Row: {
+          created_at: string
+          id: string
+          item_id: string
+          item_type: string
+          label: string | null
+          plan_id: string
+          position: number
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_id: string
+          item_type: string
+          label?: string | null
+          plan_id: string
+          position?: number
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_id?: string
+          item_type?: string
+          label?: string | null
+          plan_id?: string
+          position?: number
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_links_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plan_stats"
+            referencedColumns: ["plan_id"]
+          },
+          {
+            foreignKeyName: "plan_links_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plan_stages: {
+        Row: {
+          created_at: string
+          description: string | null
+          end_date: string | null
+          id: string
+          name: string
+          plan_id: string
+          position: number
+          progress: number
+          start_date: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          name: string
+          plan_id: string
+          position?: number
+          progress?: number
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          name?: string
+          plan_id?: string
+          position?: number
+          progress?: number
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_stages_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plan_stats"
+            referencedColumns: ["plan_id"]
+          },
+          {
+            foreignKeyName: "plan_stages_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plan_steps: {
+        Row: {
+          created_at: string
+          done: boolean
+          done_at: string | null
+          duration: number | null
+          id: string
+          name: string
+          notes: string | null
+          plan_id: string
+          position: number
+          stage_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          done?: boolean
+          done_at?: string | null
+          duration?: number | null
+          id?: string
+          name: string
+          notes?: string | null
+          plan_id: string
+          position?: number
+          stage_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          done?: boolean
+          done_at?: string | null
+          duration?: number | null
+          id?: string
+          name?: string
+          notes?: string | null
+          plan_id?: string
+          position?: number
+          stage_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_steps_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plan_stats"
+            referencedColumns: ["plan_id"]
+          },
+          {
+            foreignKeyName: "plan_steps_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plan_steps_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "plan_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plans: {
+        Row: {
+          ai_meta: Json
+          archived_at: string | null
+          budget: number | null
+          color: string | null
+          created_at: string
+          currency: string | null
+          description: string | null
+          end_date: string | null
+          estimated_duration: number | null
+          icon: string | null
+          id: string
+          is_favorite: boolean
+          notes: string | null
+          objective: string | null
+          priority: string
+          progress: number
+          start_date: string | null
+          status: string
+          tags: string[]
+          title: string
+          type: string
+          type_data: Json
+          updated_at: string
+          user_id: string
+          workspace_id: string | null
+        }
+        Insert: {
+          ai_meta?: Json
+          archived_at?: string | null
+          budget?: number | null
+          color?: string | null
+          created_at?: string
+          currency?: string | null
+          description?: string | null
+          end_date?: string | null
+          estimated_duration?: number | null
+          icon?: string | null
+          id?: string
+          is_favorite?: boolean
+          notes?: string | null
+          objective?: string | null
+          priority?: string
+          progress?: number
+          start_date?: string | null
+          status?: string
+          tags?: string[]
+          title: string
+          type?: string
+          type_data?: Json
+          updated_at?: string
+          user_id: string
+          workspace_id?: string | null
+        }
+        Update: {
+          ai_meta?: Json
+          archived_at?: string | null
+          budget?: number | null
+          color?: string | null
+          created_at?: string
+          currency?: string | null
+          description?: string | null
+          end_date?: string | null
+          estimated_duration?: number | null
+          icon?: string | null
+          id?: string
+          is_favorite?: boolean
+          notes?: string | null
+          objective?: string | null
+          priority?: string
+          progress?: number
+          start_date?: string | null
+          status?: string
+          tags?: string[]
+          title?: string
+          type?: string
+          type_data?: Json
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plans_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspace_stats"
+            referencedColumns: ["workspace_id"]
+          },
+          {
+            foreignKeyName: "plans_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -891,6 +1168,19 @@ export type Database = {
       }
     }
     Views: {
+      plan_stats: {
+        Row: {
+          computed_progress: number | null
+          link_count: number | null
+          plan_id: string | null
+          stage_count: number | null
+          stage_done: number | null
+          step_count: number | null
+          step_done: number | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
       purchase_list_stats: {
         Row: {
           actual_total: number | null

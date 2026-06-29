@@ -18,12 +18,15 @@ import { Route as AuthenticatedVaultRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/tasks'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedPurchasesRouteImport } from './routes/_authenticated/purchases'
+import { Route as AuthenticatedPlansRouteImport } from './routes/_authenticated/plans'
 import { Route as AuthenticatedNotesRouteImport } from './routes/_authenticated/notes'
 import { Route as AuthenticatedCreateRouteImport } from './routes/_authenticated/create'
 import { Route as AuthenticatedWorkspacesIdRouteImport } from './routes/_authenticated/workspaces.$id'
 import { Route as AuthenticatedTasksIdRouteImport } from './routes/_authenticated/tasks.$id'
 import { Route as AuthenticatedPurchasesIdRouteImport } from './routes/_authenticated/purchases.$id'
+import { Route as AuthenticatedPlansIdRouteImport } from './routes/_authenticated/plans.$id'
 import { Route as AuthenticatedNotesIdRouteImport } from './routes/_authenticated/notes.$id'
+import { Route as AuthenticatedPlansNewTypeRouteImport } from './routes/_authenticated/plans.new.$type'
 import { Route as AuthenticatedItemsNewTypeRouteImport } from './routes/_authenticated/items.new.$type'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -70,6 +73,11 @@ const AuthenticatedPurchasesRoute = AuthenticatedPurchasesRouteImport.update({
   path: '/purchases',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedPlansRoute = AuthenticatedPlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedNotesRoute = AuthenticatedNotesRouteImport.update({
   id: '/notes',
   path: '/notes',
@@ -97,11 +105,22 @@ const AuthenticatedPurchasesIdRoute =
     path: '/$id',
     getParentRoute: () => AuthenticatedPurchasesRoute,
   } as any)
+const AuthenticatedPlansIdRoute = AuthenticatedPlansIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AuthenticatedPlansRoute,
+} as any)
 const AuthenticatedNotesIdRoute = AuthenticatedNotesIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => AuthenticatedNotesRoute,
 } as any)
+const AuthenticatedPlansNewTypeRoute =
+  AuthenticatedPlansNewTypeRouteImport.update({
+    id: '/new/$type',
+    path: '/new/$type',
+    getParentRoute: () => AuthenticatedPlansRoute,
+  } as any)
 const AuthenticatedItemsNewTypeRoute =
   AuthenticatedItemsNewTypeRouteImport.update({
     id: '/items/new/$type',
@@ -115,22 +134,26 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/create': typeof AuthenticatedCreateRoute
   '/notes': typeof AuthenticatedNotesRouteWithChildren
+  '/plans': typeof AuthenticatedPlansRouteWithChildren
   '/purchases': typeof AuthenticatedPurchasesRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRoute
   '/tasks': typeof AuthenticatedTasksRouteWithChildren
   '/vault': typeof AuthenticatedVaultRoute
   '/workspaces': typeof AuthenticatedWorkspacesRouteWithChildren
   '/notes/$id': typeof AuthenticatedNotesIdRoute
+  '/plans/$id': typeof AuthenticatedPlansIdRoute
   '/purchases/$id': typeof AuthenticatedPurchasesIdRoute
   '/tasks/$id': typeof AuthenticatedTasksIdRoute
   '/workspaces/$id': typeof AuthenticatedWorkspacesIdRoute
   '/items/new/$type': typeof AuthenticatedItemsNewTypeRoute
+  '/plans/new/$type': typeof AuthenticatedPlansNewTypeRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/create': typeof AuthenticatedCreateRoute
   '/notes': typeof AuthenticatedNotesRouteWithChildren
+  '/plans': typeof AuthenticatedPlansRouteWithChildren
   '/purchases': typeof AuthenticatedPurchasesRouteWithChildren
   '/settings': typeof AuthenticatedSettingsRoute
   '/tasks': typeof AuthenticatedTasksRouteWithChildren
@@ -138,10 +161,12 @@ export interface FileRoutesByTo {
   '/workspaces': typeof AuthenticatedWorkspacesRouteWithChildren
   '/': typeof AuthenticatedIndexRoute
   '/notes/$id': typeof AuthenticatedNotesIdRoute
+  '/plans/$id': typeof AuthenticatedPlansIdRoute
   '/purchases/$id': typeof AuthenticatedPurchasesIdRoute
   '/tasks/$id': typeof AuthenticatedTasksIdRoute
   '/workspaces/$id': typeof AuthenticatedWorkspacesIdRoute
   '/items/new/$type': typeof AuthenticatedItemsNewTypeRoute
+  '/plans/new/$type': typeof AuthenticatedPlansNewTypeRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -150,6 +175,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_authenticated/create': typeof AuthenticatedCreateRoute
   '/_authenticated/notes': typeof AuthenticatedNotesRouteWithChildren
+  '/_authenticated/plans': typeof AuthenticatedPlansRouteWithChildren
   '/_authenticated/purchases': typeof AuthenticatedPurchasesRouteWithChildren
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/tasks': typeof AuthenticatedTasksRouteWithChildren
@@ -157,10 +183,12 @@ export interface FileRoutesById {
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRouteWithChildren
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/notes/$id': typeof AuthenticatedNotesIdRoute
+  '/_authenticated/plans/$id': typeof AuthenticatedPlansIdRoute
   '/_authenticated/purchases/$id': typeof AuthenticatedPurchasesIdRoute
   '/_authenticated/tasks/$id': typeof AuthenticatedTasksIdRoute
   '/_authenticated/workspaces/$id': typeof AuthenticatedWorkspacesIdRoute
   '/_authenticated/items/new/$type': typeof AuthenticatedItemsNewTypeRoute
+  '/_authenticated/plans/new/$type': typeof AuthenticatedPlansNewTypeRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -170,22 +198,26 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/create'
     | '/notes'
+    | '/plans'
     | '/purchases'
     | '/settings'
     | '/tasks'
     | '/vault'
     | '/workspaces'
     | '/notes/$id'
+    | '/plans/$id'
     | '/purchases/$id'
     | '/tasks/$id'
     | '/workspaces/$id'
     | '/items/new/$type'
+    | '/plans/new/$type'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
     | '/sitemap.xml'
     | '/create'
     | '/notes'
+    | '/plans'
     | '/purchases'
     | '/settings'
     | '/tasks'
@@ -193,10 +225,12 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/'
     | '/notes/$id'
+    | '/plans/$id'
     | '/purchases/$id'
     | '/tasks/$id'
     | '/workspaces/$id'
     | '/items/new/$type'
+    | '/plans/new/$type'
   id:
     | '__root__'
     | '/_authenticated'
@@ -204,6 +238,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/_authenticated/create'
     | '/_authenticated/notes'
+    | '/_authenticated/plans'
     | '/_authenticated/purchases'
     | '/_authenticated/settings'
     | '/_authenticated/tasks'
@@ -211,10 +246,12 @@ export interface FileRouteTypes {
     | '/_authenticated/workspaces'
     | '/_authenticated/'
     | '/_authenticated/notes/$id'
+    | '/_authenticated/plans/$id'
     | '/_authenticated/purchases/$id'
     | '/_authenticated/tasks/$id'
     | '/_authenticated/workspaces/$id'
     | '/_authenticated/items/new/$type'
+    | '/_authenticated/plans/new/$type'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -288,6 +325,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPurchasesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/plans': {
+      id: '/_authenticated/plans'
+      path: '/plans'
+      fullPath: '/plans'
+      preLoaderRoute: typeof AuthenticatedPlansRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/notes': {
       id: '/_authenticated/notes'
       path: '/notes'
@@ -323,12 +367,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPurchasesIdRouteImport
       parentRoute: typeof AuthenticatedPurchasesRoute
     }
+    '/_authenticated/plans/$id': {
+      id: '/_authenticated/plans/$id'
+      path: '/$id'
+      fullPath: '/plans/$id'
+      preLoaderRoute: typeof AuthenticatedPlansIdRouteImport
+      parentRoute: typeof AuthenticatedPlansRoute
+    }
     '/_authenticated/notes/$id': {
       id: '/_authenticated/notes/$id'
       path: '/$id'
       fullPath: '/notes/$id'
       preLoaderRoute: typeof AuthenticatedNotesIdRouteImport
       parentRoute: typeof AuthenticatedNotesRoute
+    }
+    '/_authenticated/plans/new/$type': {
+      id: '/_authenticated/plans/new/$type'
+      path: '/new/$type'
+      fullPath: '/plans/new/$type'
+      preLoaderRoute: typeof AuthenticatedPlansNewTypeRouteImport
+      parentRoute: typeof AuthenticatedPlansRoute
     }
     '/_authenticated/items/new/$type': {
       id: '/_authenticated/items/new/$type'
@@ -350,6 +408,19 @@ const AuthenticatedNotesRouteChildren: AuthenticatedNotesRouteChildren = {
 
 const AuthenticatedNotesRouteWithChildren =
   AuthenticatedNotesRoute._addFileChildren(AuthenticatedNotesRouteChildren)
+
+interface AuthenticatedPlansRouteChildren {
+  AuthenticatedPlansIdRoute: typeof AuthenticatedPlansIdRoute
+  AuthenticatedPlansNewTypeRoute: typeof AuthenticatedPlansNewTypeRoute
+}
+
+const AuthenticatedPlansRouteChildren: AuthenticatedPlansRouteChildren = {
+  AuthenticatedPlansIdRoute: AuthenticatedPlansIdRoute,
+  AuthenticatedPlansNewTypeRoute: AuthenticatedPlansNewTypeRoute,
+}
+
+const AuthenticatedPlansRouteWithChildren =
+  AuthenticatedPlansRoute._addFileChildren(AuthenticatedPlansRouteChildren)
 
 interface AuthenticatedPurchasesRouteChildren {
   AuthenticatedPurchasesIdRoute: typeof AuthenticatedPurchasesIdRoute
@@ -393,6 +464,7 @@ const AuthenticatedWorkspacesRouteWithChildren =
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedCreateRoute: typeof AuthenticatedCreateRoute
   AuthenticatedNotesRoute: typeof AuthenticatedNotesRouteWithChildren
+  AuthenticatedPlansRoute: typeof AuthenticatedPlansRouteWithChildren
   AuthenticatedPurchasesRoute: typeof AuthenticatedPurchasesRouteWithChildren
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTasksRoute: typeof AuthenticatedTasksRouteWithChildren
@@ -405,6 +477,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCreateRoute: AuthenticatedCreateRoute,
   AuthenticatedNotesRoute: AuthenticatedNotesRouteWithChildren,
+  AuthenticatedPlansRoute: AuthenticatedPlansRouteWithChildren,
   AuthenticatedPurchasesRoute: AuthenticatedPurchasesRouteWithChildren,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTasksRoute: AuthenticatedTasksRouteWithChildren,
