@@ -28,7 +28,7 @@ function NewPlanPage() {
     );
   }
 
-  const schema = getPlanSchema(planType);
+  const schema = getPlanSchema(planType) as never;
 
   return (
     <AppShell>
