@@ -1,10 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Fingerprint, Lock, Moon, Bell, Cloud, Globe, Info, ChevronLeft, Shield, Download, LogOut, Loader2 } from "lucide-react";
+import { Fingerprint, Lock, Moon, Bell, Cloud, Globe, Info, ChevronLeft, Shield, Download, LogOut, Loader2, Smartphone, Wifi, WifiOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AppShell, PageHeader } from "@/components/AppShell";
 import { useProfile, useUpdateProfile } from "@/lib/data";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { usePwaInstall } from "@/hooks/use-pwa-install";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({
@@ -21,6 +23,8 @@ function SettingsPage() {
   const updateProfile = useUpdateProfile();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const pwa = usePwaInstall();
+  const online = typeof navigator === "undefined" ? true : navigator.onLine;
 
   const [dark, setDark] = useState(profile?.theme === "dark");
   const [biometric, setBiometric] = useState(true);
@@ -105,6 +109,23 @@ function SettingsPage() {
       </Group>
 
       <Group title="عن التطبيق">
+        <Row
+          icon={pwa.installed ? Smartphone : Download}
+          label={pwa.installed ? "التطبيق مثبّت على جهازك" : "تثبيت التطبيق على الجهاز"}
+          desc={pwa.installed ? "يعمل من أيقونة الشاشة الرئيسية" : (pwa.canInstall ? "أضف MemoFlow كتطبيق مستقل" : "افتح من متصفح يدعم التثبيت (Chrome / Edge / Safari)")}
+          onClick={async () => {
+            if (pwa.installed) return;
+            const res = await pwa.promptInstall();
+            if (res === "unavailable") {
+              toast.info("من متصفحك: القائمة → «تثبيت التطبيق» أو «Add to Home Screen»");
+            }
+          }}
+        />
+        <Row
+          icon={online ? Wifi : WifiOff}
+          label={online ? "متصل بالإنترنت" : "بدون اتصال"}
+          desc={online ? "المزامنة مفعّلة" : "يعمل التطبيق من الذاكرة المحلية"}
+        />
         <Row icon={Info} label="MemoFlow" desc="الإصدار 1.0.0" />
       </Group>
     </AppShell>
@@ -120,9 +141,9 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function Row({ icon: Icon, label, desc }: { icon: typeof Lock; label: string; desc?: string }) {
+function Row({ icon: Icon, label, desc, onClick }: { icon: typeof Lock; label: string; desc?: string; onClick?: () => void }) {
   return (
-    <button className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 p-4 text-right transition-colors hover:bg-secondary">
+    <button onClick={onClick} className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 p-4 text-right transition-colors hover:bg-secondary">
       <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary"><Icon className="size-4" /></div>
       <div className="min-w-0">
         <p className="truncate text-sm font-bold">{label}</p>
