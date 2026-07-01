@@ -24,9 +24,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   useTaskReminders();
   return (
     <div className="min-h-dvh bg-background text-foreground">
-      <div className="mx-auto max-w-md pb-28">{children}</div>
+      <main id="main" className="mx-auto max-w-md pb-[calc(env(safe-area-inset-bottom)+7rem)] safe-x">
+        {children}
+      </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+      <nav
+        aria-label="التنقل الرئيسي"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 safe-bottom safe-x"
+      >
         <div className="mx-auto flex max-w-md items-center justify-around px-2 py-2">
           {nav.map((item) => {
             const active = pathname === item.to;
@@ -36,7 +41,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <Link
                   key={item.to}
                   to={item.to}
-                  className="-mt-8 grid h-14 w-14 shrink-0 place-items-center rounded-2xl gradient-primary text-primary-foreground shadow-fab transition-transform active:scale-95"
+                  className="-mt-8 grid h-14 w-14 shrink-0 place-items-center rounded-2xl gradient-primary text-primary-foreground shadow-fab transition-transform hover:scale-[1.03] active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
                   aria-label={item.label}
                 >
                   <Icon className="size-7" strokeWidth={2.5} />
@@ -47,7 +52,9 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Link
                 key={item.to}
                 to={item.to}
-                className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 text-[10px] font-medium transition-colors ${
+                aria-current={active ? "page" : undefined}
+                aria-label={item.label}
+                className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[10px] font-medium tap-44 transition-colors ${
                   active ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
