@@ -54,7 +54,7 @@ export async function registerAppSw(): Promise<void> {
     const { registerSW } = await import("virtual:pwa-register");
     registerSW({
       immediate: true,
-      onRegisteredSW(_url, reg) {
+      onRegisteredSW(_url: string, reg?: ServiceWorkerRegistration) {
         if (reg) setInterval(() => reg.update().catch(() => {}), 60 * 60 * 1000);
       },
     });
