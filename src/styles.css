@@ -275,3 +275,34 @@
   transition: border-color 0.15s;
 }
 .input:focus { border-color: var(--color-primary); }
+
+/* ============= Wave 6.1 — Safe area, tap targets, a11y ============= */
+@utility safe-top   { padding-top: env(safe-area-inset-top); }
+@utility safe-bottom{ padding-bottom: env(safe-area-inset-bottom); }
+@utility safe-x     { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+@utility tap-44     { min-height: 2.75rem; min-width: 2.75rem; }
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+    border-radius: calc(var(--radius) - 4px);
+  }
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Global scrollbar polish */
+html, body { overflow-x: hidden; }
+
+/* Ensure focus is always visible for keyboard users on interactive elements */
+button:focus-visible, a:focus-visible, [role="button"]:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
