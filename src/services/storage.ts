@@ -20,7 +20,7 @@ export const storage: StorageService = {
       return raw == null ? fallback : (JSON.parse(raw) as T);
     }, fallback);
   },
-  set<T>(key, value) {
+  set<T>(key: string, value: T) {
     if (typeof localStorage === "undefined") return;
     safe(() => localStorage.setItem(key, JSON.stringify(value)), undefined);
   },
