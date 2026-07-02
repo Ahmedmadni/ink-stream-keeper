@@ -120,11 +120,12 @@ function PurchasePreview({ id }: { id: string }) {
   if (!data) return <NotFound label="القائمة" />;
   return (
     <div className="space-y-3">
-      <h2 className="text-lg font-extrabold leading-snug">{data.name}</h2>
+      <h2 className="text-lg font-extrabold leading-snug">{data.title}</h2>
       {stats && (
-        <div className="grid grid-cols-2 gap-2 text-center text-xs">
-          <Stat label="عناصر" value={String(stats.total_items ?? 0)} />
-          <Stat label="مكتمل" value={`${stats.completed_items ?? 0}/${stats.total_items ?? 0}`} />
+        <div className="grid grid-cols-3 gap-2 text-center text-xs">
+          <Stat label="عناصر" value={String(stats.items_count ?? 0)} />
+          <Stat label="تم شراؤه" value={`${stats.purchased_count ?? 0}/${stats.items_count ?? 0}`} />
+          <Stat label="التقدم" value={`${Math.round(stats.progress ?? 0)}%`} />
         </div>
       )}
     </div>
@@ -141,9 +142,10 @@ function PlanPreview({ id }: { id: string }) {
       <h2 className="text-lg font-extrabold leading-snug">{data.title}</h2>
       {data.description && <p className="text-sm text-muted-foreground">{data.description}</p>}
       {stat && (
-        <div className="grid grid-cols-2 gap-2 text-center text-xs">
-          <Stat label="خطوات" value={`${stat.completed_steps ?? 0}/${stat.total_steps ?? 0}`} />
-          <Stat label="التقدم" value={`${Math.round(stat.progress ?? 0)}%`} />
+        <div className="grid grid-cols-3 gap-2 text-center text-xs">
+          <Stat label="مراحل" value={`${stat.stage_done ?? 0}/${stat.stage_count ?? 0}`} />
+          <Stat label="خطوات" value={`${stat.step_done ?? 0}/${stat.step_count ?? 0}`} />
+          <Stat label="التقدم" value={`${Math.round(stat.computed_progress ?? 0)}%`} />
         </div>
       )}
     </div>
@@ -164,7 +166,7 @@ function WorkspacePreview({ id }: { id: string }) {
       {data.description && <p className="text-sm text-muted-foreground">{data.description}</p>}
       {stats && (
         <div className="grid grid-cols-3 gap-2 text-center text-xs">
-          <Stat label="عناصر" value={String(stats.total_items ?? 0)} />
+          <Stat label="عناصر" value={String(stats.items_count ?? 0)} />
           <Stat label="مهام" value={String(stats.tasks_count ?? 0)} />
           <Stat label="ملاحظات" value={String(stats.notes_count ?? 0)} />
         </div>
