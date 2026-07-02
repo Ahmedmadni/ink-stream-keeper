@@ -15,6 +15,7 @@ import { supabase } from "../integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
 import { registerAppSw } from "@/lib/pwa/register-sw";
 import { useOnlineStatus } from "@/hooks/use-online-status";
+import { PanelProvider } from "@/hooks/use-panel";
 
 function NotFoundComponent() {
   return (
@@ -154,8 +155,10 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
-      <Toaster position="top-center" dir="rtl" richColors closeButton />
+      <PanelProvider>
+        <Outlet />
+        <Toaster position="top-center" dir="rtl" richColors closeButton />
+      </PanelProvider>
     </QueryClientProvider>
   );
 }
