@@ -1,71 +1,138 @@
+# Wave 6.2 — Premium Polish, Tablet Layout, Services Layer
 
-# المرحلة 6 — Product Polish & Mobile Optimization
+نطاق Wave 6.2 ضخم جداً ولا يُنصح بتنفيذه في دفعة واحدة. سأقسّمه إلى **4 موجات فرعية** متسلسلة، وكل موجة تُنهى بتقرير مصغّر قبل الانتقال للتالية.
 
-نطاق كبير جداً لتنفيذه دفعة واحدة دون كسر ميزات موجودة. سأقسّمه إلى **4 موجات متتابعة**، كل موجة تُسلَّم مع تقرير مصغّر، ثم ننتقل للتي بعدها.
+المبدأ العام (يُطبَّق في كل موجة):
+- Framer Motion باعتدال، جميع الحركات ≤ 250ms
+- احترام `prefers-reduced-motion` عبر hook مركزي `useMotionSafe()`
+- لا تغيير في منطق الأعمال أو الـ Schemas — تحسينات UI/UX وطبقات فقط
 
-## Wave 6.1 — Design System Unification + Responsive Baseline
-- إنشاء `src/lib/design-tokens.ts` + مراجعة `styles.css`:
-  - توحيد `spacing`, `radius`, `shadow`, `typography scale`, `focus ring`, `hover`, `transitions`.
-  - Semantic tokens فقط — إزالة أي `bg-white/text-black/#hex` من المكونات.
-- توحيد Primitives:
-  - `PageHeader`, `EmptyState`, `LoadingState`, `ErrorState`, `SuccessToast`, `SkeletonList`, `SectionCard` — استخراج من التكرار الحالي.
-  - `AppShell`: safe-area (`env(safe-area-inset-*)`)، bottom nav 44×44 دنيا، حالة active أوضح.
-- Responsive audit على 320 / 360 / 390 / 412 / 768 / 1024 / 1280 / 1600:
-  - تطبيق قاعدة `grid-cols-[minmax(0,1fr)_auto] + min-w-0 + shrink-0 + truncate` على كل الرؤوس.
-  - إزالة `h-screen` لصالح `h-dvh`، ومنع أي `overflow-x`.
-- Tablet layout (≥768):
-  - إضافة `AppShellResponsive`: sidebar عمودي على التابلت + master/detail لـ Notes / Tasks / Plans / Purchases / Workspaces عبر مكوّن `SplitView` جديد.
+---
 
-## Wave 6.2 — Detail Pages Migration + Animations + A11y
-- تحويل صفحات التفاصيل (`notes.$id`, `tasks.$id`, `purchases.$id`, `plans.$id`) لاستخدام:
-  - `DynamicHeader`, `DynamicSummaryCard`, `DynamicDetail`, `DynamicAttachments`, `DynamicComments`, `DynamicTimeline`
-  - مع الحفاظ 100% على السلوك الحالي (checklist, subtasks, stages, price fields, RichEditor للملاحظات).
-- Animations خفيفة:
-  - `PageTransition` عبر `framer-motion` (fade+slide 200ms).
-  - `animate-fade-in` / `animate-scale-in` على البطاقات والحوارات.
-  - FAB micro-interaction، Accordion smooth، Pull-to-refresh على القوائم الرئيسية.
-- Accessibility:
-  - `aria-label` لكل زر أيقونة، `<main>` واحد لكل صفحة، `focus-visible` موحّد.
-  - فحص التباين، دعم Keyboard Nav على البطاقات القابلة للفتح.
-  - `lang="ar" dir="rtl"` (موجود) + دعم LTR داخل حقول تحتاجها (URLs، أرقام).
+## Wave 6.2.a — Service Layer + Motion Primitives (الأساس)
 
-## Wave 6.3 — Performance + Offline + Monitoring + Security
-- Performance:
-  - `React.lazy` + `Suspense` لصفحات الثقيلة (RichEditor, DrawingCanvas, Calendar, TipTap).
-  - `useMemo`/`memo` للقوائم الطويلة، virtualization في Notes/Tasks/Purchase items (موجود جزئياً).
-  - مراجعة React Query: `staleTime`, `select`, تقليل استعلامات المشتقات.
-- Offline (optimistic):
-  - إضافة `onMutate` optimistic updates + rollback لكل الميوتيشنز الحرجة (toggle task, update note, checklist).
-  - رسالة توست عند فقدان الاتصال مع إعادة محاولة تلقائية عبر React Query retry.
-- Monitoring:
-  - `ErrorBoundary` عام + توسعة `lovable-error-reporting` لتغطية server functions.
-  - `src/lib/logger.ts` مع مستويات ومصدر تقارير مستقبلي.
-- Security:
-  - تشغيل `security--run_security_scan` ومعالجة النتائج.
-  - مراجعة سياسات RLS والـ GRANTs عبر migrations إذا لزم.
-  - تحقق مدخلات Zod على كل server function، حدود حجم رفع في `note-attachments`.
+الهدف: بناء الطبقات التي ستستخدمها بقية الموجات.
 
-## Wave 6.4 — Mobile App Readiness + Ads Slot + Cleanup + Report
-- Capacitor readiness (بدون تنفيذ التحويل):
-  - `src/lib/platform.ts`: كشف بيئة (web/ios/android) + واجهات موحّدة لـ Camera, Gallery, FilePicker, Share, Storage, LocalNotifications، مع تطبيق Web fallback الآن.
-  - Safe-area utilities، viewport-fit=cover (موجود)، Splash/Icons متحقق منها.
-  - Deep-link map: توثيق مسارات `/notes/:id`, `/tasks/:id`, `/plans/:id`, `/workspaces/:id` كـ Universal Links جاهزة.
-  - `permissions.ts` طبقة تجريد.
-- Ads architecture:
-  - `<AdSlot placement="..." />` مكوّن يقرأ من `settings.ads_enabled` ولا يعرض شيئاً حالياً.
-  - أماكن مخصّصة: Home bottom, Notes list footer, Tasks between-days، Vault معطّل دائماً.
-  - إعداد في `settings.tsx` لتفعيل/تعطيل مستقبلاً.
-- Cleanup:
-  - إزالة imports/hooks/مكونات غير مستخدمة، توحيد أسماء ملفات، تنظيف routeTree.
-- Final Report:
-  - جودة المنتج، الأداء، تجربة الهاتف/التابلت، جاهزية Android/iOS/النشر، وقائمة blockers متبقية.
+1. **Service Layer** — `src/services/`
+   - `haptics.ts` — Web Vibration API + interface جاهزة لـ Capacitor
+   - `share.ts` — Web Share API + fallback نسخ
+   - `notifications.ts` — Notification API (موجود جزئياً في use-task-reminders)
+   - `storage.ts` — localStorage/IndexedDB wrapper
+   - `camera.ts` — getUserMedia + input[file]
+   - `biometric.ts` — WebAuthn interface (stub)
+   - `files.ts` — File System Access API + fallback download
+   - كل خدمة `interface + webImpl + export singleton` → تبديل Capacitor بسطر واحد
 
-## قيود صارمة
-- لا Features جديدة، لا أنواع بيانات جديدة، لا Refactors تكسر عقد الخدمات الحالية.
-- كل موجة قابلة للنشر بشكل مستقل.
-- التحقق بعد كل موجة عبر: build، سكرين‌شوت Playwright على 360/768/1280، وسكان أمني في Wave 6.3.
+2. **Motion Primitives** — `src/components/motion/`
+   - `MotionProvider` مع `useReducedMotion()`
+   - `<PageFade>`, `<CardLift>`, `<SectionExpand>`, `<ScaleIn>` — كلها ≤ 220ms
+   - `Ripple` component للأزرار الأساسية
 
-## أسئلة قبل البدء
-1. هل نبدأ بـ **Wave 6.1** الآن؟ أم تفضّل تغيير الترتيب (مثلاً البدء بـ 6.3 Performance/Security)؟
-2. هل تريد `framer-motion` للـ animations (إضافة تبعية ~30KB gz) أم الاكتفاء بـ Tailwind keyframes الموجودة؟
-3. تصميم التابلت: **Sidebar + Split View** أم **Bottom nav مع master/detail عريض** فقط؟
+3. **Feedback Upgrade**
+   - `EmptyState` يقبل `illustration` prop (SVG بسيط لكل نوع)
+   - `SkeletonList` variants لكل قائمة (Notes/Tasks/Purchases/Plans/Workspaces)
+
+**تقرير 6.2.a**: قائمة الخدمات + عدد الحركات المضافة.
+
+---
+
+## Wave 6.2.b — Tablet Master/Detail Layout
+
+الهدف: تجربة Tablet احترافية عند `md:` وأكبر.
+
+1. **`AppShell` responsive**
+   - Mobile (< md): يبقى كما هو (bottom nav)
+   - Tablet (≥ md): 3 أعمدة
+     - يسار: Navigation + Workspaces (280px)
+     - وسط: List (المسار الحالي)
+     - يمين: Detail Panel (يُملأ من selection state أو URL param)
+
+2. **Selection state**
+   - `useSelectedItem()` — يحفظ ID في URL search param `?panel=...`
+   - Detail Panel يعرض `<DynamicDetail>` للعنصر المحدد
+   - على الموبايل: نفس الرابط ينقل لصفحة detail كاملة (بدون تغيير)
+
+3. **Transitions**
+   - Fade خفيف عند تغيير Detail Panel
+   - لا reload — كل التنقل client-side (موجود أصلاً)
+
+**تقرير 6.2.b**: الصفحات المدعومة (Notes/Tasks/Purchases/Plans/Workspaces).
+
+---
+
+## Wave 6.2.c — Detail Migration + Slots
+
+الهدف: توحيد صفحات التفاصيل على `DynamicDetail` مع الحفاظ على التخصيص.
+
+1. **`DynamicDetail` v2 — Slots API**
+   ```tsx
+   <DynamicDetail schema={...} values={...}>
+     <DynamicDetail.Header>...</DynamicDetail.Header>
+     <DynamicDetail.Statistics>...</DynamicDetail.Statistics>
+     <DynamicDetail.Timeline>...</DynamicDetail.Timeline>
+     <DynamicDetail.Attachments>...</DynamicDetail.Attachments>
+     <DynamicDetail.Comments>...</DynamicDetail.Comments>
+     <DynamicDetail.Actions>...</DynamicDetail.Actions>
+   </DynamicDetail>
+   ```
+   - Slots معرّفة كـ `React.Children` filter مع named components
+   - Default rendering إذا لم يُوفَّر Slot
+
+2. **Migration** (تدريجي، صفحة صفحة):
+   - `tasks.$id.tsx` → DynamicDetail + slots
+   - `purchases.$id.tsx` → DynamicDetail + slots
+   - `plans.$id.tsx` → DynamicDetail + slots
+   - **`notes.$id.tsx` استثناء**: يبقى بمحرر TipTap مخصص، فقط يستفيد من `<DynamicDetail.Attachments>` و `<DynamicDetail.Comments>` كمكونات مشتركة
+
+**تقرير 6.2.c**: نسبة الصفحات المُوحَّدة + مكونات مشتركة جديدة.
+
+---
+
+## Wave 6.2.d — Micro-Interactions + A11y + Performance
+
+1. **Micro-interactions**
+   - Checkbox animation (spring)
+   - Success burst (نجمة صغيرة عند إتمام مهمة)
+   - Progress bar animate
+   - Long-press feedback (haptic + ripple)
+   - Hover elevation على cards (≥ md فقط)
+
+2. **A11y — WCAG AA**
+   - Audit ألوان `--muted-foreground` على `--card` (تباين ≥ 4.5:1)
+   - `aria-label` لكل أيقونة تفاعلية
+   - Focus rings موحّدة (`.focus-ring` موجودة — طبّقها)
+   - `role="status"`/`aria-live` للتحديثات الديناميكية
+   - اختبار keyboard navigation في القوائم الرئيسية
+
+3. **Performance**
+   - Route-based code splitting (تحقق من `autoCodeSplitting`)
+   - `React.memo` لعناصر القوائم الثقيلة (NoteCard, TaskRow)
+   - Image lazy loading + `loading="lazy"`
+   - Prefetch on hover للـ Links الرئيسية (موجود عبر `defaultPreload`)
+
+**تقرير 6.2.d نهائي (تقرير Wave 6.2 الكامل)**:
+- % الصفحات على DynamicDetail
+- عدد المكونات المشتركة
+- تقييم Performance (bundle size, Lighthouse تقديري)
+- تقييم Mobile/Tablet/A11y
+- جاهزية Capacitor
+- الديون التقنية المتبقية
+
+---
+
+## Technical Notes
+
+- كل Framer Motion imports مُشرّطة بـ `useReducedMotion()` — ترجع `initial=false, animate=false` عند التفعيل
+- Service Layer يُصدَّر singleton pattern: `import { haptics } from '@/services/haptics'`
+- لن نضيف Capacitor نفسه الآن — فقط الـ interfaces
+- لن يُلمس أي schema أو migration في هذه الموجة
+
+## ما لن يُنفَّذ في Wave 6.2
+
+- AdMob integration (يُؤجَّل لموجة نشر منفصلة)
+- Capacitor build actual (يحتاج بيئة native)
+- Split view drag-to-resize (يمكن إضافته لاحقاً)
+
+---
+
+هل أبدأ بـ **Wave 6.2.a (Service Layer + Motion)** الآن؟
