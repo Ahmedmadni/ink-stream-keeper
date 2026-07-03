@@ -10,7 +10,7 @@ import type { BlockInstance } from "@/lib/engine/blocks";
 export function BlockChrome({
   block, title, children,
 }: {
-  block: BlockInstance;
+  block: BlockInstance<any, any>;
   title?: ReactNode;
   children: ReactNode;
 }) {
