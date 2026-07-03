@@ -5,7 +5,7 @@ import { useNote, useTask, useChecklist, useSubtasks } from "@/lib/data";
 import { usePurchaseList, usePurchaseStats } from "@/lib/purchases";
 import { usePlan, usePlanStat } from "@/lib/plans";
 import { useWorkspace, useWorkspaceStats } from "@/lib/workspaces";
-import { LoadingState, EmptyState, SectionCard } from "@/components/feedback";
+import { LoadingState, EmptyState } from "@/components/feedback";
 import { PageFade } from "@/components/motion";
 import { BlockRenderer } from "@/components/blocks";
 import { buildTaskBlocks, buildPurchaseBlocks, buildPlanBlocks } from "@/lib/engine/compositions";
@@ -142,10 +142,6 @@ function WorkspacePreview({ id }: { id: string }) {
       )}
     </div>
   );
-}
-
-function Badge({ children }: { children: React.ReactNode }) {
-  return <span className="rounded-full bg-primary-soft px-2.5 py-1 font-semibold text-primary">{children}</span>;
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
