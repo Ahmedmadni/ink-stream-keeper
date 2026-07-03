@@ -1,13 +1,14 @@
 import { Link } from "@tanstack/react-router";
 import { ExternalLink, X, FileText, CheckSquare, ShoppingBag, Target, LayoutGrid } from "lucide-react";
 import { usePanel, type PanelKind } from "@/hooks/use-panel";
-import { useNote } from "@/lib/data";
-import { useTask } from "@/lib/data";
+import { useNote, useTask, useChecklist, useSubtasks } from "@/lib/data";
 import { usePurchaseList, usePurchaseStats } from "@/lib/purchases";
 import { usePlan, usePlanStat } from "@/lib/plans";
 import { useWorkspace, useWorkspaceStats } from "@/lib/workspaces";
 import { LoadingState, EmptyState, SectionCard } from "@/components/feedback";
 import { PageFade } from "@/components/motion";
+import { BlockRenderer } from "@/components/blocks";
+import { buildTaskBlocks, buildPurchaseBlocks, buildPlanBlocks } from "@/lib/engine/compositions";
 
 const kindMeta: Record<PanelKind, { label: string; icon: typeof FileText; to: string }> = {
   notes: { label: "ملاحظة", icon: FileText, to: "/notes/$id" },
@@ -94,23 +95,12 @@ function NotePreview({ id }: { id: string }) {
 
 function TaskPreview({ id }: { id: string }) {
   const { data, isLoading } = useTask(id);
+  const { data: checklist = [] } = useChecklist(id);
+  const { data: subs = [] } = useSubtasks(id);
   if (isLoading) return <LoadingState />;
   if (!data) return <NotFound label="المهمة" />;
-  return (
-    <div className="space-y-3">
-      <h2 className="text-lg font-extrabold leading-snug">{data.title}</h2>
-      <div className="flex flex-wrap gap-2 text-xs">
-        <Badge>{data.done ? "مكتملة" : "قيد التنفيذ"}</Badge>
-        {data.priority && <Badge>الأولوية: {data.priority}</Badge>}
-        {typeof data.progress === "number" && <Badge>التقدم: {data.progress}%</Badge>}
-      </div>
-      {data.description && (
-        <SectionCard title="الوصف">
-          <p className="whitespace-pre-line text-sm leading-relaxed">{data.description}</p>
-        </SectionCard>
-      )}
-    </div>
-  );
+  const ctx = { task: data, checklist: checklist as any, subtasks: subs as any };
+  return <BlockRenderer blocks={buildTaskBlocks(ctx)} context={ctx} />;
 }
 
 function PurchasePreview({ id }: { id: string }) {
@@ -118,18 +108,8 @@ function PurchasePreview({ id }: { id: string }) {
   const { data: stats } = usePurchaseStats(id);
   if (isLoading) return <LoadingState />;
   if (!data) return <NotFound label="القائمة" />;
-  return (
-    <div className="space-y-3">
-      <h2 className="text-lg font-extrabold leading-snug">{data.title}</h2>
-      {stats && (
-        <div className="grid grid-cols-3 gap-2 text-center text-xs">
-          <Stat label="عناصر" value={String(stats.items_count ?? 0)} />
-          <Stat label="تم شراؤه" value={`${stats.purchased_count ?? 0}/${stats.items_count ?? 0}`} />
-          <Stat label="التقدم" value={`${Math.round(stats.progress ?? 0)}%`} />
-        </div>
-      )}
-    </div>
-  );
+  const ctx = { list: data, stats: stats ?? null };
+  return <BlockRenderer blocks={buildPurchaseBlocks(ctx)} context={ctx} />;
 }
 
 function PlanPreview({ id }: { id: string }) {
@@ -137,19 +117,8 @@ function PlanPreview({ id }: { id: string }) {
   const { data: stat } = usePlanStat(id);
   if (isLoading) return <LoadingState />;
   if (!data) return <NotFound label="الخطة" />;
-  return (
-    <div className="space-y-3">
-      <h2 className="text-lg font-extrabold leading-snug">{data.title}</h2>
-      {data.description && <p className="text-sm text-muted-foreground">{data.description}</p>}
-      {stat && (
-        <div className="grid grid-cols-3 gap-2 text-center text-xs">
-          <Stat label="مراحل" value={`${stat.stage_done ?? 0}/${stat.stage_count ?? 0}`} />
-          <Stat label="خطوات" value={`${stat.step_done ?? 0}/${stat.step_count ?? 0}`} />
-          <Stat label="التقدم" value={`${Math.round(stat.computed_progress ?? 0)}%`} />
-        </div>
-      )}
-    </div>
-  );
+  const ctx = { plan: data, stat: stat ?? null };
+  return <BlockRenderer blocks={buildPlanBlocks(ctx)} context={ctx} />;
 }
 
 function WorkspacePreview({ id }: { id: string }) {
