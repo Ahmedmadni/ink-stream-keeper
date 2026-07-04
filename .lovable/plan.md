@@ -1,138 +1,67 @@
-# Wave 6.2 — Premium Polish, Tablet Layout, Services Layer
 
-نطاق Wave 6.2 ضخم جداً ولا يُنصح بتنفيذه في دفعة واحدة. سأقسّمه إلى **4 موجات فرعية** متسلسلة، وكل موجة تُنهى بتقرير مصغّر قبل الانتقال للتالية.
+## Wave 6.2.c.2 — تنفيذ مرحلي مع Architecture Freeze
 
-المبدأ العام (يُطبَّق في كل موجة):
-- Framer Motion باعتدال، جميع الحركات ≤ 250ms
-- احترام `prefers-reduced-motion` عبر hook مركزي `useMotionSafe()`
-- لا تغيير في منطق الأعمال أو الـ Schemas — تحسينات UI/UX وطبقات فقط
+نظراً لحجم المرحلة (تحويل 3 صفحات كاملة + 6 blocks قابلة للتحرير + BlockContext + Toolbar + Inspector + Event Bus + تقرير أداء)، سيتم التنفيذ على 3 موجات فرعية متتالية داخل هذه المرحلة، مع الحفاظ الكامل على السلوك الحالي في كل خطوة.
 
----
+### Sub-wave A — البنية التحتية (هذه الجلسة)
 
-## Wave 6.2.a — Service Layer + Motion Primitives (الأساس)
+**BlockContext** (`src/lib/engine/block-context.tsx`)
+- `BlockProvider` يمرّر: `item`, `schema?`, `permissions`, `mutations`, `workspace?`, `readonly`, `deviceType`, `selection`.
+- `useBlockContext<T>()` بدون الحاجة لأي hook خاص بالنوع داخل الـ Block.
 
-الهدف: بناء الطبقات التي ستستخدمها بقية الموجات.
+**Event Bus** (`src/lib/engine/block-events.ts`)
+- Bus خفيف: `emit(event, payload)`, `on(event, cb)`, `useBlockEvent(event, cb)`.
+- الأحداث المعيارية: `item:update`, `item:delete`, `checklist:toggle`, `tags:add`, `tags:remove`, `link:add`, `link:remove`, `field:save`.
 
-1. **Service Layer** — `src/services/`
-   - `haptics.ts` — Web Vibration API + interface جاهزة لـ Capacitor
-   - `share.ts` — Web Share API + fallback نسخ
-   - `notifications.ts` — Notification API (موجود جزئياً في use-task-reminders)
-   - `storage.ts` — localStorage/IndexedDB wrapper
-   - `camera.ts` — getUserMedia + input[file]
-   - `biometric.ts` — WebAuthn interface (stub)
-   - `files.ts` — File System Access API + fallback download
-   - كل خدمة `interface + webImpl + export singleton` → تبديل Capacitor بسطر واحد
+**Common Actions** (`src/lib/engine/actions.ts`)
+- `useItemActions(kind, id)` → `delete`, `duplicate`, `archive`, `favorite`, `share`, `export`, `move`.
+- طبقة موحّدة تستدعي hooks الموجودة (`useDeleteTask`, `useUpdateTask`, ...).
 
-2. **Motion Primitives** — `src/components/motion/`
-   - `MotionProvider` مع `useReducedMotion()`
-   - `<PageFade>`, `<CardLift>`, `<SectionExpand>`, `<ScaleIn>` — كلها ≤ 220ms
-   - `Ripple` component للأزرار الأساسية
+**Toolbar** (`src/components/blocks/Toolbar.tsx`)
+- شريط علوي موحّد: Edit / Undo / Redo / Share / Favorite / Archive / Delete.
+- Undo/Redo عبر `useHistory` (in-memory stack) للحقول القابلة للتحرير.
 
-3. **Feedback Upgrade**
-   - `EmptyState` يقبل `illustration` prop (SVG بسيط لكل نوع)
-   - `SkeletonList` variants لكل قائمة (Notes/Tasks/Purchases/Plans/Workspaces)
+**Inspector** (`src/components/blocks/Inspector.tsx`)
+- لوحة جانبية (Sheet على الموبايل، Panel ثابت على md+) تعرض `PropertiesBlock` القابل للتحرير خارج تدفق الصفحة.
 
-**تقرير 6.2.a**: قائمة الخدمات + عدد الحركات المضافة.
+### Sub-wave B — Editable Blocks (هذه الجلسة)
 
----
+استبدال 6 blocks بنسخ قابلة للتحرير عبر `readonly` flag في `BlockContext`:
+1. `PropertiesBlock` → inline editors (select / date / text) عبر `field.editor` prop.
+2. `ChecklistBlock` → add/edit/delete/toggle (يبعث `checklist:*` events).
+3. `BudgetBlock` → inline number editors مع currency.
+4. `RichTextBlock` → click-to-edit textarea + save on blur.
+5. `TagsBlock` → add/remove chips.
+6. `ProgressBlock` → slider inline.
 
-## Wave 6.2.b — Tablet Master/Detail Layout
+### Sub-wave C — Migration (جلسة تالية بعد اعتماد A+B)
 
-الهدف: تجربة Tablet احترافية عند `md:` وأكبر.
+- `tasks.$id.tsx`, `purchases.$id.tsx`, `plans.$id.tsx` → كل واحدة تصبح ~40 سطر:
+  ```
+  <BlockProvider ...>
+    <Toolbar />
+    <BlockRenderer blocks={buildTaskBlocks(ctx)} context={ctx} />
+  </BlockProvider>
+  ```
+- توسيع `task.blocks.ts` / `purchase.blocks.ts` / `plan.blocks.ts` لتغطية كل الأقسام الموجودة (checklist, subtasks, tags, links, category, subtasks كـ block منفصل).
+- الصفحات القديمة تُحذف فقط بعد `tsgo` + فحص يدوي لكل مسار.
 
-1. **`AppShell` responsive**
-   - Mobile (< md): يبقى كما هو (bottom nav)
-   - Tablet (≥ md): 3 أعمدة
-     - يسار: Navigation + Workspaces (280px)
-     - وسط: List (المسار الحالي)
-     - يمين: Detail Panel (يُملأ من selection state أو URL param)
+### ما لن يتغير (ضمان عدم الكسر)
+- كل `use*` hooks في `src/lib/data.ts` / `src/lib/purchases.ts` / `src/lib/plans.ts`.
+- كل الـ routes ومسارات الروابط.
+- `DetailPanel.tsx` (يعمل حالياً على المحرك، سيستفيد تلقائياً من الـ Editable Blocks عبر `readonly: false`).
 
-2. **Selection state**
-   - `useSelectedItem()` — يحفظ ID في URL search param `?panel=...`
-   - Detail Panel يعرض `<DynamicDetail>` للعنصر المحدد
-   - على الموبايل: نفس الرابط ينقل لصفحة detail كاملة (بدون تغيير)
+### Architecture Freeze (بعد C)
+تجميد: Dynamic Engine, Block Engine, Planning Engine, Workspace Engine. أي ميزة لاحقة تُبنى فوقها فقط.
 
-3. **Transitions**
-   - Fade خفيف عند تغيير Detail Panel
-   - لا reload — كل التنقل client-side (موجود أصلاً)
-
-**تقرير 6.2.b**: الصفحات المدعومة (Notes/Tasks/Purchases/Plans/Workspaces).
-
----
-
-## Wave 6.2.c — Detail Migration + Slots
-
-الهدف: توحيد صفحات التفاصيل على `DynamicDetail` مع الحفاظ على التخصيص.
-
-1. **`DynamicDetail` v2 — Slots API**
-   ```tsx
-   <DynamicDetail schema={...} values={...}>
-     <DynamicDetail.Header>...</DynamicDetail.Header>
-     <DynamicDetail.Statistics>...</DynamicDetail.Statistics>
-     <DynamicDetail.Timeline>...</DynamicDetail.Timeline>
-     <DynamicDetail.Attachments>...</DynamicDetail.Attachments>
-     <DynamicDetail.Comments>...</DynamicDetail.Comments>
-     <DynamicDetail.Actions>...</DynamicDetail.Actions>
-   </DynamicDetail>
-   ```
-   - Slots معرّفة كـ `React.Children` filter مع named components
-   - Default rendering إذا لم يُوفَّر Slot
-
-2. **Migration** (تدريجي، صفحة صفحة):
-   - `tasks.$id.tsx` → DynamicDetail + slots
-   - `purchases.$id.tsx` → DynamicDetail + slots
-   - `plans.$id.tsx` → DynamicDetail + slots
-   - **`notes.$id.tsx` استثناء**: يبقى بمحرر TipTap مخصص، فقط يستفيد من `<DynamicDetail.Attachments>` و `<DynamicDetail.Comments>` كمكونات مشتركة
-
-**تقرير 6.2.c**: نسبة الصفحات المُوحَّدة + مكونات مشتركة جديدة.
+### تقرير نهاية المرحلة (بعد C)
+- % الصفحات على Block Engine.
+- % الكود المكرر المُزال (سطور قبل/بعد لـ `*.$id.tsx`).
+- حجم الـ bundle قبل/بعد.
+- عدد Editable Blocks.
+- تقييم أداء (initial mount + navigation + memory).
+- ديون تقنية متبقية.
 
 ---
 
-## Wave 6.2.d — Micro-Interactions + A11y + Performance
-
-1. **Micro-interactions**
-   - Checkbox animation (spring)
-   - Success burst (نجمة صغيرة عند إتمام مهمة)
-   - Progress bar animate
-   - Long-press feedback (haptic + ripple)
-   - Hover elevation على cards (≥ md فقط)
-
-2. **A11y — WCAG AA**
-   - Audit ألوان `--muted-foreground` على `--card` (تباين ≥ 4.5:1)
-   - `aria-label` لكل أيقونة تفاعلية
-   - Focus rings موحّدة (`.focus-ring` موجودة — طبّقها)
-   - `role="status"`/`aria-live` للتحديثات الديناميكية
-   - اختبار keyboard navigation في القوائم الرئيسية
-
-3. **Performance**
-   - Route-based code splitting (تحقق من `autoCodeSplitting`)
-   - `React.memo` لعناصر القوائم الثقيلة (NoteCard, TaskRow)
-   - Image lazy loading + `loading="lazy"`
-   - Prefetch on hover للـ Links الرئيسية (موجود عبر `defaultPreload`)
-
-**تقرير 6.2.d نهائي (تقرير Wave 6.2 الكامل)**:
-- % الصفحات على DynamicDetail
-- عدد المكونات المشتركة
-- تقييم Performance (bundle size, Lighthouse تقديري)
-- تقييم Mobile/Tablet/A11y
-- جاهزية Capacitor
-- الديون التقنية المتبقية
-
----
-
-## Technical Notes
-
-- كل Framer Motion imports مُشرّطة بـ `useReducedMotion()` — ترجع `initial=false, animate=false` عند التفعيل
-- Service Layer يُصدَّر singleton pattern: `import { haptics } from '@/services/haptics'`
-- لن نضيف Capacitor نفسه الآن — فقط الـ interfaces
-- لن يُلمس أي schema أو migration في هذه الموجة
-
-## ما لن يُنفَّذ في Wave 6.2
-
-- AdMob integration (يُؤجَّل لموجة نشر منفصلة)
-- Capacitor build actual (يحتاج بيئة native)
-- Split view drag-to-resize (يمكن إضافته لاحقاً)
-
----
-
-هل أبدأ بـ **Wave 6.2.a (Service Layer + Motion)** الآن؟
+**الطلب:** اعتماد هذا التقسيم للبدء بـ Sub-wave A + B في هذه الجلسة، ثم Sub-wave C في التالية.

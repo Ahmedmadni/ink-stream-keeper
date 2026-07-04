@@ -1,3 +1,10 @@
 export { BlockRenderer } from "./BlockRenderer";
 export { BlockChrome } from "./BlockChrome";
+export { Toolbar } from "./Toolbar";
+export type { ToolbarProps } from "./Toolbar";
+export { Inspector } from "./Inspector";
+export type { InspectorProps } from "./Inspector";
 export * from "@/lib/engine/blocks";
+export * from "@/lib/engine/block-context";
+export * from "@/lib/engine/block-events";
+export * from "@/lib/engine/actions";
