@@ -6,6 +6,8 @@ export type PropertyRow = {
   label: ReactNode;
   icon?: React.ComponentType<{ className?: string }>;
   value: ReactNode;
+  /** When present overrides `value` — an inline editor node. */
+  editor?: ReactNode;
 };
 
 export type PropertiesBlockProps = {
@@ -26,7 +28,9 @@ export function PropertiesBlock({ block }: BlockRendererProps<PropertiesBlockPro
               {Icon ? <Icon className="size-3.5" /> : null}
               <span>{p.label}</span>
             </div>
-            <div className="text-sm font-bold">{p.value ?? <span className="text-muted-foreground/60">—</span>}</div>
+            <div className="text-sm font-bold">
+              {p.editor ?? p.value ?? <span className="text-muted-foreground/60">—</span>}
+            </div>
           </div>
         );
       })}
