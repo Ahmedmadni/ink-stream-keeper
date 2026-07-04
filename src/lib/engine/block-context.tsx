@@ -1,7 +1,9 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 
+import type { BlockPermission } from "./blocks";
+
 export type BlockDeviceType = "mobile" | "tablet" | "desktop";
-export type BlockPermission = "read" | "edit" | "admin";
+export type { BlockPermission };
 
 export type BlockContextValue<Item = unknown, Mutations = unknown> = {
   kind: string;
