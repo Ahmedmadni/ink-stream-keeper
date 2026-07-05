@@ -56,7 +56,7 @@ export function buildPurchaseBlocks(ctx: PurchaseCtx, opts: PurchaseBuildOpts = 
         spent,
         budget: list.budget ?? null,
         currency,
-        onSave: readonly ? undefined : (patch: { budget?: number; currency?: string }) => opts.mutations?.updateList(patch as any),
+        onBudgetChange: readonly ? undefined : (v: number | null) => opts.mutations?.updateList({ budget: v ?? 0 }),
       } as any,
     }),
     defineBlock({
