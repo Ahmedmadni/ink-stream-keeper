@@ -16,10 +16,12 @@ export type ToolbarProps = {
   onToggleEdit?: () => void;
   showBack?: boolean;
   right?: React.ReactNode;
+  /** Plugin actions rendered before the default action group. */
+  extraActions?: React.ReactNode;
 };
 
 export function Toolbar({
-  actions, title, isFavorite, isArchived, editing, onToggleEdit, showBack = true, right,
+  actions, title, isFavorite, isArchived, editing, onToggleEdit, showBack = true, right, extraActions,
 }: ToolbarProps) {
   const router = useRouter();
   return (
@@ -36,6 +38,7 @@ export function Toolbar({
       {title && <h1 className="me-auto truncate text-sm font-extrabold">{title}</h1>}
       {!title && <div className="me-auto" />}
       {right}
+      {extraActions}
       {onToggleEdit && (
         <IconBtn label={editing ? "إنهاء التحرير" : "تحرير"} onClick={onToggleEdit} active={!!editing}>
           <Pencil className="size-4" />
