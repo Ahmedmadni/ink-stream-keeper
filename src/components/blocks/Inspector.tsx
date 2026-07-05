@@ -1,7 +1,10 @@
+import type { ReactNode } from "react";
 import { X } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PropertiesBlock, type PropertyRow } from "./blocks/PropertiesBlock";
 import { defineBlock } from "@/lib/engine/blocks";
+
+export type InspectorSection = { id: string; title: string; content: ReactNode };
 
 /**
  * Inspector — side panel that shows/edits an item's properties independent
@@ -12,10 +15,12 @@ export type InspectorProps = {
   open: boolean;
   onClose: () => void;
   title?: string;
-  rows: PropertyRow[];
+  rows?: PropertyRow[];
+  /** Extra sections registered by blocks or the page. */
+  sections?: InspectorSection[];
 };
 
-export function Inspector({ open, onClose, title = "الخصائص", rows }: InspectorProps) {
+export function Inspector({ open, onClose, title = "الخصائص", rows = [], sections = [] }: InspectorProps) {
   const isMobile = useIsMobile();
   if (!open) return null;
 
@@ -31,8 +36,14 @@ export function Inspector({ open, onClose, title = "الخصائص", rows }: Ins
           <X className="size-4" />
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto p-4">
-        <PropertiesBlock block={block as any} context={undefined} />
+      <div className="flex-1 space-y-6 overflow-y-auto p-4">
+        {rows.length > 0 && <PropertiesBlock block={block as any} context={undefined} />}
+        {sections.map((s) => (
+          <section key={s.id} className="space-y-2">
+            <h3 className="text-xs font-extrabold text-muted-foreground">{s.title}</h3>
+            <div>{s.content}</div>
+          </section>
+        ))}
       </div>
     </div>
   );
