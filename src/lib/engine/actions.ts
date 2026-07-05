@@ -43,12 +43,16 @@ export function useItemActions(kind: ItemKind, id: string) {
 
   const favorite = useCallback((value: boolean) => {
     emit("item:favorite", { kind, id, value });
-    update({ favorite: value });
+    if (kind === "task") update({ favorite: value });
+    else if (kind === "plan") update({ is_favorite: value });
+    // purchase list has no favorite field — no-op
   }, [kind, id, update]);
 
   const archive = useCallback((value: boolean) => {
     emit("item:archive", { kind, id, value });
-    update({ archived: value });
+    if (kind === "task") update({ archived: value });
+    else if (kind === "purchase") update({ status: value ? "archived" : "active" });
+    else if (kind === "plan") update({ archived_at: value ? new Date().toISOString() : null });
   }, [kind, id, update]);
 
   const share = useCallback(async (payload?: { title?: string; text?: string; url?: string }) => {
