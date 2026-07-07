@@ -8,10 +8,22 @@ import Highlight from "@tiptap/extension-highlight";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import TextAlign from "@tiptap/extension-text-align";
+import { Table } from "@tiptap/extension-table";
+import { TableRow } from "@tiptap/extension-table-row";
+import { TableCell } from "@tiptap/extension-table-cell";
+import { TableHeader } from "@tiptap/extension-table-header";
+import Typography from "@tiptap/extension-typography";
+import CharacterCount from "@tiptap/extension-character-count";
+import { TextStyle } from "@tiptap/extension-text-style";
+import { Color } from "@tiptap/extension-color";
+import Subscript from "@tiptap/extension-subscript";
+import Superscript from "@tiptap/extension-superscript";
 import {
   Bold, Italic, Underline as UIcon, Strikethrough, Heading1, Heading2,
   List, ListOrdered, ListChecks, Quote, Highlighter, Link as LinkIcon,
   Image as ImgIcon, AlignRight, AlignCenter, AlignLeft, Undo2, Redo2,
+  Table as TableIcon, Code2, Minus, Superscript as SupIcon, Subscript as SubIcon,
+  Palette, Pilcrow,
 } from "lucide-react";
 import { useEffect, useRef } from "react";
 
@@ -23,12 +35,14 @@ export function RichEditor({
   onAddAttachment,
   placeholder = "ابدأ الكتابة...",
   editable = true,
+  showCount = false,
 }: {
   value: string;
   onChange?: (html: string) => void;
   onAddAttachment?: (file: File) => void;
   placeholder?: string;
   editable?: boolean;
+  showCount?: boolean;
 }) {
   const initial = normalizeToHtml(value);
   const editor = useEditor({
@@ -44,6 +58,16 @@ export function RichEditor({
       TaskList,
       TaskItem.configure({ nested: true }),
       TextAlign.configure({ types: ["heading", "paragraph"], defaultAlignment: "right" }),
+      Typography,
+      CharacterCount,
+      TextStyle,
+      Color,
+      Subscript,
+      Superscript,
+      Table.configure({ resizable: false, HTMLAttributes: { class: "mf-table" } }),
+      TableRow,
+      TableHeader,
+      TableCell,
     ],
     content: initial,
     editorProps: {
@@ -81,6 +105,12 @@ export function RichEditor({
       <div className="rounded-2xl bg-card p-4 shadow-card">
         <EditorContent editor={editor} />
       </div>
+      {showCount && editable && (
+        <div className="flex items-center justify-between px-1 text-[11px] text-muted-foreground">
+          <span>{editor.storage.characterCount.words()} كلمة · {editor.storage.characterCount.characters()} حرف</span>
+          <span>~{Math.max(1, Math.ceil(editor.storage.characterCount.words() / 180))} د قراءة</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -88,6 +118,7 @@ export function RichEditor({
 function Toolbar({ editor, onAddAttachment }: { editor: Editor; onAddAttachment?: (f: File) => void }) {
   const imgInput = useRef<HTMLInputElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const colorInput = useRef<HTMLInputElement>(null);
 
   const addImage = (file: File) => {
     const reader = new FileReader();
@@ -117,10 +148,16 @@ function Toolbar({ editor, onAddAttachment }: { editor: Editor; onAddAttachment?
         <Btn onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive("underline")} label="تسطير"><UIcon className="size-4" /></Btn>
         <Btn onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive("strike")} label="يتوسطه خط"><Strikethrough className="size-4" /></Btn>
         <Btn onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive("highlight")} label="تظليل"><Highlighter className="size-4" /></Btn>
+        <Btn onClick={() => colorInput.current?.click()} active={!!editor.getAttributes("textStyle").color} label="لون النص"><Palette className="size-4" /></Btn>
+        <Btn onClick={() => editor.chain().focus().toggleSuperscript().run()} active={editor.isActive("superscript")} label="مرتفع"><SupIcon className="size-4" /></Btn>
+        <Btn onClick={() => editor.chain().focus().toggleSubscript().run()} active={editor.isActive("subscript")} label="منخفض"><SubIcon className="size-4" /></Btn>
         <Divider />
         <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive("heading", { level: 1 })} label="عنوان 1"><Heading1 className="size-4" /></Btn>
         <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive("heading", { level: 2 })} label="عنوان 2"><Heading2 className="size-4" /></Btn>
+        <Btn onClick={() => editor.chain().focus().setParagraph().run()} active={editor.isActive("paragraph")} label="فقرة"><Pilcrow className="size-4" /></Btn>
         <Btn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive("blockquote")} label="اقتباس"><Quote className="size-4" /></Btn>
+        <Btn onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive("codeBlock")} label="كود"><Code2 className="size-4" /></Btn>
+        <Btn onClick={() => editor.chain().focus().setHorizontalRule().run()} label="فاصل"><Minus className="size-4" /></Btn>
         <Divider />
         <Btn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive("bulletList")} label="قائمة"><List className="size-4" /></Btn>
         <Btn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive("orderedList")} label="قائمة مرقمة"><ListOrdered className="size-4" /></Btn>
@@ -132,6 +169,7 @@ function Toolbar({ editor, onAddAttachment }: { editor: Editor; onAddAttachment?
         <Divider />
         <Btn onClick={setLink} active={editor.isActive("link")} label="رابط"><LinkIcon className="size-4" /></Btn>
         <Btn onClick={() => imgInput.current?.click()} label="صورة"><ImgIcon className="size-4" /></Btn>
+        <Btn onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} label="جدول"><TableIcon className="size-4" /></Btn>
         {onAddAttachment && (
           <Btn onClick={() => fileInput.current?.click()} label="ملف مرفق"><span className="text-xs font-bold">📎</span></Btn>
         )}
@@ -144,6 +182,9 @@ function Toolbar({ editor, onAddAttachment }: { editor: Editor; onAddAttachment?
       }} />
       <input ref={fileInput} type="file" hidden onChange={(e) => {
         const f = e.target.files?.[0]; if (f && onAddAttachment) onAddAttachment(f); e.target.value = "";
+      }} />
+      <input ref={colorInput} type="color" hidden onChange={(e) => {
+        editor.chain().focus().setColor(e.target.value).run();
       }} />
     </div>
   );
