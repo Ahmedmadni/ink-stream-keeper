@@ -255,6 +255,31 @@
 .prose-mf pre code { background: transparent; padding: 0; }
 .prose-mf hr { border: 0; border-top: 1px solid var(--color-border); margin: 1em 0; }
 
+/* Tables */
+.prose-mf table, .prose-mf .mf-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.8em 0;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-border);
+  table-layout: fixed;
+}
+.prose-mf th, .prose-mf td {
+  border: 1px solid var(--color-border);
+  padding: 0.5rem 0.65rem;
+  vertical-align: top;
+  min-width: 3rem;
+  position: relative;
+}
+.prose-mf th {
+  background: var(--color-primary-soft);
+  font-weight: 700;
+  text-align: start;
+}
+.prose-mf tr:nth-child(even) td { background: color-mix(in oklab, var(--color-muted) 40%, transparent); }
+.prose-mf .selectedCell { background: color-mix(in oklab, var(--color-primary) 20%, transparent); }
+
 /* Placeholder */
 .prose-mf p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
