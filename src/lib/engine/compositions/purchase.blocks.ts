@@ -50,6 +50,11 @@ export function buildPurchaseBlocks(ctx: PurchaseCtx, opts: PurchaseBuildOpts = 
     defineBlock({ id: "header", type: "header", priority: 0, layout: { bare: true }, props: { type: "purchase_list", title: list.title } as any }),
     defineBlock({ id: "stats", type: "statistics", priority: 10, props: { entries, columns: 3 } }),
     defineBlock({
+      id: "sub_items", type: "sub_items", priority: 15, title: "التقسيم الفرعي",
+      layout: { span: 4 },
+      props: { parentType: "purchase", parentId: list.id, readonly, allowConvertToTask: true },
+    }),
+    defineBlock({
       id: "budget", type: "budget", priority: 20,
       visibleWhen: (c) => (c.list.budget ?? 0) > 0 || Number(c.stats?.actual_total ?? 0) > 0 || !readonly,
       props: {

@@ -186,6 +186,11 @@ export function buildTaskBlocks(ctx: TaskCtx, opts: TaskBuildOpts = {}): BlockCo
       },
     }),
     defineBlock({
+      id: "sub_items", type: "sub_items", priority: 57, title: "التقسيم الفرعي",
+      layout: { span: 4 },
+      props: { parentType: "task", parentId: task.id, readonly, allowConvertToTask: true },
+    }),
+    defineBlock({
       id: "tags", type: "tags", priority: 60,
       props: {
         tags: task.tags ?? [],
