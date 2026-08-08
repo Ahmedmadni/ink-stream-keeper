@@ -9,6 +9,7 @@ import { TagsBlock } from "./blocks/TagsBlock";
 import { LinksBlock } from "./blocks/LinksBlock";
 import { BudgetBlock } from "./blocks/BudgetBlock";
 import { ChecklistBlock } from "./blocks/ChecklistBlock";
+import { SubItemsBlock } from "./blocks/SubItemsBlock";
 import { CalendarBlock } from "./blocks/CalendarBlock";
 import { CustomBlock } from "./blocks/CustomBlock";
 
@@ -32,6 +33,7 @@ function ensureRegistered() {
   registerBlock("links", { title: "الروابط", component: LinksBlock });
   registerBlock("budget", { title: "الميزانية", component: BudgetBlock });
   registerBlock("checklist", { title: "قائمة البنود", component: ChecklistBlock });
+  registerBlock("sub_items", { title: "التقسيم الفرعي", component: SubItemsBlock });
   registerBlock("calendar", { title: "التقويم", component: CalendarBlock });
   registerBlock("custom", { component: CustomBlock });
   registerBlock("timeline", { title: "المسار الزمني", component: TimelineBlock, defaultLazy: true });

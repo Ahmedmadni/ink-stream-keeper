@@ -13,6 +13,7 @@ export type BlockType =
   | "progress"
   | "timeline"
   | "checklist"
+  | "sub_items"
   | "gallery"
   | "rich_text"
   | "attachments"
