@@ -88,6 +88,42 @@ export type Database = {
         }
         Relationships: []
       }
+      item_activity: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          item_id: string
+          item_type: string
+          meta: Json
+          parent_id: string | null
+          parent_type: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          item_id: string
+          item_type: string
+          meta?: Json
+          parent_id?: string | null
+          parent_type?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          item_id?: string
+          item_type?: string
+          meta?: Json
+          parent_id?: string | null
+          parent_type?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       item_attachments: {
         Row: {
           created_at: string
@@ -698,6 +734,89 @@ export type Database = {
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sub_items: {
+        Row: {
+          converted_task_id: string | null
+          created_at: string
+          depth: number
+          description: string | null
+          done: boolean
+          done_at: string | null
+          end_at: string | null
+          id: string
+          meta: Json
+          notes: string | null
+          parent_id: string
+          parent_item_id: string | null
+          parent_type: string
+          position: number
+          priority: string
+          progress: number
+          reminder_at: string | null
+          start_at: string | null
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          converted_task_id?: string | null
+          created_at?: string
+          depth?: number
+          description?: string | null
+          done?: boolean
+          done_at?: string | null
+          end_at?: string | null
+          id?: string
+          meta?: Json
+          notes?: string | null
+          parent_id: string
+          parent_item_id?: string | null
+          parent_type: string
+          position?: number
+          priority?: string
+          progress?: number
+          reminder_at?: string | null
+          start_at?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          converted_task_id?: string | null
+          created_at?: string
+          depth?: number
+          description?: string | null
+          done?: boolean
+          done_at?: string | null
+          end_at?: string | null
+          id?: string
+          meta?: Json
+          notes?: string | null
+          parent_id?: string
+          parent_item_id?: string | null
+          parent_type?: string
+          position?: number
+          priority?: string
+          progress?: number
+          reminder_at?: string | null
+          start_at?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sub_items_parent_item_id_fkey"
+            columns: ["parent_item_id"]
+            isOneToOne: false
+            referencedRelation: "sub_items"
             referencedColumns: ["id"]
           },
         ]
