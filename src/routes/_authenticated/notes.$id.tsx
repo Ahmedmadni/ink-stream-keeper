@@ -9,6 +9,7 @@ import {
 import { formatRelative } from "@/lib/format";
 import { RichEditor } from "@/components/RichEditor";
 import { AudioRecorder } from "@/components/AudioRecorder";
+import { SubItemsTree } from "@/components/subitems/SubItemsTree";
 
 export const Route = createFileRoute("/_authenticated/notes/$id")({
   head: ({ params }) => ({
@@ -139,6 +140,16 @@ function NoteDetail() {
             onAddAttachment={(file) => upload.mutate({ noteId: note.id, file })}
             placeholder="اكتب محتوى الملاحظة..."
             showCount
+          />
+        </div>
+
+        <div className="mt-6">
+          <SubItemsTree
+            parentType="note"
+            parentId={note.id}
+            title="بنود الملاحظة"
+            addPlaceholder="أضف بنداً للملاحظة…"
+            allowConvertToTask
           />
         </div>
 
