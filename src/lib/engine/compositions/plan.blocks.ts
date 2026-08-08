@@ -51,6 +51,11 @@ export function buildPlanBlocks(ctx: PlanCtx, opts: PlanBuildOpts = {}): BlockCo
     defineBlock({ id: "stats", type: "statistics", priority: 10, props: { entries, columns: 3 } }),
     defineBlock({ id: "progress", type: "progress", priority: 20, props: { value: Number(s.computed_progress ?? 0) } }),
     defineBlock({
+      id: "sub_items", type: "sub_items", priority: 25, title: "التقسيم الفرعي",
+      layout: { span: 4 },
+      props: { parentType: "plan", parentId: plan.id, readonly, allowConvertToTask: true },
+    }),
+    defineBlock({
       id: "objective", type: "rich_text", priority: 30, title: "الهدف",
       props: {
         text: plan.objective ?? "",
