@@ -36,7 +36,7 @@ export type SubItem = {
   updated_at: string;
 };
 
-export const MAX_SUBITEM_DEPTH = 2; // 0,1,2 → ثلاثة مستويات
+export const MAX_SUBITEM_DEPTH = 5; // 0..5 → ستة مستويات
 
 export const subItemKeys = {
   list: (t: string, id: string) => ["sub_items", t, id] as const,
