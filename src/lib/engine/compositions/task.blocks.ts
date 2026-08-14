@@ -23,6 +23,8 @@ export type TaskCtx = {
   };
   checklist: { id: string; text: string; done: boolean }[];
   subtasks: { id: string; title: string; done: boolean }[];
+  /** Rollup summary of the unified hierarchical sub-items tree. */
+  subSummary?: { done: number; total: number; pct: number };
 };
 
 export type TaskMutations = {
@@ -57,8 +59,10 @@ export function buildTaskBlocks(ctx: TaskCtx, opts: TaskBuildOpts = {}): BlockCo
   const { task, checklist, subtasks } = ctx;
   const m = opts.mutations;
   const readonly = opts.readonly ?? !m;
-  const total = checklist.length + subtasks.length;
-  const done = checklist.filter((c) => c.done).length + subtasks.filter((s) => s.done).length;
+  const legacyTotal = checklist.length + subtasks.length;
+  const legacyDone = checklist.filter((c) => c.done).length + subtasks.filter((s) => s.done).length;
+  const total = ctx.subSummary?.total ?? legacyTotal;
+  const done = ctx.subSummary?.done ?? legacyDone;
   const stats: StatEntry[] = [
     { key: "prog", label: "الإنجاز", value: `${task.progress ?? 0}%`, icon: TrendingUp, tone: "primary" },
     { key: "chk", label: "البنود", value: `${done}/${total}`, icon: ListChecks, tone: "accent" },
