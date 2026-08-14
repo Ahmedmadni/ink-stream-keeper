@@ -261,3 +261,51 @@ export function buildTree(rows: SubItem[]): SubItemNode[] {
   sortRec(roots);
   return roots;
 }
+/**
+ * إنشاء شجرة بنود من نص مخطّط (Outline):
+ * كل سطر بند، والمسافات البادئة (أو "-") تحدد المستوى (حتى 6 مستويات).
+ */
+export async function createSubItemsFromOutline(
+  parentType: SubItemParentType,
+  parentId: string,
+  outline: string,
+): Promise<number> {
+  const { data: auth } = await supabase.auth.getUser();
+  const uid = auth.user?.id;
+  if (!uid) throw new Error("unauthenticated");
+
+  const lines = outline.split("\n").filter((l) => l.trim().length > 0);
+  if (!lines.length) return 0;
+
+  const stack: string[] = []; // parent id per depth
+  const counters: number[] = [];
+  let created = 0;
+
+  for (const raw of lines) {
+    const indentMatch = raw.match(/^[\t ]*/)?.[0] ?? "";
+    const tabs = (indentMatch.match(/\t/g) ?? []).length;
+    const spaces = indentMatch.replace(/\t/g, "").length;
+    const depth = Math.min(tabs + Math.floor(spaces / 2), MAX_SUBITEM_DEPTH);
+    const title = raw.trim().replace(/^[-*•]\s*/, "");
+    if (!title) continue;
+
+    const parentItemId = depth > 0 ? (stack[depth - 1] ?? null) : null;
+    counters[depth] = (counters[depth] ?? -1) + 1;
+
+    const { data, error } = await supabase.from("sub_items").insert({
+      user_id: uid,
+      parent_type: parentType,
+      parent_id: parentId,
+      parent_item_id: parentItemId,
+      depth,
+      title,
+      position: counters[depth]!,
+    } as never).select("id").single();
+    if (error) throw error;
+
+    stack[depth] = (data as { id: string }).id;
+    stack.length = depth + 1;
+    created += 1;
+  }
+  return created;
+}
