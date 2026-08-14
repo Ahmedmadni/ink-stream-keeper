@@ -11,6 +11,7 @@ import {
 import { BlockRenderer, Toolbar, BlockProvider } from "@/components/blocks";
 import { useItemActions } from "@/lib/engine/actions";
 import { buildTaskBlocks } from "@/lib/engine/compositions";
+import { useSubItems, computeSubItemsProgress } from "@/lib/subitems";
 
 export const Route = createFileRoute("/_authenticated/tasks/$id")({
   head: ({ params }) => ({
@@ -28,6 +29,7 @@ function TaskDetail() {
   const { data: categories = [] } = useCategories();
   const { data: checklist = [] } = useChecklist(id);
   const { data: subs = [] } = useSubtasks(id);
+  const { data: subItems = [] } = useSubItems("task", id);
   const update = useUpdateTask();
   const addCheck = useAddChecklistItem();
   const updCheck = useUpdateChecklistItem();
@@ -37,10 +39,14 @@ function TaskDetail() {
   const delSub = useDeleteSubtask();
   const actions = useItemActions("task", id);
 
-  const autoProgress = useMemo(() => computeProgress(checklist, subs), [checklist, subs]);
+  const roll = useMemo(() => computeSubItemsProgress(subItems), [subItems]);
+  const autoProgress = useMemo(
+    () => (roll.total > 0 ? roll.pct : computeProgress(checklist, subs)),
+    [roll, checklist, subs],
+  );
   useEffect(() => {
     if (!task) return;
-    if ((checklist.length + subs.length) === 0) return;
+    if (roll.total + checklist.length + subs.length === 0) return;
     if ((task.progress ?? 0) !== autoProgress) {
       update.mutate({ id, patch: { progress: autoProgress } });
     }
@@ -61,7 +67,10 @@ function TaskDetail() {
     );
   }
 
-  const ctx = { task, checklist, subtasks: subs } as any;
+  const ctx = {
+    task, checklist, subtasks: subs,
+    subSummary: { done: roll.done, total: roll.total, pct: roll.pct },
+  } as any;
   const mutations = {
     updateTask: (patch: Record<string, unknown>) => update.mutate({ id, patch: patch as any }),
     addCheck: (text: string) => addCheck.mutate({ taskId: id, text, sort: checklist.length }),
