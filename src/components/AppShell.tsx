@@ -6,6 +6,7 @@ import { useTaskReminders } from "@/hooks/use-task-reminders";
 import { useIsTablet, usePanel, type PanelKind } from "@/hooks/use-panel";
 import { useWorkspaces } from "@/lib/workspaces";
 import { DetailPanel } from "@/components/DetailPanel";
+import { CommandPalette } from "@/components/CommandPalette";
 
 type NavItem = {
   to: "/" | "/notes" | "/create" | "/tasks" | "/vault" | "/settings";
@@ -62,10 +63,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   useTaskReminders();
   usePanelLinkInterceptor(isTablet);
 
-  if (isTablet) return <TabletShell pathname={pathname}>{children}</TabletShell>;
+  if (isTablet) {
+    return (
+      <>
+        <CommandPalette />
+        <TabletShell pathname={pathname}>{children}</TabletShell>
+      </>
+    );
+  }
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
+      <CommandPalette />
       <main id="main" className="mx-auto max-w-md pb-[calc(env(safe-area-inset-bottom)+7rem)] safe-x">
         {children}
       </main>

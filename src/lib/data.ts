@@ -278,7 +278,7 @@ export function useAddTask() {
       category_id?: string | null;
     }) => {
       const uid = await currentUserId();
-      const { error } = await supabase.from("tasks").insert({
+      const { data, error } = await supabase.from("tasks").insert({
         user_id: uid,
         title: input.title,
         due_at: input.due_at ?? null,
@@ -286,8 +286,9 @@ export function useAddTask() {
         recurrence: input.recurrence ?? "none",
         priority: input.priority ?? "med",
         category_id: input.category_id ?? null,
-      });
+      }).select("id").single();
       if (error) throw error;
+      return data as { id: string };
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.tasks }),
   });

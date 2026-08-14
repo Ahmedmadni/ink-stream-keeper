@@ -1,5 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { ArrowRight } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, ListTree } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { DynamicForm, DynamicHeader } from "@/components/dynamic";
 import { getSchema } from "@/lib/engine/registry";
@@ -8,6 +9,7 @@ import { useAddTask } from "@/lib/data";
 import { useCreatePurchaseList } from "@/lib/purchases";
 import { taskValuesToInput } from "@/lib/engine/schemas/task.schema";
 import { purchaseValuesToInput } from "@/lib/engine/schemas/purchase.schema";
+import { createSubItemsFromOutline } from "@/lib/subitems";
 
 export const Route = createFileRoute("/_authenticated/items/new/$type")({
   head: () => ({ meta: [{ title: "MemoFlow — إنشاء عنصر" }] }),
@@ -23,6 +25,7 @@ function NewItemPage() {
 
   const addTask = useAddTask();
   const createPurchase = useCreatePurchaseList();
+  const [outline, setOutline] = useState("");
 
   if (!def || !schema) {
     return (
@@ -37,8 +40,12 @@ function NewItemPage() {
 
   const handleSubmit = async (values: Record<string, unknown>) => {
     if (key === "task") {
-      await addTask.mutateAsync(taskValuesToInput(values));
-      router.navigate({ to: "/tasks" });
+      const created = await addTask.mutateAsync(taskValuesToInput(values));
+      if (created?.id && outline.trim()) {
+        await createSubItemsFromOutline("task", created.id, outline);
+      }
+      if (created?.id) router.navigate({ to: "/tasks/$id", params: { id: created.id } });
+      else router.navigate({ to: "/tasks" });
       return;
     }
     if (key === "purchase_list") {
@@ -61,6 +68,25 @@ function NewItemPage() {
         }
       />
       <div className="px-5 pb-24 pt-2">
+        {key === "task" && (
+          <div className="mb-4 rounded-2xl bg-card p-4 shadow-card">
+            <div className="mb-2 flex items-center gap-2 text-sm font-bold">
+              <ListTree className="size-4 text-primary" />
+              <span>التقسيم الهرمي (اختياري)</span>
+            </div>
+            <p className="mb-2 text-[11px] text-muted-foreground">
+              اكتب كل بند في سطر. استخدم مسافتين أو Tab في بداية السطر لجعله بنداً فرعياً (حتى 6 مستويات).
+            </p>
+            <textarea
+              value={outline}
+              onChange={(e) => setOutline(e.target.value)}
+              rows={5}
+              dir="rtl"
+              placeholder={"تجهيز العرض\n  جمع البيانات\n    مراجعة الأرقام\n  تصميم الشرائح"}
+              className="w-full resize-y rounded-xl bg-secondary p-3 text-sm outline-none placeholder:text-muted-foreground/70"
+            />
+          </div>
+        )}
         <DynamicForm
           schema={schema}
           onSubmit={handleSubmit}

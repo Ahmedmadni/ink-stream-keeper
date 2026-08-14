@@ -52,6 +52,16 @@ function Index() {
     favorites: notes.filter((n) => n.favorite).length,
   };
   const pinned = notes.filter((n) => n.pinned);
+  const now = Date.now();
+  const endOfToday = (() => { const d = new Date(); d.setHours(23, 59, 59, 999); return d.getTime(); })();
+  const endOfWeek = endOfToday + 6 * 86_400_000;
+  const open = tasks.filter((t) => !t.done);
+  const kpi = {
+    overdue: open.filter((t) => t.due_at && tsOf(t.due_at) < now).length,
+    today: open.filter((t) => t.due_at && tsOf(t.due_at) >= now && tsOf(t.due_at) <= endOfToday).length,
+    week: open.filter((t) => t.due_at && tsOf(t.due_at) > endOfToday && tsOf(t.due_at) <= endOfWeek).length,
+    rate: tasks.length ? Math.round((tasks.filter((t) => t.done).length / tasks.length) * 100) : 0,
+  };
   const recent = [...notes].sort((a, b) => tsOf(b.updated_at) - tsOf(a.updated_at)).slice(0, 4);
   const userName = profile?.display_name?.trim() || "أهلاً";
 
@@ -90,6 +100,19 @@ function Index() {
           <StatCard value={stats.favorites} label="مفضلة" tone="accent" />
         </div>
       </div>
+
+      <section className="px-5 pt-6">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-base font-bold">مؤشرات الأداء</h2>
+          <Link to="/tasks" className="text-xs font-semibold text-primary">كل المهام</Link>
+        </div>
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+          <KpiCard value={kpi.overdue} label="متأخرة" tone="destructive" />
+          <KpiCard value={kpi.today} label="تستحق اليوم" tone="warning" />
+          <KpiCard value={kpi.week} label="هذا الأسبوع" tone="primary" />
+          <KpiCard value={`${kpi.rate}%`} label="معدل الإنجاز" tone="success" progress={kpi.rate} />
+        </div>
+      </section>
 
       <section className="px-5 pt-6">
         <div className="mb-3 flex items-center justify-between">
@@ -214,16 +237,26 @@ function Index() {
 }
 
 function StatCard({ value, label, tone }: { value: number; label: string; tone: string }) {
+  return <KpiCard value={value} label={label} tone={tone} />;
+}
+
+function KpiCard({ value, label, tone, progress }: { value: number | string; label: string; tone: string; progress?: number }) {
   const toneClass: Record<string, string> = {
     primary: "bg-primary-soft text-primary",
     warning: "bg-warning/15 text-warning",
     success: "bg-success/15 text-success",
+    destructive: "bg-destructive/15 text-destructive",
     accent: "bg-accent text-accent-foreground",
   };
   return (
     <div className={`rounded-2xl p-3 text-center shadow-card ${toneClass[tone] ?? ""}`}>
       <p className="text-xl font-extrabold">{value}</p>
       <p className="mt-0.5 text-[11px] font-medium opacity-80">{label}</p>
+      {typeof progress === "number" && (
+        <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-current/20">
+          <div className="h-full bg-current transition-all" style={{ width: `${progress}%` }} />
+        </div>
+      )}
     </div>
   );
 }
