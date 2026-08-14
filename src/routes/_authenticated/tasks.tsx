@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Search, Filter, Check, Bell, Repeat, CalendarDays, List, ChevronRight, ChevronLeft } from "lucide-react";
+import { Search, Filter, Check, Bell, Repeat, CalendarDays, List, ChevronRight, ChevronLeft, ListTree } from "lucide-react";
 import { AppShell, PageHeader } from "@/components/AppShell";
 import { useTasks, useToggleTask, tsOf, type Task } from "@/lib/data";
 import { formatTime } from "@/lib/format";
+import { SubItemsTree } from "@/components/subitems/SubItemsTree";
 
 export const Route = createFileRoute("/_authenticated/tasks")({
   head: () => ({
@@ -101,8 +102,10 @@ function TaskRow({ task, onToggle }: { task: Task; onToggle: () => void }) {
   const dot = task.priority === "high" ? "bg-destructive" : task.priority === "med" ? "bg-warning" : "bg-success";
   const recLabel = task.recurrence === "daily" ? "يومي" : task.recurrence === "weekly" ? "أسبوعي" : task.recurrence === "monthly" ? "شهري" : null;
   const progress = task.progress ?? 0;
+  const [open, setOpen] = useState(false);
   return (
-    <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl bg-card p-4 shadow-card">
+    <div className="rounded-2xl bg-card p-4 shadow-card">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3">
       <button onClick={onToggle} className={`grid size-6 shrink-0 place-items-center rounded-md border-2 transition-colors ${task.done ? "border-primary bg-primary text-primary-foreground" : "border-border bg-transparent"}`} aria-label={task.done ? "إلغاء الإنجاز" : "إنجاز"}>
         {task.done && <Check className="size-4" strokeWidth={3} />}
       </button>
@@ -126,7 +129,21 @@ function TaskRow({ task, onToggle }: { task: Task; onToggle: () => void }) {
           </div>
         )}
       </Link>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={`grid size-8 shrink-0 place-items-center rounded-lg transition-colors ${open ? "bg-primary-soft text-primary" : "bg-secondary text-muted-foreground"}`}
+        aria-label="البنود الفرعية"
+        aria-expanded={open}
+      >
+        <ListTree className="size-4" />
+      </button>
       <span className={`block size-2.5 shrink-0 rounded-full ${dot}`} aria-hidden />
+      </div>
+      {open && (
+        <div className="mt-3 border-t border-border pt-3">
+          <SubItemsTree parentType="task" parentId={task.id} title="التقسيم الهرمي" allowConvertToTask />
+        </div>
+      )}
     </div>
   );
 }
