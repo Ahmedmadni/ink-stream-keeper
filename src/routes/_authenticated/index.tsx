@@ -237,16 +237,26 @@ function Index() {
 }
 
 function StatCard({ value, label, tone }: { value: number; label: string; tone: string }) {
+  return <KpiCard value={value} label={label} tone={tone} />;
+}
+
+function KpiCard({ value, label, tone, progress }: { value: number | string; label: string; tone: string; progress?: number }) {
   const toneClass: Record<string, string> = {
     primary: "bg-primary-soft text-primary",
     warning: "bg-warning/15 text-warning",
     success: "bg-success/15 text-success",
+    destructive: "bg-destructive/15 text-destructive",
     accent: "bg-accent text-accent-foreground",
   };
   return (
     <div className={`rounded-2xl p-3 text-center shadow-card ${toneClass[tone] ?? ""}`}>
       <p className="text-xl font-extrabold">{value}</p>
       <p className="mt-0.5 text-[11px] font-medium opacity-80">{label}</p>
+      {typeof progress === "number" && (
+        <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-current/20">
+          <div className="h-full bg-current transition-all" style={{ width: `${progress}%` }} />
+        </div>
+      )}
     </div>
   );
 }
