@@ -168,29 +168,27 @@ export function buildTaskBlocks(ctx: TaskCtx, opts: TaskBuildOpts = {}): BlockCo
       id: "properties", type: "properties", priority: 40,
       props: { items: propRows, columns: 2 },
     }),
-    defineBlock({
-      id: "checklist", type: "checklist", priority: 50,
-      title: "قائمة البنود",
+    ...(checklist.length ? [defineBlock({
+      id: "checklist", type: "checklist", priority: 70,
+      title: "بنود قديمة (قبل التوحيد)",
       props: {
         items: checklist.map((c) => ({ id: c.id, text: c.text, done: c.done })),
         onToggle: readonly ? undefined : (id: string, next: boolean) => m?.updCheck(id, { done: next }),
         onEdit: readonly ? undefined : (id: string, text: string) => m?.updCheck(id, { text }),
         onDelete: readonly ? undefined : (id: string) => m?.delCheck(id),
-        onAdd: readonly ? undefined : (text: string) => m?.addCheck(text),
       },
-    }),
-    defineBlock({
-      id: "subtasks", type: "checklist", priority: 55, title: "المهام الفرعية",
+    })] : []),
+    ...(subtasks.length ? [defineBlock({
+      id: "subtasks", type: "checklist", priority: 72, title: "مهام فرعية قديمة",
       props: {
         items: subtasks.map((s) => ({ id: s.id, text: s.title, done: s.done })),
         onToggle: readonly ? undefined : (id: string, next: boolean) => m?.updSub(id, { done: next }),
         onEdit: readonly ? undefined : (id: string, text: string) => m?.updSub(id, { title: text }),
         onDelete: readonly ? undefined : (id: string) => m?.delSub(id),
-        onAdd: readonly ? undefined : (title: string) => m?.addSub(title),
       },
-    }),
+    })] : []),
     defineBlock({
-      id: "sub_items", type: "sub_items", priority: 57, title: "التقسيم الفرعي",
+      id: "sub_items", type: "sub_items", priority: 50, title: "التقسيم الهرمي",
       layout: { span: 4 },
       props: { parentType: "task", parentId: task.id, readonly, allowConvertToTask: true },
     }),
