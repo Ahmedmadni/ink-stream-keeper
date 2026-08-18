@@ -85,32 +85,30 @@ function Index() {
           </button>
         </div>
 
-        <div className="mt-5 flex items-center gap-2 rounded-2xl bg-card px-4 py-3 shadow-card">
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent("memoflow:open-command-palette"))}
+          className="mt-5 flex w-full items-center gap-2 rounded-2xl bg-card px-4 py-3 text-start shadow-card"
+        >
           <Search className="size-5 shrink-0 text-muted-foreground" />
-          <input type="search" placeholder="ابحث في ملاحظاتك، مهامك، تصنيفاتك..." className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground" />
-          <button className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary" aria-label="فلترة">
-            <Sliders className="size-4" />
-          </button>
-        </div>
-
-        <div className="mt-5 grid grid-cols-4 gap-2.5">
-          <StatCard value={stats.notes} label="ملاحظة" tone="primary" />
-          <StatCard value={stats.todayTasks} label="مهام اليوم" tone="warning" />
-          <StatCard value={stats.ideas} label="أفكار" tone="success" />
-          <StatCard value={stats.favorites} label="مفضلة" tone="accent" />
-        </div>
+          <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+            ابحث في ملاحظاتك ومهامك… (Ctrl + K)
+          </span>
+        </button>
       </div>
 
       <section className="px-5 pt-6">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-bold">مؤشرات الأداء</h2>
+          <h2 className="text-base font-bold">نظرة سريعة</h2>
           <Link to="/tasks" className="text-xs font-semibold text-primary">كل المهام</Link>
         </div>
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-6">
           <KpiCard value={kpi.overdue} label="متأخرة" tone="destructive" />
           <KpiCard value={kpi.today} label="تستحق اليوم" tone="warning" />
           <KpiCard value={kpi.week} label="هذا الأسبوع" tone="primary" />
           <KpiCard value={`${kpi.rate}%`} label="معدل الإنجاز" tone="success" progress={kpi.rate} />
+          <KpiCard value={stats.notes} label="ملاحظة" tone="primary" />
+          <KpiCard value={stats.favorites} label="مفضلة" tone="accent" />
         </div>
       </section>
 
