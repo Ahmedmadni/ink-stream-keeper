@@ -234,10 +234,6 @@ function Index() {
   );
 }
 
-function StatCard({ value, label, tone }: { value: number; label: string; tone: string }) {
-  return <KpiCard value={value} label={label} tone={tone} />;
-}
-
 function KpiCard({ value, label, tone, progress }: { value: number | string; label: string; tone: string; progress?: number }) {
   const toneClass: Record<string, string> = {
     primary: "bg-primary-soft text-primary",
