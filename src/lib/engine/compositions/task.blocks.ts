@@ -3,6 +3,7 @@ import { Calendar, CheckCircle2, Clock, Flag, ListChecks, Tag as TagIcon, Trendi
 import { defineBlock, type BlockComposition } from "@/lib/engine/blocks";
 import type { StatEntry } from "@/components/items/StatisticsCard";
 import type { PropertyRow } from "@/components/blocks/blocks/PropertiesBlock";
+import { LegacyMigrateCard } from "@/components/subitems/LegacyMigrateCard";
 
 export type TaskCtx = {
   task: {
