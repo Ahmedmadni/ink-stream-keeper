@@ -168,23 +168,12 @@ export function buildTaskBlocks(ctx: TaskCtx, opts: TaskBuildOpts = {}): BlockCo
       id: "properties", type: "properties", priority: 40,
       props: { items: propRows, columns: 2 },
     }),
-    ...(checklist.length ? [defineBlock({
-      id: "checklist", type: "checklist", priority: 70,
-      title: "بنود قديمة (قبل التوحيد)",
+    // نظام بنود واحد فقط: التقسيم الهرمي. البنود القديمة تُعرض كبطاقة ترحيل لمرة واحدة.
+    ...(!readonly && legacyTotal > 0 ? [defineBlock({
+      id: "legacy_migrate", type: "custom", priority: 45,
+      layout: { bare: true, span: 4 },
       props: {
-        items: checklist.map((c) => ({ id: c.id, text: c.text, done: c.done })),
-        onToggle: readonly ? undefined : (id: string, next: boolean) => m?.updCheck(id, { done: next }),
-        onEdit: readonly ? undefined : (id: string, text: string) => m?.updCheck(id, { text }),
-        onDelete: readonly ? undefined : (id: string) => m?.delCheck(id),
-      },
-    })] : []),
-    ...(subtasks.length ? [defineBlock({
-      id: "subtasks", type: "checklist", priority: 72, title: "مهام فرعية قديمة",
-      props: {
-        items: subtasks.map((s) => ({ id: s.id, text: s.title, done: s.done })),
-        onToggle: readonly ? undefined : (id: string, next: boolean) => m?.updSub(id, { done: next }),
-        onEdit: readonly ? undefined : (id: string, text: string) => m?.updSub(id, { title: text }),
-        onDelete: readonly ? undefined : (id: string) => m?.delSub(id),
+        render: () => createElement(LegacyMigrateCard, { taskId: task.id, count: legacyTotal }),
       },
     })] : []),
     defineBlock({
