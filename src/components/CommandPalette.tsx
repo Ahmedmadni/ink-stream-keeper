@@ -35,7 +35,12 @@ export function CommandPalette() {
       }
     };
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    const onOpen = () => setOpen(true);
+    window.addEventListener("memoflow:open-command-palette", onOpen);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("memoflow:open-command-palette", onOpen);
+    };
   }, []);
 
   const go = (to: string, params?: Record<string, string>) => {
