@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Bell, Search, Pin, Notebook, Lightbulb, CheckSquare, ShoppingCart, Lock,
-  Briefcase, GraduationCap, Star, Plus, Sliders, FolderKanban,
+  Briefcase, GraduationCap, Star, Plus, FolderKanban,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { useCategories, useNotes, useProfile, useTasks, tsOf, type Category, type Note } from "@/lib/data";
