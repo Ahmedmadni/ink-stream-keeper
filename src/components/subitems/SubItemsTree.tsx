@@ -6,8 +6,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import {
   MAX_SUBITEM_DEPTH, buildTree, computeSubItemsProgress, nodeProgress,
+  createSubItemsFromOutline, parseOutline,
   useSubItemMutations, useSubItems, type SubItem, type SubItemNode, type SubItemParentType,
 } from "@/lib/subitems";
+import { useQueryClient } from "@tanstack/react-query";
+import { subItemKeys } from "@/lib/subitems";
 
 type Props = {
   parentType: SubItemParentType;
@@ -27,8 +30,10 @@ export function SubItemsTree({
 }: Props) {
   const { data: rows = [], isLoading } = useSubItems(parentType, parentId);
   const m = useSubItemMutations(parentType, parentId);
+  const qc = useQueryClient();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [draft, setDraft] = useState("");
+  const [bulkBusy, setBulkBusy] = useState(false);
   const dragId = useRef<string | null>(null);
 
   const tree = useMemo(() => buildTree(rows), [rows]);
@@ -45,6 +50,31 @@ export function SubItemsTree({
   function addRoot(text: string) {
     const sibs = siblingsOf(null);
     m.add.mutate({ title: text, parentItemId: null, depth: 0, position: (sibs.at(-1)?.position ?? -1) + 1 });
+  }
+
+  /** لصق/كتابة عدة أسطر دفعة واحدة → شجرة كاملة بمستوياتها. */
+  async function addBulk(text: string) {
+    setBulkBusy(true);
+    try {
+      const sibs = siblingsOf(null);
+      await createSubItemsFromOutline(parentType, parentId, text, {
+        startPosition: (sibs.at(-1)?.position ?? -1) + 1,
+      });
+      qc.invalidateQueries({ queryKey: subItemKeys.list(parentType, parentId) });
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  /** Enter داخل بند → بند شقيق جديد تحته مباشرة. */
+  function addSibling(node: SubItem) {
+    const sibs = siblingsOf(node.parent_item_id ?? null);
+    m.add.mutate({
+      title: "بند جديد",
+      parentItemId: node.parent_item_id ?? null,
+      depth: node.depth,
+      position: (sibs.at(-1)?.position ?? -1) + 1,
+    });
   }
 
   function addChild(node: SubItem) {
@@ -137,6 +167,7 @@ export function SubItemsTree({
           onCollapse={() => setCollapsed((s) => { const n = new Set(s); n.has(node.id) ? n.delete(node.id) : n.add(node.id); return n; })}
           onToggle={(v) => toggle(node, v)}
           onRename={(t) => m.update.mutate({ id: node.id, patch: { title: t } })}
+          onEnter={() => addSibling(node)}
           onDelete={() => m.remove.mutate(node.id)}
           onAddChild={() => addChild(node)}
           onIndent={() => indent(node)}
@@ -184,19 +215,38 @@ export function SubItemsTree({
 
       {!readonly && (
         <form
-          onSubmit={(e) => { e.preventDefault(); const v = draft.trim(); if (!v) return; addRoot(v); setDraft(""); }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            const v = draft.trim();
+            if (!v) return;
+            if (parseOutline(v).length > 1) void addBulk(v); else addRoot(v);
+            setDraft("");
+          }}
           className="flex items-center gap-2"
         >
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
+            onPaste={(e) => {
+              const text = e.clipboardData.getData("text");
+              if (!text.includes("\n")) return;
+              e.preventDefault();
+              void addBulk(text);
+              setDraft("");
+            }}
             placeholder={addPlaceholder}
             className="flex-1 rounded-2xl bg-card px-4 py-2.5 text-sm shadow-card outline-none focus:ring-2 focus:ring-primary"
           />
-          <button type="submit" className="grid size-10 place-items-center rounded-full gradient-primary text-primary-foreground shadow-fab" aria-label="إضافة بند">
+          <button type="submit" disabled={bulkBusy} className="grid size-10 place-items-center rounded-full gradient-primary text-primary-foreground shadow-fab disabled:opacity-60" aria-label="إضافة بند">
             <Plus className="size-4" />
           </button>
         </form>
+      )}
+
+      {!readonly && (
+        <p className="text-[11px] text-muted-foreground">
+          Enter: بند جديد · Tab / Shift+Tab: تفريع أو إرجاع · الصق عدة أسطر لإنشاء شجرة كاملة (مسافتان = مستوى أعمق).
+        </p>
       )}
     </section>
   );
@@ -212,6 +262,7 @@ type RowProps = {
   onCollapse: () => void;
   onToggle: (v: boolean) => void;
   onRename: (t: string) => void;
+  onEnter: () => void;
   onDelete: () => void;
   onAddChild: () => void;
   onIndent: () => void;
@@ -261,7 +312,7 @@ const Row = memo(function Row(p: RowProps) {
             onChange={(e) => setDraft(e.target.value)}
             onBlur={() => { const t = draft.trim(); if (t && t !== p.node.title) p.onRename(t); else if (!t) setDraft(p.node.title); }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+              if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); p.onEnter(); }
               if (e.key === "Tab") { e.preventDefault(); e.shiftKey ? p.onOutdent() : p.onIndent(); }
             }}
             className={cn("w-full bg-transparent text-sm font-semibold outline-none", p.node.done && "line-through")}

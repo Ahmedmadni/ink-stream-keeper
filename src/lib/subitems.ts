@@ -261,36 +261,49 @@ export function buildTree(rows: SubItem[]): SubItemNode[] {
   sortRec(roots);
   return roots;
 }
+/** تحويل نص مخطّط (Outline) إلى قائمة بنود بمستوياتها. */
+export function parseOutline(outline: string): { depth: number; title: string }[] {
+  const out: { depth: number; title: string }[] = [];
+  for (const raw of outline.split("\n")) {
+    if (!raw.trim()) continue;
+    const indent = raw.match(/^[\t ]*/)?.[0] ?? "";
+    const tabs = (indent.match(/\t/g) ?? []).length;
+    const spaces = indent.replace(/\t/g, "").length;
+    const depth = Math.min(tabs + Math.floor(spaces / 2), MAX_SUBITEM_DEPTH);
+    const title = raw.trim().replace(/^[-*•]\s*/, "").replace(/^\[[ xX]\]\s*/, "");
+    if (title) out.push({ depth, title });
+  }
+  return out;
+}
+
 /**
  * إنشاء شجرة بنود من نص مخطّط (Outline):
  * كل سطر بند، والمسافات البادئة (أو "-") تحدد المستوى (حتى 6 مستويات).
+ * يمكن تمرير `baseDepth` و`baseParentId` لإدراج الشجرة تحت بند موجود.
  */
 export async function createSubItemsFromOutline(
   parentType: SubItemParentType,
   parentId: string,
   outline: string,
+  opts: { baseDepth?: number; baseParentId?: string | null; startPosition?: number } = {},
 ): Promise<number> {
   const { data: auth } = await supabase.auth.getUser();
   const uid = auth.user?.id;
   if (!uid) throw new Error("unauthenticated");
 
-  const lines = outline.split("\n").filter((l) => l.trim().length > 0);
+  const lines = parseOutline(outline);
   if (!lines.length) return 0;
 
-  const stack: string[] = []; // parent id per depth
+  const baseDepth = opts.baseDepth ?? 0;
+  const stack: (string | null)[] = [];
   const counters: number[] = [];
   let created = 0;
 
-  for (const raw of lines) {
-    const indentMatch = raw.match(/^[\t ]*/)?.[0] ?? "";
-    const tabs = (indentMatch.match(/\t/g) ?? []).length;
-    const spaces = indentMatch.replace(/\t/g, "").length;
-    const depth = Math.min(tabs + Math.floor(spaces / 2), MAX_SUBITEM_DEPTH);
-    const title = raw.trim().replace(/^[-*•]\s*/, "");
-    if (!title) continue;
-
-    const parentItemId = depth > 0 ? (stack[depth - 1] ?? null) : null;
-    counters[depth] = (counters[depth] ?? -1) + 1;
+  for (const line of lines) {
+    const depth = Math.min(line.depth + baseDepth, MAX_SUBITEM_DEPTH);
+    const parentItemId =
+      depth > baseDepth ? (stack[depth - 1] ?? opts.baseParentId ?? null) : (opts.baseParentId ?? null);
+    counters[depth] = (counters[depth] ?? (depth === baseDepth ? (opts.startPosition ?? 0) : 0) - 1) + 1;
 
     const { data, error } = await supabase.from("sub_items").insert({
       user_id: uid,
@@ -298,7 +311,7 @@ export async function createSubItemsFromOutline(
       parent_id: parentId,
       parent_item_id: parentItemId,
       depth,
-      title,
+      title: line.title,
       position: counters[depth]!,
     } as never).select("id").single();
     if (error) throw error;
@@ -308,4 +321,53 @@ export async function createSubItemsFromOutline(
     created += 1;
   }
   return created;
+}
+
+/**
+ * ترحيل البنود القديمة (task_checklist + subtasks) إلى شجرة sub_items الموحّدة،
+ * ثم حذف الصفوف القديمة — لإزالة الازدواجية نهائياً.
+ */
+export async function migrateLegacyTaskItems(taskId: string): Promise<number> {
+  const { data: auth } = await supabase.auth.getUser();
+  const uid = auth.user?.id;
+  if (!uid) throw new Error("unauthenticated");
+
+  const [{ data: checks }, { data: subs }, { data: existing }] = await Promise.all([
+    supabase.from("task_checklist").select("id,text,done,sort_order").eq("task_id", taskId),
+    supabase.from("subtasks").select("id,title,done,sort_order").eq("task_id", taskId),
+    supabase.from("sub_items").select("position").eq("parent_type", "task").eq("parent_id", taskId).is("parent_item_id", null),
+  ]);
+
+  const rows = [
+    ...((subs ?? []) as { id: string; title: string; done: boolean; sort_order: number }[])
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((s) => ({ title: s.title, done: s.done })),
+    ...((checks ?? []) as { id: string; text: string; done: boolean; sort_order: number }[])
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((c) => ({ title: c.text, done: c.done })),
+  ];
+  if (!rows.length) return 0;
+
+  const base = Math.max(-1, ...((existing ?? []) as { position: number }[]).map((r) => r.position)) + 1;
+  const { error } = await supabase.from("sub_items").insert(
+    rows.map((r, i) => ({
+      user_id: uid,
+      parent_type: "task",
+      parent_id: taskId,
+      parent_item_id: null,
+      depth: 0,
+      title: r.title,
+      done: r.done,
+      status: r.done ? "done" : "todo",
+      progress: r.done ? 100 : 0,
+      position: base + i,
+    })) as never,
+  );
+  if (error) throw error;
+
+  await Promise.all([
+    supabase.from("task_checklist").delete().eq("task_id", taskId),
+    supabase.from("subtasks").delete().eq("task_id", taskId),
+  ]);
+  return rows.length;
 }
