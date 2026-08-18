@@ -215,19 +215,38 @@ export function SubItemsTree({
 
       {!readonly && (
         <form
-          onSubmit={(e) => { e.preventDefault(); const v = draft.trim(); if (!v) return; addRoot(v); setDraft(""); }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            const v = draft.trim();
+            if (!v) return;
+            if (parseOutline(v).length > 1) void addBulk(v); else addRoot(v);
+            setDraft("");
+          }}
           className="flex items-center gap-2"
         >
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
+            onPaste={(e) => {
+              const text = e.clipboardData.getData("text");
+              if (!text.includes("\n")) return;
+              e.preventDefault();
+              void addBulk(text);
+              setDraft("");
+            }}
             placeholder={addPlaceholder}
             className="flex-1 rounded-2xl bg-card px-4 py-2.5 text-sm shadow-card outline-none focus:ring-2 focus:ring-primary"
           />
-          <button type="submit" className="grid size-10 place-items-center rounded-full gradient-primary text-primary-foreground shadow-fab" aria-label="إضافة بند">
+          <button type="submit" disabled={bulkBusy} className="grid size-10 place-items-center rounded-full gradient-primary text-primary-foreground shadow-fab disabled:opacity-60" aria-label="إضافة بند">
             <Plus className="size-4" />
           </button>
         </form>
+      )}
+
+      {!readonly && (
+        <p className="text-[11px] text-muted-foreground">
+          Enter: بند جديد · Tab / Shift+Tab: تفريع أو إرجاع · الصق عدة أسطر لإنشاء شجرة كاملة (مسافتان = مستوى أعمق).
+        </p>
       )}
     </section>
   );
