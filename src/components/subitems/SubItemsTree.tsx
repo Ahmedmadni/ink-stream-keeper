@@ -243,6 +243,7 @@ type RowProps = {
   onCollapse: () => void;
   onToggle: (v: boolean) => void;
   onRename: (t: string) => void;
+  onEnter: () => void;
   onDelete: () => void;
   onAddChild: () => void;
   onIndent: () => void;
@@ -292,7 +293,7 @@ const Row = memo(function Row(p: RowProps) {
             onChange={(e) => setDraft(e.target.value)}
             onBlur={() => { const t = draft.trim(); if (t && t !== p.node.title) p.onRename(t); else if (!t) setDraft(p.node.title); }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+              if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); p.onEnter(); }
               if (e.key === "Tab") { e.preventDefault(); e.shiftKey ? p.onOutdent() : p.onIndent(); }
             }}
             className={cn("w-full bg-transparent text-sm font-semibold outline-none", p.node.done && "line-through")}
