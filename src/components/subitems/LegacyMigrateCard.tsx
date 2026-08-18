@@ -28,7 +28,7 @@ export function LegacyMigrateCard({ taskId, count }: { taskId: string; count: nu
           try {
             await migrateLegacyTaskItems(taskId);
             qc.invalidateQueries({ queryKey: subItemKeys.list("task", taskId) });
-            qc.invalidateQueries({ queryKey: ["checklist", taskId] });
+            qc.invalidateQueries({ queryKey: ["task_checklist", taskId] });
             qc.invalidateQueries({ queryKey: ["subtasks", taskId] });
             qc.invalidateQueries({ queryKey: ["tasks"] });
           } catch (e) {
