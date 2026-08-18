@@ -6,8 +6,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import {
   MAX_SUBITEM_DEPTH, buildTree, computeSubItemsProgress, nodeProgress,
+  createSubItemsFromOutline, parseOutline,
   useSubItemMutations, useSubItems, type SubItem, type SubItemNode, type SubItemParentType,
 } from "@/lib/subitems";
+import { useQueryClient } from "@tanstack/react-query";
+import { subItemKeys } from "@/lib/subitems";
 
 type Props = {
   parentType: SubItemParentType;
@@ -27,8 +30,10 @@ export function SubItemsTree({
 }: Props) {
   const { data: rows = [], isLoading } = useSubItems(parentType, parentId);
   const m = useSubItemMutations(parentType, parentId);
+  const qc = useQueryClient();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [draft, setDraft] = useState("");
+  const [bulkBusy, setBulkBusy] = useState(false);
   const dragId = useRef<string | null>(null);
 
   const tree = useMemo(() => buildTree(rows), [rows]);
@@ -45,6 +50,31 @@ export function SubItemsTree({
   function addRoot(text: string) {
     const sibs = siblingsOf(null);
     m.add.mutate({ title: text, parentItemId: null, depth: 0, position: (sibs.at(-1)?.position ?? -1) + 1 });
+  }
+
+  /** لصق/كتابة عدة أسطر دفعة واحدة → شجرة كاملة بمستوياتها. */
+  async function addBulk(text: string) {
+    setBulkBusy(true);
+    try {
+      const sibs = siblingsOf(null);
+      await createSubItemsFromOutline(parentType, parentId, text, {
+        startPosition: (sibs.at(-1)?.position ?? -1) + 1,
+      });
+      qc.invalidateQueries({ queryKey: subItemKeys.list(parentType, parentId) });
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  /** Enter داخل بند → بند شقيق جديد تحته مباشرة. */
+  function addSibling(node: SubItem) {
+    const sibs = siblingsOf(node.parent_item_id ?? null);
+    m.add.mutate({
+      title: "بند جديد",
+      parentItemId: node.parent_item_id ?? null,
+      depth: node.depth,
+      position: (sibs.at(-1)?.position ?? -1) + 1,
+    });
   }
 
   function addChild(node: SubItem) {
@@ -137,6 +167,7 @@ export function SubItemsTree({
           onCollapse={() => setCollapsed((s) => { const n = new Set(s); n.has(node.id) ? n.delete(node.id) : n.add(node.id); return n; })}
           onToggle={(v) => toggle(node, v)}
           onRename={(t) => m.update.mutate({ id: node.id, patch: { title: t } })}
+          onEnter={() => addSibling(node)}
           onDelete={() => m.remove.mutate(node.id)}
           onAddChild={() => addChild(node)}
           onIndent={() => indent(node)}
