@@ -237,6 +237,10 @@ export function SubItemsTree({
             placeholder={addPlaceholder}
             className="flex-1 rounded-2xl bg-card px-4 py-2.5 text-sm shadow-card outline-none focus:ring-2 focus:ring-primary"
           />
+          <DictateButton
+            size="sm"
+            onText={(t) => setDraft((d) => (d ? `${d} ${t}` : t))}
+          />
           <button type="submit" disabled={bulkBusy} className="grid size-10 place-items-center rounded-full gradient-primary text-primary-foreground shadow-fab disabled:opacity-60" aria-label="إضافة بند">
             <Plus className="size-4" />
           </button>

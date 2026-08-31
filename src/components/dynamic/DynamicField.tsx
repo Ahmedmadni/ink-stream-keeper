@@ -2,6 +2,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import type { FieldSchema } from "@/lib/engine/types";
 import { cn } from "@/lib/utils";
+import { DictateButton } from "@/components/speech/DictateButton";
 
 /**
  * Single-field renderer. Controlled — receives value + onChange.
@@ -32,22 +33,32 @@ export function DynamicField({
   switch (field.type) {
     case "textarea":
       return wrap(
-        <textarea
-          value={(value as string) ?? ""} readOnly={readOnly}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder} rows={4}
-          className={cn(baseCls, "resize-y")}
-        />,
+        <div className="flex items-start gap-2">
+          <textarea
+            value={(value as string) ?? ""} readOnly={readOnly}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={field.placeholder} rows={4}
+            className={cn(baseCls, "resize-y")}
+          />
+          {!readOnly && (
+            <DictateButton size="sm" live onText={(t) => onChange(appendText(value as string, t))} />
+          )}
+        </div>,
       );
 
     case "rich_text":
       return wrap(
-        <textarea
-          value={(value as string) ?? ""} readOnly={readOnly}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder ?? "نص غني..."} rows={6}
-          className={cn(baseCls, "resize-y font-mono text-xs")}
-        />,
+        <div className="flex items-start gap-2">
+          <textarea
+            value={(value as string) ?? ""} readOnly={readOnly}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={field.placeholder ?? "نص غني..."} rows={6}
+            className={cn(baseCls, "resize-y font-mono text-xs")}
+          />
+          {!readOnly && (
+            <DictateButton size="sm" live onText={(t) => onChange(appendText(value as string, t))} />
+          )}
+        </div>,
       );
 
     case "number": case "money": case "currency": case "duration":
@@ -206,4 +217,8 @@ function MultiSelect({ options, value, onChange }: {
       })}
     </div>
   );
+}
+function appendText(prev: string | undefined | null, next: string): string {
+  const base = (prev ?? "").trim();
+  return base ? `${base} ${next}` : next;
 }
