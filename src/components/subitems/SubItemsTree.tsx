@@ -3,6 +3,7 @@ import {
   ChevronLeft, CornerDownLeft, GripVertical, Indent, ListTree, Outdent, Plus, Trash2,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DictateButton } from "@/components/speech/DictateButton";
 import { cn } from "@/lib/utils";
 import {
   MAX_SUBITEM_DEPTH, buildTree, computeSubItemsProgress, nodeProgress,
