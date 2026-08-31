@@ -5,6 +5,9 @@ import {
   Image as ImageIcon, Mic, Loader2, Eraser, Trash, Camera,
   Play, Pause, Square, RotateCcw, FolderKanban, Target,
 } from "lucide-react";
+import { DictateButton } from "@/components/speech/DictateButton";
+import { LectureRecorder } from "@/components/speech/LectureRecorder";
+import { transcribeBlob } from "@/lib/speech/dictation";
 import { AppShell } from "@/components/AppShell";
 import { useAddNote, useAddTask, useCategories, useUploadAttachment } from "@/lib/data";
 import { useCreatePurchaseList } from "@/lib/purchases";
@@ -81,7 +84,10 @@ function CreatePage() {
       <AppShell>
         <FormHeader title="ملاحظة جديدة" onBack={() => setMode("menu")} />
         <div className="space-y-3 px-5 pt-4">
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="العنوان..." className="w-full rounded-2xl bg-card px-4 py-3 text-lg font-bold outline-none shadow-card placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary" />
+          <div className="flex items-center gap-2">
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="العنوان..." className="w-full rounded-2xl bg-card px-4 py-3 text-lg font-bold outline-none shadow-card placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary" />
+            <DictateButton onText={(t) => setTitle((v) => (v ? `${v} ${t}` : t))} />
+          </div>
           <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="w-full rounded-2xl bg-card px-4 py-3 text-sm font-semibold outline-none shadow-card">
             <option value="">بدون تصنيف</option>
             {categories.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
@@ -91,6 +97,10 @@ function CreatePage() {
             onChange={setContent}
             placeholder="ابدأ الكتابة... استخدم الشريط لتنسيق النص وإضافة قوائم وصور."
             onAddAttachment={(file) => setPendingFiles((p) => [...p, file])}
+          />
+          <LectureRecorder
+            onInsert={(t) => setContent((prev) => `${prev ?? ""}${t.split(/\n{2,}/).map((para) => `<p>${escapeHtml(para).replace(/\n/g, "<br/>")}</p>`).join("")}`)}
+            onAudioFile={(file) => setPendingFiles((p) => [...p, file])}
           />
           {pendingFiles.length > 0 && (
             <p className="text-xs text-muted-foreground">📎 {pendingFiles.length} مرفق سيُرفع بعد الحفظ</p>
@@ -177,7 +187,10 @@ function TaskForm({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="space-y-3 px-5 pt-4">
-      <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="عنوان المهمة..." className="w-full rounded-2xl bg-card px-4 py-3 text-lg font-bold outline-none shadow-card placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary" />
+      <div className="flex items-center gap-2">
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="عنوان المهمة..." className="w-full rounded-2xl bg-card px-4 py-3 text-lg font-bold outline-none shadow-card placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary" />
+        <DictateButton onText={(t) => setTitle((v) => (v ? `${v} ${t}` : t))} />
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <label className="rounded-2xl bg-card px-4 py-3 text-xs shadow-card">
           <span className="block text-[10px] font-bold text-muted-foreground">التاريخ</span>

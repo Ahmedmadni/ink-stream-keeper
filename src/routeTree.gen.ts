@@ -13,6 +13,7 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as AuthenticatedVaultRouteImport } from './routes/_authenticated/vault'
 import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/tasks'
@@ -47,6 +48,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
+  id: '/api/transcribe',
+  path: '/api/transcribe',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
   id: '/workspaces',
@@ -140,6 +146,7 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof AuthenticatedTasksRouteWithChildren
   '/vault': typeof AuthenticatedVaultRoute
   '/workspaces': typeof AuthenticatedWorkspacesRouteWithChildren
+  '/api/transcribe': typeof ApiTranscribeRoute
   '/notes/$id': typeof AuthenticatedNotesIdRoute
   '/plans/$id': typeof AuthenticatedPlansIdRoute
   '/purchases/$id': typeof AuthenticatedPurchasesIdRoute
@@ -159,6 +166,7 @@ export interface FileRoutesByTo {
   '/tasks': typeof AuthenticatedTasksRouteWithChildren
   '/vault': typeof AuthenticatedVaultRoute
   '/workspaces': typeof AuthenticatedWorkspacesRouteWithChildren
+  '/api/transcribe': typeof ApiTranscribeRoute
   '/': typeof AuthenticatedIndexRoute
   '/notes/$id': typeof AuthenticatedNotesIdRoute
   '/plans/$id': typeof AuthenticatedPlansIdRoute
@@ -181,6 +189,7 @@ export interface FileRoutesById {
   '/_authenticated/tasks': typeof AuthenticatedTasksRouteWithChildren
   '/_authenticated/vault': typeof AuthenticatedVaultRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRouteWithChildren
+  '/api/transcribe': typeof ApiTranscribeRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/notes/$id': typeof AuthenticatedNotesIdRoute
   '/_authenticated/plans/$id': typeof AuthenticatedPlansIdRoute
@@ -204,6 +213,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/vault'
     | '/workspaces'
+    | '/api/transcribe'
     | '/notes/$id'
     | '/plans/$id'
     | '/purchases/$id'
@@ -223,6 +233,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/vault'
     | '/workspaces'
+    | '/api/transcribe'
     | '/'
     | '/notes/$id'
     | '/plans/$id'
@@ -244,6 +255,7 @@ export interface FileRouteTypes {
     | '/_authenticated/tasks'
     | '/_authenticated/vault'
     | '/_authenticated/workspaces'
+    | '/api/transcribe'
     | '/_authenticated/'
     | '/_authenticated/notes/$id'
     | '/_authenticated/plans/$id'
@@ -258,6 +270,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  ApiTranscribeRoute: typeof ApiTranscribeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -289,6 +302,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/transcribe': {
+      id: '/api/transcribe'
+      path: '/api/transcribe'
+      fullPath: '/api/transcribe'
+      preLoaderRoute: typeof ApiTranscribeRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/workspaces': {
       id: '/_authenticated/workspaces'
@@ -494,6 +514,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  ApiTranscribeRoute: ApiTranscribeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

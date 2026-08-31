@@ -26,6 +26,7 @@ import {
   Palette, Pilcrow,
 } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { DictateButton } from "@/components/speech/DictateButton";
 
 export type RichEditorHandle = Editor;
 
@@ -158,6 +159,14 @@ function Toolbar({ editor, onAddAttachment }: { editor: Editor; onAddAttachment?
         <Btn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive("blockquote")} label="اقتباس"><Quote className="size-4" /></Btn>
         <Btn onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive("codeBlock")} label="كود"><Code2 className="size-4" /></Btn>
         <Btn onClick={() => editor.chain().focus().setHorizontalRule().run()} label="فاصل"><Minus className="size-4" /></Btn>
+        <Divider />
+        <DictateButton
+          size="sm"
+          live
+          label="إملاء صوتي داخل المحرر"
+          className="!bg-transparent !shadow-none hover:bg-primary-soft"
+          onText={(t) => editor.chain().focus().insertContent(`${t} `).run()}
+        />
         <Divider />
         <Btn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive("bulletList")} label="قائمة"><List className="size-4" /></Btn>
         <Btn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive("orderedList")} label="قائمة مرقمة"><ListOrdered className="size-4" /></Btn>

@@ -9,6 +9,7 @@ import {
 import { formatRelative } from "@/lib/format";
 import { RichEditor } from "@/components/RichEditor";
 import { AudioRecorder } from "@/components/AudioRecorder";
+import { LectureRecorder } from "@/components/speech/LectureRecorder";
 import { SubItemsTree } from "@/components/subitems/SubItemsTree";
 
 export const Route = createFileRoute("/_authenticated/notes/$id")({
@@ -144,6 +145,17 @@ function NoteDetail() {
         </div>
 
         <div className="mt-6">
+          <LectureRecorder
+            onInsert={(t) => {
+              const html = t.split(/\n{2,}/).map((para) => `<p>${escapeHtml(para).replace(/\n/g, "<br/>")}</p>`).join("");
+              setDraft((prev) => `${prev ?? ""}${html}`);
+              markDirty();
+            }}
+            onAudioFile={(file) => upload.mutate({ noteId: note.id, file })}
+          />
+        </div>
+
+        <div className="mt-6">
           <SubItemsTree
             parentType="note"
             parentId={note.id}
@@ -192,6 +204,10 @@ function NoteDetail() {
       </div>
     </AppShell>
   );
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function SaveStatus({ status }: { status: "idle" | "dirty" | "saving" | "saved" | "error" }) {
