@@ -166,6 +166,7 @@ function Toolbar({ editor, onAddAttachment }: { editor: Editor; onAddAttachment?
           label="إملاء صوتي داخل المحرر"
           className="!bg-transparent !shadow-none hover:bg-primary-soft"
           onText={(t) => editor.chain().focus().insertContent(`${t} `).run()}
+          onAudioFile={onAddAttachment}
         />
         <Divider />
         <Btn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive("bulletList")} label="قائمة"><List className="size-4" /></Btn>

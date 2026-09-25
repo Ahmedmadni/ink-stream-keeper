@@ -11,6 +11,7 @@ export function DictateButton({
   size = "md",
   label = "إملاء صوتي",
   live = false,
+  onAudioFile,
 }: {
   onText: (text: string) => void;
   className?: string;
@@ -18,8 +19,10 @@ export function DictateButton({
   label?: string;
   /** transcribe every ~10s while recording (long dictation) */
   live?: boolean;
+  /** receive the full recording as a WAV file (e.g. to save as attachment) */
+  onAudioFile?: (file: File) => void;
 }) {
-  const d = useDictation({ onText, chunkSeconds: live ? 10 : 0 });
+  const d = useDictation({ onText, chunkSeconds: live ? 10 : 0, onAudioFile });
   const dim = size === "sm" ? "size-8" : "size-10";
   const icon = size === "sm" ? "size-3.5" : "size-4";
 
