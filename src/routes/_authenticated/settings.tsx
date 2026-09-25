@@ -91,6 +91,24 @@ function SettingsPage() {
         <Toggle icon={Bell} label="الإشعارات الذكية" desc="تذكيرات للمهام والتواريخ" value={notifs} onChange={setNotifs} />
       </Group>
 
+      <Group title="التعرّف على الصوت">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 p-4">
+          <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary"><Mic className="size-4" /></div>
+          <div className="min-w-0">
+            <p className="text-sm font-bold">لهجة التفريغ</p>
+            <p className="mb-2 text-[11px] text-muted-foreground">اختر لهجتك لدقة أعلى في فهم العامية</p>
+            <div className="flex flex-wrap gap-2">
+              {DIALECTS.map((d) => (
+                <button key={d.value} onClick={() => { setDialectState(d.value); setDialect(d.value); }}
+                  className={`rounded-full px-3 py-1.5 text-xs font-bold ${dialect === d.value ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}>
+                  {d.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Group>
+
       <Group title="البيانات">
         <Toggle icon={Cloud} label="المزامنة السحابية" desc="مفعّلة عبر Lovable Cloud" value={sync} onChange={setSync} />
         <Row icon={Download} label="تصدير البيانات" desc="JSON أو PDF" />

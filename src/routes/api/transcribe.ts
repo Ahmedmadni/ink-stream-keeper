@@ -3,6 +3,15 @@ import { createFileRoute } from "@tanstack/react-router";
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/audio/transcriptions";
 const MAX_BYTES = 24 * 1024 * 1024;
 
+const BASE =
+  "تفريغ حرفي دقيق للكلام كما نُطق تماماً بالحروف العربية، مع الحفاظ على الكلمات العامية وعدم تحويلها إلى الفصحى، وإضافة علامات الترقيم. الكلمات الإنجليزية تُكتب بحروفها الإنجليزية.";
+
+const DIALECT_PROMPTS: Record<"auto" | "sa" | "eg", string> = {
+  sa: `${BASE} المتحدث سعودي (نجدي/حجازي/شرقي). أمثلة على مفردات متوقعة: وش، ايش، ليش، وشلون، كيفك، زين، مرة، يبغى، ابغى، ودّي، أبي، تبي، الحين، ذحين، بعدين، يالله، هاه، عاد، خلاص، مو، ماهو، حيل، واجد، سالفة، طقطقة، يعطيك العافية، ما عليك، زحمة، دوام، مشوار، فلوس، قروب، اجتماع، محاضرة.`,
+  eg: `${BASE} المتحدث مصري. أمثلة على مفردات متوقعة: إزيك، عامل إيه، إيه ده، ليه، إزاي، فين، إمتى، دلوقتي، بكرة، كده، كمان، أوي، خالص، عايز، عاوز، مش، مفيش، ماشي، طيب، يلا، بقى، يعني، برضه، حاجة، حلو، جامد، بتاع، ده، دي، دول، اللي، هنعمل، هيروح، بيقول، المحاضرة، الاجتماع.`,
+  auto: `${BASE} قد يكون المتحدث سعودياً أو مصرياً أو يتكلم الفصحى. أمثلة على مفردات متوقعة: وش، ايش، ليش، أبغى، الحين، زين، مرة، مو، إزيك، عايز، دلوقتي، كده، أوي، مش، مفيش، بتاع، اللي، يعني، طيب، خلاص، المحاضرة، الاجتماع.`,
+};
+
 export const Route = createFileRoute("/api/transcribe")({
   server: {
     handlers: {
@@ -28,11 +37,15 @@ export const Route = createFileRoute("/api/transcribe")({
         }
 
         const language = String(form.get("language") ?? "").trim();
+        const dialectRaw = String(form.get("dialect") ?? "auto");
+        const dialect = dialectRaw === "sa" || dialectRaw === "eg" ? dialectRaw : "auto";
 
         const upstream = new FormData();
         upstream.append("model", "openai/gpt-4o-transcribe");
         upstream.append("file", file, file.name || "recording.wav");
         if (language && /^[a-z]{2}$/.test(language)) upstream.append("language", language);
+        upstream.append("prompt", DIALECT_PROMPTS[dialect]);
+        upstream.append("temperature", "0");
 
         const res = await fetch(GATEWAY, {
           method: "POST",

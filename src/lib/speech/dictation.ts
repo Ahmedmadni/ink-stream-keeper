@@ -4,6 +4,7 @@
  * them to /api/transcribe. Works for short dictation and long lectures.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getDialect } from "./dialect";
 
 const TARGET_RATE = 16000;
 
@@ -58,7 +59,8 @@ export async function transcribeBlob(blob: Blob, language?: string): Promise<str
   const fd = new FormData();
   const ext = blob.type.includes("webm") ? "webm" : blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : blob.type.includes("mpeg") ? "mp3" : "wav";
   fd.append("file", blob, `recording.${ext}`);
-  if (language) fd.append("language", language);
+  fd.append("language", language || "ar");
+  fd.append("dialect", getDialect());
   const res = await fetch("/api/transcribe", { method: "POST", body: fd });
   const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
   if (!res.ok) throw new Error(data.error || "تعذّر تفريغ الصوت.");
