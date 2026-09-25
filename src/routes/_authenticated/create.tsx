@@ -500,14 +500,30 @@ function VoiceForm({ onDone }: { onDone: (id: string) => void }) {
     setPreviewUrl(""); setBlob(null); setSeconds(0); setState("idle");
   };
 
+  const [transcript, setTranscript] = useState("");
+  const [transcribing, setTranscribing] = useState(false);
+  const doTranscribe = async () => {
+    if (!blob) return;
+    setErr(null); setTranscribing(true);
+    try {
+      const t = await transcribeBlob(blob, "ar");
+      setTranscript((p) => (p ? p + "\n\n" : "") + t);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "تعذّر تفريغ الصوت.");
+    } finally { setTranscribing(false); }
+  };
+
   const pending = addNote.isPending || upload.isPending;
   const submit = async () => {
     if (!blob) return;
     const ext = blob.type.includes("mp4") ? "m4a" : "webm";
     const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: blob.type });
+    const html = transcript.trim()
+      ? transcript.trim().split(/\n{2,}/).map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br/>")}</p>`).join("")
+      : "";
     const note = await addNote.mutateAsync({
       title: title.trim() || `تسجيل صوتي (${fmtTime(seconds)})`,
-      content: "",
+      content: html,
       categoryId: null,
       emoji: "🎙️",
     });
@@ -554,6 +570,18 @@ function VoiceForm({ onDone }: { onDone: (id: string) => void }) {
 
         {err && <p className="mt-3 text-xs font-semibold text-destructive">{err}</p>}
       </div>
+
+      {blob && (
+        <div className="space-y-2 rounded-2xl bg-card p-4 shadow-card">
+          <button disabled={transcribing} onClick={doTranscribe} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-soft py-2.5 text-sm font-bold text-primary disabled:opacity-50">
+            {transcribing ? <Loader2 className="size-4 animate-spin" /> : <Mic className="size-4" />}
+            {transcribing ? "جارٍ التحويل إلى نص..." : "تحويل التسجيل إلى نص"}
+          </button>
+          {transcript && (
+            <textarea value={transcript} onChange={(e) => setTranscript(e.target.value)} rows={6} className="w-full rounded-xl bg-secondary p-3 text-sm outline-none focus:ring-2 focus:ring-primary" />
+          )}
+        </div>
+      )}
 
       <button disabled={!blob || pending} onClick={submit} className="grid w-full place-items-center rounded-2xl gradient-primary py-3.5 text-sm font-bold text-primary-foreground shadow-fab disabled:opacity-50">
         {pending ? <Loader2 className="size-5 animate-spin" /> : "حفظ التسجيل"}
