@@ -56,7 +56,8 @@ function downsample(input: Float32Array, from: number, to: number): Float32Array
 
 export async function transcribeBlob(blob: Blob, language?: string): Promise<string> {
   const fd = new FormData();
-  fd.append("file", blob, "recording.wav");
+  const ext = blob.type.includes("webm") ? "webm" : blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : blob.type.includes("mpeg") ? "mp3" : "wav";
+  fd.append("file", blob, `recording.${ext}`);
   if (language) fd.append("language", language);
   const res = await fetch("/api/transcribe", { method: "POST", body: fd });
   const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
