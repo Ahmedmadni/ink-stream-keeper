@@ -81,7 +81,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <nav
         aria-label="التنقل الرئيسي"
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 safe-bottom safe-x"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-white/60 glass-strong safe-bottom safe-x"
       >
         <div className="mx-auto flex max-w-md items-center justify-around px-2 py-2">
           {nav.map((item) => {
@@ -126,7 +126,7 @@ function TabletShell({ children, pathname }: { children: ReactNode; pathname: st
   return (
     <div dir="ltr" className="grid min-h-dvh bg-background text-foreground grid-cols-[280px_minmax(0,1fr)_min(420px,32vw)]">
       {/* LEFT — Navigation + Workspaces */}
-      <aside dir="rtl" className="sticky top-0 h-dvh overflow-y-auto border-e border-border bg-card/40 backdrop-blur">
+      <aside dir="rtl" className="sticky top-0 h-dvh overflow-y-auto border-e border-white/50 glass-subtle">
         <div className="flex items-center gap-2 px-5 py-4">
           <div className="grid size-9 place-items-center rounded-xl gradient-primary text-primary-foreground shadow-fab">
             <NotebookText className="size-5" />
@@ -144,7 +144,7 @@ function TabletShell({ children, pathname }: { children: ReactNode; pathname: st
                     to={item.to}
                     aria-current={active ? "page" : undefined}
                     className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors tap-44 ${
-                      active ? "bg-primary-soft text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      active ? "glass-strong text-primary shadow-card" : "text-muted-foreground hover:bg-white/40 hover:text-foreground"
                     }`}
                   >
                     <Icon className="size-4 shrink-0" strokeWidth={active ? 2.5 : 2} />
@@ -188,7 +188,7 @@ function TabletShell({ children, pathname }: { children: ReactNode; pathname: st
       </main>
 
       {/* RIGHT — details panel */}
-      <aside dir="rtl" className="sticky top-0 h-dvh overflow-hidden border-s border-border bg-card/30 backdrop-blur">
+      <aside dir="rtl" className="sticky top-0 h-dvh overflow-hidden border-s border-white/50 glass-subtle">
         <DetailPanel />
       </aside>
     </div>
