@@ -61,12 +61,12 @@
 }
 
 :root {
-  --radius: 1rem;
-  --background: oklch(0.985 0.005 240);
+  --radius: 1.25rem;
+  --background: oklch(0.965 0.012 245);
   --foreground: oklch(0.20 0.04 250);
-  --card: oklch(1 0 0);
+  --card: oklch(1 0 0 / 60%);
   --card-foreground: oklch(0.20 0.04 250);
-  --popover: oklch(1 0 0);
+  --popover: oklch(1 0 0 / 85%);
   --popover-foreground: oklch(0.20 0.04 250);
   --primary: oklch(0.55 0.19 252);
   --primary-foreground: oklch(0.99 0.005 250);
@@ -84,8 +84,8 @@
   --success-foreground: oklch(0.99 0.005 250);
   --warning: oklch(0.78 0.15 75);
   --warning-foreground: oklch(0.20 0.05 60);
-  --border: oklch(0.91 0.015 250);
-  --input: oklch(0.93 0.015 250);
+  --border: oklch(1 0 0 / 70%);
+  --input: oklch(1 0 0 / 70%);
   --ring: oklch(0.55 0.19 252);
   --chart-1: oklch(0.55 0.19 252);
   --chart-2: oklch(0.68 0.17 200);
@@ -159,10 +159,20 @@
 
   body {
     background-color: var(--color-background);
+    background-image:
+      radial-gradient(circle at top right, oklch(0.92 0.05 255 / 0.9), transparent 60%),
+      radial-gradient(circle at bottom left, oklch(0.92 0.06 240 / 0.9), transparent 60%);
+    background-attachment: fixed;
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+  }
+
+  .dark body {
+    background-image:
+      radial-gradient(circle at top right, oklch(0.30 0.08 255 / 0.5), transparent 60%),
+      radial-gradient(circle at bottom left, oklch(0.26 0.07 240 / 0.5), transparent 60%);
   }
 }
 
@@ -184,6 +194,34 @@
 
 @utility shadow-fab {
   box-shadow: var(--shadow-fab);
+}
+
+/* ============= Luminous Glass — Apple-like frosted surfaces ============= */
+@utility glass {
+  background: color-mix(in oklab, var(--color-card) 60%, transparent);
+  backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid color-mix(in oklab, oklch(1 0 0) 60%, transparent);
+  box-shadow: var(--shadow-card);
+}
+
+@utility glass-strong {
+  background: color-mix(in oklab, var(--color-card) 80%, transparent);
+  backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid color-mix(in oklab, oklch(1 0 0) 80%, transparent);
+  box-shadow: var(--shadow-card);
+}
+
+@utility glass-subtle {
+  background: color-mix(in oklab, var(--color-card) 40%, transparent);
+  backdrop-filter: blur(12px) saturate(140%);
+  border: 1px solid color-mix(in oklab, oklch(1 0 0) 50%, transparent);
+}
+
+.dark {
+  --card: oklch(0.24 0.03 252 / 55%);
+  --popover: oklch(0.24 0.03 252 / 85%);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 14%);
 }
 
 /* ============= Rich editor (TipTap / ProseMirror) ============= */
@@ -325,6 +363,11 @@
 
 /* Global scrollbar polish */
 html, body { overflow-x: hidden; }
+
+/* Luminous Glass: every card surface becomes frosted glass over the gradient */
+.bg-card, .bg-popover {
+  backdrop-filter: blur(20px) saturate(150%);
+}
 
 /* Ensure focus is always visible for keyboard users on interactive elements */
 button:focus-visible, a:focus-visible, [role="button"]:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
