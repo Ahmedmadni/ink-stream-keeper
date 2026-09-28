@@ -159,10 +159,20 @@
 
   body {
     background-color: var(--color-background);
+    background-image:
+      radial-gradient(circle at top right, oklch(0.92 0.05 255 / 0.9), transparent 60%),
+      radial-gradient(circle at bottom left, oklch(0.92 0.06 240 / 0.9), transparent 60%);
+    background-attachment: fixed;
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+  }
+
+  .dark body {
+    background-image:
+      radial-gradient(circle at top right, oklch(0.30 0.08 255 / 0.5), transparent 60%),
+      radial-gradient(circle at bottom left, oklch(0.26 0.07 240 / 0.5), transparent 60%);
   }
 }
 
@@ -184,6 +194,34 @@
 
 @utility shadow-fab {
   box-shadow: var(--shadow-fab);
+}
+
+/* ============= Luminous Glass — Apple-like frosted surfaces ============= */
+@utility glass {
+  background: color-mix(in oklab, var(--color-card) 60%, transparent);
+  backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid color-mix(in oklab, oklch(1 0 0) 60%, transparent);
+  box-shadow: var(--shadow-card);
+}
+
+@utility glass-strong {
+  background: color-mix(in oklab, var(--color-card) 80%, transparent);
+  backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid color-mix(in oklab, oklch(1 0 0) 80%, transparent);
+  box-shadow: var(--shadow-card);
+}
+
+@utility glass-subtle {
+  background: color-mix(in oklab, var(--color-card) 40%, transparent);
+  backdrop-filter: blur(12px) saturate(140%);
+  border: 1px solid color-mix(in oklab, oklch(1 0 0) 50%, transparent);
+}
+
+.dark {
+  --card: oklch(0.24 0.03 252 / 55%);
+  --popover: oklch(0.24 0.03 252 / 85%);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 14%);
 }
 
 /* ============= Rich editor (TipTap / ProseMirror) ============= */
