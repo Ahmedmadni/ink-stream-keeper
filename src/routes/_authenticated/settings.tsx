@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Fingerprint, Lock, Moon, Bell, Cloud, Globe, Info, ChevronLeft, Shield, Download, LogOut, Loader2, Smartphone, Wifi, WifiOff } from "lucide-react";
+import { Fingerprint, Lock, Moon, Bell, Cloud, Globe, Info, ChevronLeft, Shield, Download, LogOut, Loader2, Smartphone, Wifi, WifiOff, Mic } from "lucide-react";
+import { DIALECTS, getDialect, setDialect, type Dialect } from "@/lib/speech/dialect";
 import { useEffect, useState } from "react";
 import { AppShell, PageHeader } from "@/components/AppShell";
 import { useProfile, useUpdateProfile } from "@/lib/data";
@@ -27,6 +28,8 @@ function SettingsPage() {
   const online = typeof navigator === "undefined" ? true : navigator.onLine;
 
   const [dark, setDark] = useState(profile?.theme === "dark");
+  const [dialect, setDialectState] = useState<Dialect>("auto");
+  useEffect(() => { setDialectState(getDialect()); }, []);
   const [biometric, setBiometric] = useState(true);
   const [notifs, setNotifs] = useState(true);
   const [sync, setSync] = useState(true);
