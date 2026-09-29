@@ -7,7 +7,7 @@ const DB = "mf-vault-bio";
 const STORE = "kv";
 const REC = "record";
 
-type Rec = { credId: ArrayBuffer; iv: Uint8Array; ct: ArrayBuffer; key: CryptoKey };
+type Rec = { credId: ArrayBuffer; iv: Uint8Array<ArrayBuffer>; ct: ArrayBuffer; key: CryptoKey };
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((res, rej) => {
