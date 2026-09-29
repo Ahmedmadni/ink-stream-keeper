@@ -51,7 +51,26 @@ function setSessionKey(k: CryptoKey | null) {
   sessionKey = k;
   listeners.forEach((l) => l());
 }
-export function lockVault() { setSessionKey(null); }
+export function lockVault() {
+  setSessionKey(null);
+  import("./vault-biometric").then((m) => m.setPendingPin(null));
+}
+
+// Auto-lock: after 3 minutes in the background or 5 minutes of inactivity.
+if (typeof window !== "undefined") {
+  let hiddenAt = 0;
+  let idle: ReturnType<typeof setTimeout> | undefined;
+  const bump = () => {
+    if (idle) clearTimeout(idle);
+    idle = setTimeout(() => { if (isUnlocked()) lockVault(); }, 5 * 60_000);
+  };
+  ["pointerdown", "keydown"].forEach((e) => window.addEventListener(e, bump, { passive: true }));
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) hiddenAt = Date.now();
+    else if (hiddenAt && Date.now() - hiddenAt > 3 * 60_000 && isUnlocked()) lockVault();
+  });
+  bump();
+}
 
 export function useVaultLocked(): boolean {
   const [locked, setLocked] = useState(!isUnlocked());

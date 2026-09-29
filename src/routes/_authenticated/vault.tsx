@@ -2,9 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   KeyRound, Lock, Unlock, ShieldCheck, Plus, Mail, Sparkles, Users,
-  CreditCard, Briefcase, Eye, EyeOff, Copy, Trash2, Pencil, X, Search, Check,
+  CreditCard, Briefcase, Fingerprint, Eye, EyeOff, Copy, Trash2, Pencil, X, Search, Check,
 } from "lucide-react";
 import { AppShell, PageHeader } from "@/components/AppShell";
+import {
+  disableBiometric, enableBiometric, getPendingPin, isBiometricEnabled,
+  isBiometricSupported, setPendingPin, unlockWithBiometric,
+} from "@/lib/vault-biometric";
 import {
   lockVault, revealPassword, useAddVaultCategory, useAddVaultEntry,
   useDeleteVaultEntry, useSetupVaultPin, useUnlockVault,
@@ -153,7 +157,20 @@ function UnlockScreen() {
   const { data: settings } = useVaultSettings();
   const [pin, setPin] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [bioOn, setBioOn] = useState(false);
   const unlock = useUnlockVault();
+
+  useEffect(() => { isBiometricEnabled().then(setBioOn); }, []);
+
+  async function tryBio() {
+    try {
+      setErr(null);
+      const p = await unlockWithBiometric();
+      setPin(p);
+    } catch {
+      setErr("تعذّر التحقق بالبصمة، استخدم الرمز");
+    }
+  }
 
   useEffect(() => {
     if (pin.length === 6 && settings) {
@@ -161,7 +178,7 @@ function UnlockScreen() {
         { pin, settings },
         {
           onError: () => { setErr("رمز خاطئ"); setPin(""); },
-          onSuccess: () => setErr(null),
+          onSuccess: () => { setErr(null); setPendingPin(pin); },
         },
       );
     }
@@ -180,11 +197,65 @@ function UnlockScreen() {
             بياناتك مشفّرة بالكامل، لا يمكن قراءتها بدون الرمز.
           </p>
         </div>
+        {bioOn && (
+          <button
+            onClick={tryBio}
+            className="glass mx-auto mt-6 flex items-center gap-2 rounded-full px-5 py-3 text-sm font-bold text-primary"
+          >
+            <Fingerprint className="size-5" /> فتح بالبصمة / الوجه
+          </button>
+        )}
         <div className="pt-8"><PinPad value={pin} onChange={setPin} /></div>
         {err && <p className="mt-4 text-center text-xs font-semibold text-destructive">{err}</p>}
         {unlock.isPending && <p className="mt-4 text-center text-xs text-muted-foreground">جاري التحقق...</p>}
       </div>
     </AppShell>
+  );
+}
+
+function BiometricCard() {
+  const [supported, setSupported] = useState(false);
+  const [enabled, setEnabled] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => {
+    isBiometricSupported().then(setSupported);
+    isBiometricEnabled().then(setEnabled);
+  }, []);
+  if (!supported) return null;
+
+  async function toggle() {
+    setBusy(true); setMsg(null);
+    try {
+      if (enabled) { await disableBiometric(); setEnabled(false); }
+      else {
+        const p = getPendingPin();
+        if (!p) { setMsg("اقفل الخزنة وافتحها بالرمز أولاً ثم فعّل البصمة"); return; }
+        await enableBiometric(p);
+        setEnabled(true);
+      }
+    } catch {
+      setMsg("تعذّر التفعيل على هذا الجهاز");
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="glass mt-3 flex items-center gap-3 rounded-2xl p-4">
+      <Fingerprint className="size-6 shrink-0 text-primary" />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-bold">فتح بالبصمة أو الوجه</p>
+        <p className="text-[11px] text-muted-foreground">
+          {msg ?? "على هذا الجهاز فقط. تُقفل الخزنة تلقائياً بعد 5 دقائق خمول."}
+        </p>
+      </div>
+      <button
+        disabled={busy}
+        onClick={toggle}
+        className={`rounded-full px-4 py-2 text-xs font-bold ${enabled ? "bg-muted text-foreground" : "bg-primary text-primary-foreground"}`}
+      >
+        {enabled ? "إيقاف" : "تفعيل"}
+      </button>
+    </div>
   );
 }
 
@@ -236,6 +307,7 @@ function VaultHome() {
             className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
         </div>
+        <BiometricCard />
       </div>
 
       <section className="px-5 pt-5">
