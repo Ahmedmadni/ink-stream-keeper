@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Mobile: Capacitor in hosted mode (server.url → live app) — server functions/transcription need the web backend; native APIs load lazily behind isNative().

@@ -25,8 +25,25 @@ function vibrate(pattern: number | number[]): void {
   try { navigator.vibrate(pattern); } catch { /* noop */ }
 }
 
+import { isNative } from "./platform";
+
+function native(fn: (h: typeof import("@capacitor/haptics")) => Promise<unknown>, fallback: () => void) {
+  if (!isNative()) return fallback();
+  import("@capacitor/haptics").then(fn).catch(fallback);
+}
+
 export const haptics: HapticsService = {
-  impact(style = "light") { vibrate(patterns[style]); },
-  selection() { vibrate(patterns.selection); },
-  notify(style) { vibrate(patterns[style]); },
+  impact(style = "light") {
+    native(({ Haptics, ImpactStyle, NotificationType }) => {
+      if (style === "success" || style === "warning" || style === "error") {
+        const t = { success: NotificationType.Success, warning: NotificationType.Warning, error: NotificationType.Error }[style];
+        return Haptics.notification({ type: t });
+      }
+      if (style === "selection") return Haptics.selectionChanged();
+      const s = { light: ImpactStyle.Light, medium: ImpactStyle.Medium, heavy: ImpactStyle.Heavy }[style];
+      return Haptics.impact({ style: s });
+    }, () => vibrate(patterns[style]));
+  },
+  selection() { native(({ Haptics }) => Haptics.selectionChanged(), () => vibrate(patterns.selection)); },
+  notify(style) { this.impact(style); },
 };
