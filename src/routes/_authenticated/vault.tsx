@@ -2,9 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   KeyRound, Lock, Unlock, ShieldCheck, Plus, Mail, Sparkles, Users,
-  CreditCard, Briefcase, Eye, EyeOff, Copy, Trash2, Pencil, X, Search, Check,
+  CreditCard, Briefcase, Fingerprint, Eye, EyeOff, Copy, Trash2, Pencil, X, Search, Check,
 } from "lucide-react";
 import { AppShell, PageHeader } from "@/components/AppShell";
+import {
+  disableBiometric, enableBiometric, getPendingPin, isBiometricEnabled,
+  isBiometricSupported, setPendingPin, unlockWithBiometric,
+} from "@/lib/vault-biometric";
 import {
   lockVault, revealPassword, useAddVaultCategory, useAddVaultEntry,
   useDeleteVaultEntry, useSetupVaultPin, useUnlockVault,
@@ -303,6 +307,7 @@ function VaultHome() {
             className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
         </div>
+        <BiometricCard />
       </div>
 
       <section className="px-5 pt-5">
