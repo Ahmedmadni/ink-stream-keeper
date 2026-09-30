@@ -122,13 +122,18 @@ function Index() {
             const Icon = iconMap[c.icon] ?? Notebook;
             const count = notes.filter((n) => n.category_id === c.id).length;
             return (
-              <div key={c.id} className="flex flex-col items-center gap-1.5 rounded-2xl bg-card p-3 shadow-card">
+              <Link
+                key={c.id}
+                to="/notes"
+                search={{ cat: c.id }}
+                className="flex flex-col items-center gap-1.5 rounded-2xl bg-card p-3 shadow-card transition-transform active:scale-95"
+              >
                 <div className={`grid size-10 shrink-0 place-items-center rounded-xl ${toneBg(c.color)}`}>
                   <Icon className="size-5" />
                 </div>
                 <p className="line-clamp-1 text-center text-[11px] font-semibold">{c.name}</p>
                 <p className="text-[10px] text-muted-foreground">{count}</p>
-              </div>
+              </Link>
             );
           })}
           <Link to="/create" className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-border bg-card/50 p-3 text-muted-foreground transition-colors hover:border-primary hover:text-primary">
