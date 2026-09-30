@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useTasks, type Task } from "@/lib/data";
+import { isNative } from "@/services/platform";
+import { requestNativePermission, syncNativeReminders } from "@/lib/native-reminders";
 
 const FIRED_KEY = "memoflow.firedReminders";
 
@@ -42,6 +44,12 @@ export function useTaskReminders() {
     timersRef.current.forEach((id) => clearTimeout(id));
     timersRef.current = [];
 
+    if (isNative()) {
+      // OS-level scheduling: fires even when the app is closed.
+      syncNativeReminders(tasks);
+      return;
+    }
+
     const now = Date.now();
     for (const task of tasks) {
       if (task.done || !task.reminder_at) continue;
@@ -74,6 +82,7 @@ export function useTaskReminders() {
 }
 
 export async function requestNotificationPermission(): Promise<NotificationPermission> {
+  if (isNative()) return (await requestNativePermission()) ? "granted" : "denied";
   if (typeof Notification === "undefined") return "denied";
   if (Notification.permission === "granted" || Notification.permission === "denied") {
     return Notification.permission;
