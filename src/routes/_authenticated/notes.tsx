@@ -6,6 +6,9 @@ import { useCategories, useNotes, tsOf } from "@/lib/data";
 import { formatRelative, plainTextFromHtml } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/notes")({
+  validateSearch: (search: Record<string, unknown>): { cat?: string } => ({
+    cat: typeof search.cat === "string" ? search.cat : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "MemoFlow — كل الملاحظات" },
@@ -18,8 +21,12 @@ export const Route = createFileRoute("/_authenticated/notes")({
 function NotesPage() {
   const { data: notes = [] } = useNotes();
   const { data: categories = [] } = useCategories();
+  const search = Route.useSearch();
+  const navigate = useNavigate();
   const [q, setQ] = useState("");
-  const [cat, setCat] = useState<string>("all");
+  const cat = search.cat ?? "all";
+  const setCat = (v: string) =>
+    navigate({ to: "/notes", search: v === "all" ? {} : { cat: v }, replace: true });
 
   const filtered = useMemo(() => {
     return notes
