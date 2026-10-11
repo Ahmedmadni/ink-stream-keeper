@@ -21,6 +21,8 @@ export function SubItemsBlock({ block }: BlockRendererProps<SubItemsBlockProps>)
       title={p.title ?? "التقسيم الفرعي"}
       allowConvertToTask={p.allowConvertToTask}
       readonly={p.readonly}
+      compact={p.parentType === "task"}
+      addPlaceholder={p.parentType === "task" ? "أضف بندًا للمهمة…" : undefined}
       onProgress={p.onProgress}
     />
   );

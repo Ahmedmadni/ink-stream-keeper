@@ -4,7 +4,7 @@ import { Loader2, Plus, Star, Target, Calendar, ChevronLeft } from "lucide-react
 import { AppShell, PageHeader } from "@/components/AppShell";
 import { usePlans, usePlanStats, PLAN_TYPES, type PlanType, useUpdatePlan } from "@/lib/plans";
 
-export const Route = createFileRoute("/_authenticated/plans")({
+export const Route = createFileRoute("/_authenticated/plans/")({
   head: () => ({
     meta: [
       { title: "MemoFlow — الخطط" },

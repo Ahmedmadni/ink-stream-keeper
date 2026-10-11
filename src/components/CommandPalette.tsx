@@ -10,12 +10,8 @@ import { useNotes, useTasks } from "@/lib/data";
 import { plainTextFromHtml } from "@/lib/format";
 
 const NAV = [
-  { to: "/", label: "الرئيسية", icon: Home },
-  { to: "/notes", label: "الملاحظات", icon: NotebookText },
+  { to: "/notes", label: "المذكرات", icon: NotebookText },
   { to: "/tasks", label: "المهام", icon: CheckSquare },
-  { to: "/purchases", label: "المشتريات", icon: ShoppingBag },
-  { to: "/plans", label: "الخطط", icon: Target },
-  { to: "/workspaces", label: "مساحات العمل", icon: LayoutGrid },
   { to: "/vault", label: "الخزنة", icon: ShieldCheck },
   { to: "/settings", label: "الإعدادات", icon: Settings },
 ] as const;
@@ -76,7 +72,7 @@ export function CommandPalette() {
           </CommandGroup>
         )}
         {notes.length > 0 && (
-          <CommandGroup heading="الملاحظات">
+          <CommandGroup heading="المذكرات">
             {notes.slice(0, 20).map((n) => (
               <CommandItem
                 key={n.id}

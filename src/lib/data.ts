@@ -1,3 +1,4 @@
+import { advanceTaskDate, taskCompletionPatch } from "@/features/tasks/task-rules";
 import {
   queryOptions,
   useMutation,
@@ -300,31 +301,26 @@ export function useToggleTask() {
     mutationFn: async ({ id, done, task }: { id: string; done: boolean; task?: Task }) => {
       // Recurring + completing → advance due_at/reminder_at to next occurrence
       if (done && task && task.recurrence !== "none" && task.due_at) {
-        const next = advanceDate(new Date(task.due_at), task.recurrence);
+        const next = advanceTaskDate(new Date(task.due_at), task.recurrence);
         const nextReminder = task.reminder_at
           ? new Date(next.getTime() - (new Date(task.due_at).getTime() - new Date(task.reminder_at).getTime())).toISOString()
           : null;
         const { error } = await supabase.from("tasks").update({
           due_at: next.toISOString(),
           reminder_at: nextReminder,
-          done: false,
+          ...taskCompletionPatch(false),
         }).eq("id", id);
         if (error) throw error;
         return;
       }
-      const { error } = await supabase.from("tasks").update({ done }).eq("id", id);
+      const { error } = await supabase.from("tasks").update(taskCompletionPatch(done)).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.tasks }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: keys.tasks });
+      qc.invalidateQueries({ queryKey: keys.task(vars.id) });
+    },
   });
-}
-
-function advanceDate(d: Date, rec: "daily" | "weekly" | "monthly" | "none"): Date {
-  const out = new Date(d);
-  if (rec === "daily") out.setDate(out.getDate() + 1);
-  else if (rec === "weekly") out.setDate(out.getDate() + 7);
-  else if (rec === "monthly") out.setMonth(out.getMonth() + 1);
-  return out;
 }
 
 export function useDeleteTask() {
