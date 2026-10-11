@@ -46,6 +46,8 @@ const tasks = [
     reminder_at: null,
     priority: "high",
     recurrence: "none",
+    category_id: "category-work",
+    progress: 0,
     created_at: "2026-10-10T00:00:00Z",
     updated_at: "2026-10-10T00:00:00Z",
   },
@@ -59,6 +61,70 @@ const tasks = [
     reminder_at: null,
     priority: "med",
     recurrence: "none",
+    category_id: "category-work",
+    progress: 50,
+    created_at: "2026-10-10T00:00:00Z",
+    updated_at: "2026-10-10T00:00:00Z",
+  },
+];
+const categories = [
+  {
+    id: "category-work",
+    user_id: user.id,
+    name: "العمل",
+    icon: "ListChecks",
+    color: "primary",
+    locked: false,
+    sort_order: 0,
+    created_at: "2026-10-10T00:00:00Z",
+  },
+];
+const taskItems = [
+  {
+    id: "sub-a",
+    user_id: user.id,
+    parent_type: "task",
+    parent_id: "task-b",
+    parent_item_id: null,
+    depth: 0,
+    title: "أرشفة الملفات",
+    description: null,
+    notes: null,
+    status: "done",
+    priority: "med",
+    progress: 100,
+    done: true,
+    done_at: "2026-10-10T00:00:00Z",
+    start_at: null,
+    end_at: null,
+    reminder_at: null,
+    position: 0,
+    converted_task_id: null,
+    meta: {},
+    created_at: "2026-10-10T00:00:00Z",
+    updated_at: "2026-10-10T00:00:00Z",
+  },
+  {
+    id: "sub-b",
+    user_id: user.id,
+    parent_type: "task",
+    parent_id: "task-b",
+    parent_item_id: null,
+    depth: 0,
+    title: "إرسال الإيميلات",
+    description: null,
+    notes: null,
+    status: "todo",
+    priority: "med",
+    progress: 0,
+    done: false,
+    done_at: null,
+    start_at: null,
+    end_at: null,
+    reminder_at: null,
+    position: 1,
+    converted_task_id: null,
+    meta: {},
     created_at: "2026-10-10T00:00:00Z",
     updated_at: "2026-10-10T00:00:00Z",
   },
@@ -174,17 +240,33 @@ const vaultEntries = [
           result = profile;
         }
         if (table === "notes") result = u.searchParams.has("id") ? notes[0] : notes;
+        if (table === "categories") result = categories;
         if (table === "tasks") {
           if (req.method() === "PATCH") {
             const p = req.postDataJSON();
-            assert.equal(p.done, true);
-            assert.equal(p.status, "done");
-            tasks[0] = { ...tasks[0], ...p };
-            patchSeen = true;
+            const id = u.searchParams.get("id")?.replace("eq.", "");
+            const index = tasks.findIndex((task) => task.id === id);
+            assert.notEqual(index, -1);
+            tasks[index] = { ...tasks[index], ...p };
+            if (id === "task-a") {
+              assert.equal(p.done, true);
+              assert.equal(p.status, "done");
+              patchSeen = true;
+            }
           }
           result = u.searchParams.has("id")
             ? tasks.find((t) => u.searchParams.get("id") === "eq." + t.id)
             : tasks;
+        }
+        if (table === "sub_items") {
+          if (req.method() === "PATCH") {
+            const id = u.searchParams.get("id")?.replace("eq.", "");
+            const index = taskItems.findIndex((item) => item.id === id);
+            assert.notEqual(index, -1);
+            taskItems[index] = { ...taskItems[index], ...req.postDataJSON() };
+          }
+          const parent = u.searchParams.get("parent_id")?.replace("eq.", "");
+          result = parent ? taskItems.filter((item) => item.parent_id === parent) : taskItems;
         }
         if (table === "vault_settings") result = vaultSettings;
         if (table === "vault_entries") {
@@ -221,6 +303,8 @@ const vaultEntries = [
       .getByRole("link", { name: "المهام" })
       .click();
     await page.getByText("مراجعة الحسابات", { exact: true }).waitFor();
+    await page.getByRole("heading", { name: "العمل", exact: true }).waitFor();
+    await page.getByText("1 من 2", { exact: true }).waitFor();
     assert.equal(await page.getByText("التقسيم الهرمي", { exact: true }).count(), 0);
     await page.getByRole("searchbox", { name: "بحث في المهام" }).fill("الحسابات");
     assert.equal(await page.getByText("شراء المستلزمات", { exact: true }).count(), 0);
@@ -238,13 +322,29 @@ const vaultEntries = [
     await page.getByText("المواعيد وتفاصيل إضافية", { exact: true }).click();
     assert.ok(await page.getByLabel("موعد التذكير", { exact: true }).isVisible());
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+    await page.getByText("قائمة التحقق الفرعية", { exact: true }).waitFor();
+    assert.equal(await page.getByLabel("إنجاز المهمة").isDisabled(), true);
+    await page.getByRole("checkbox", { name: "تبديل الإنجاز" }).last().click();
+    await page
+      .getByText("تم الحفظ", { exact: false })
+      .count()
+      .catch(() => 0);
+    await page.waitForTimeout(300);
+    assert.equal(tasks[1].done, true);
+    assert.equal(tasks[1].progress, 100);
     await page.screenshot({ path: artifacts + "/task-detail-mobile.png", fullPage: true });
     await page.getByRole("link", { name: "العودة للمهام", exact: true }).click();
     await page.getByRole("link", { name: "مهمة جديدة", exact: true }).click();
     await page.getByRole("heading", { name: "مهمة جديدة" }).waitFor();
     assert.ok(await page.getByRole("button", { name: "إنشاء وفتح المهمة" }).isDisabled());
     await page.getByPlaceholder("اسم المهمة").fill("مهمة تجريبية");
+    await page.getByLabel("تصنيف المهمة").selectOption("category-work");
+    await page
+      .getByLabel("بنود المهمة الفرعية")
+      .fill("أرشفة الملفات\nإعداد المحاضر\nإرسال الإيميلات");
+    assert.equal(await page.getByLabel("تصنيف المهمة").inputValue(), "category-work");
     assert.ok(await page.getByRole("button", { name: "إنشاء وفتح المهمة" }).isEnabled());
+    await page.screenshot({ path: artifacts + "/task-create-mobile.png", fullPage: true });
     await page
       .getByRole("link", { name: "الإعدادات", exact: true })
       .filter({ visible: true })

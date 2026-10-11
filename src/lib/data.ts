@@ -1,10 +1,5 @@
 import { advanceTaskDate, taskCompletionPatch } from "@/features/tasks/task-rules";
-import {
-  queryOptions,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export type Category = {
@@ -116,6 +111,7 @@ export const keys = {
   task: (id: string) => ["tasks", id] as const,
   checklist: (taskId: string) => ["task_checklist", taskId] as const,
   subtasks: (taskId: string) => ["subtasks", taskId] as const,
+  taskSubItemSummaries: ["task-sub-item-summaries"] as const,
 };
 
 export const categoriesQuery = queryOptions({
@@ -170,10 +166,41 @@ export const profileQuery = queryOptions({
   },
 });
 
-export function useCategories() { return useQuery(categoriesQuery); }
-export function useNotes() { return useQuery(notesQuery); }
-export function useTasks() { return useQuery(tasksQuery); }
-export function useProfile() { return useQuery(profileQuery); }
+export function useCategories() {
+  return useQuery(categoriesQuery);
+}
+export function useNotes() {
+  return useQuery(notesQuery);
+}
+export function useTasks() {
+  return useQuery(tasksQuery);
+}
+export function useProfile() {
+  return useQuery(profileQuery);
+}
+
+export type TaskSubItemSummary = { done: number; total: number; progress: number };
+export function useTaskSubItemSummaries() {
+  return useQuery({
+    queryKey: keys.taskSubItemSummaries,
+    queryFn: async (): Promise<Record<string, TaskSubItemSummary>> => {
+      const { data, error } = await supabase
+        .from("sub_items")
+        .select("parent_id,done")
+        .eq("parent_type", "task");
+      if (error) throw error;
+      const result: Record<string, TaskSubItemSummary> = {};
+      for (const row of (data ?? []) as { parent_id: string; done: boolean }[]) {
+        const summary = (result[row.parent_id] ??= { done: 0, total: 0, progress: 0 });
+        summary.total += 1;
+        if (row.done) summary.done += 1;
+      }
+      for (const summary of Object.values(result))
+        summary.progress = Math.round((summary.done / summary.total) * 100);
+      return result;
+    },
+  });
+}
 
 export function useNote(id: string) {
   return useQuery({
@@ -222,7 +249,12 @@ async function currentUserId(): Promise<string> {
 export function useAddNote() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { title: string; content: string; categoryId: string | null; emoji?: string | null }): Promise<Note> => {
+    mutationFn: async (input: {
+      title: string;
+      content: string;
+      categoryId: string | null;
+      emoji?: string | null;
+    }): Promise<Note> => {
       const uid = await currentUserId();
       const { data, error } = await supabase
         .from("notes")
@@ -279,15 +311,19 @@ export function useAddTask() {
       category_id?: string | null;
     }) => {
       const uid = await currentUserId();
-      const { data, error } = await supabase.from("tasks").insert({
-        user_id: uid,
-        title: input.title,
-        due_at: input.due_at ?? null,
-        reminder_at: input.reminder_at ?? null,
-        recurrence: input.recurrence ?? "none",
-        priority: input.priority ?? "med",
-        category_id: input.category_id ?? null,
-      }).select("id").single();
+      const { data, error } = await supabase
+        .from("tasks")
+        .insert({
+          user_id: uid,
+          title: input.title,
+          due_at: input.due_at ?? null,
+          reminder_at: input.reminder_at ?? null,
+          recurrence: input.recurrence ?? "none",
+          priority: input.priority ?? "med",
+          category_id: input.category_id ?? null,
+        })
+        .select("id")
+        .single();
       if (error) throw error;
       return data as { id: string };
     },
@@ -303,13 +339,19 @@ export function useToggleTask() {
       if (done && task && task.recurrence !== "none" && task.due_at) {
         const next = advanceTaskDate(new Date(task.due_at), task.recurrence);
         const nextReminder = task.reminder_at
-          ? new Date(next.getTime() - (new Date(task.due_at).getTime() - new Date(task.reminder_at).getTime())).toISOString()
+          ? new Date(
+              next.getTime() -
+                (new Date(task.due_at).getTime() - new Date(task.reminder_at).getTime()),
+            ).toISOString()
           : null;
-        const { error } = await supabase.from("tasks").update({
-          due_at: next.toISOString(),
-          reminder_at: nextReminder,
-          ...taskCompletionPatch(false),
-        }).eq("id", id);
+        const { error } = await supabase
+          .from("tasks")
+          .update({
+            due_at: next.toISOString(),
+            reminder_at: nextReminder,
+            ...taskCompletionPatch(false),
+          })
+          .eq("id", id);
         if (error) throw error;
         return;
       }
@@ -339,13 +381,18 @@ export function useAddCategory() {
   return useMutation({
     mutationFn: async (input: { name: string; icon?: string; color?: string }) => {
       const uid = await currentUserId();
-      const { error } = await supabase.from("categories").insert({
-        user_id: uid,
-        name: input.name,
-        icon: input.icon ?? "Notebook",
-        color: input.color ?? "primary",
-      });
+      const { data, error } = await supabase
+        .from("categories")
+        .insert({
+          user_id: uid,
+          name: input.name,
+          icon: input.icon ?? "Notebook",
+          color: input.color ?? "primary",
+        })
+        .select("*")
+        .single();
       if (error) throw error;
+      return data as Category;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.categories }),
   });
@@ -354,7 +401,9 @@ export function useAddCategory() {
 export function useUpdateProfile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (patch: Partial<Pick<Profile, "display_name" | "avatar_url" | "language" | "theme">>) => {
+    mutationFn: async (
+      patch: Partial<Pick<Profile, "display_name" | "avatar_url" | "language" | "theme">>,
+    ) => {
       const uid = await currentUserId();
       const { error } = await supabase.from("profiles").update(patch).eq("id", uid);
       if (error) throw error;
@@ -368,7 +417,7 @@ export function useUploadAttachment() {
   return useMutation({
     mutationFn: async ({ noteId, file }: { noteId: string; file: File }) => {
       const uid = await currentUserId();
-      const path = `${uid}/${noteId}/${Date.now()}-${file.name.replace(/[^\w.\-]+/g, "_")}`;
+      const path = `${uid}/${noteId}/${Date.now()}-${file.name.replace(/[^\w.-]+/g, "_")}`;
       const { error: upErr } = await supabase.storage.from("note-attachments").upload(path, file, {
         cacheControl: "3600",
         upsert: false,
@@ -401,7 +450,9 @@ export function useDeleteAttachment() {
   });
 }
 
-export function tsOf(s: string): number { return new Date(s).getTime(); }
+export function tsOf(s: string): number {
+  return new Date(s).getTime();
+}
 
 // ----------------- task detail / checklist / subtasks -----------------
 
@@ -453,7 +504,10 @@ export function useAddChecklistItem() {
     mutationFn: async ({ taskId, text, sort }: { taskId: string; text: string; sort: number }) => {
       const uid = await currentUserId();
       const { error } = await supabase.from("task_checklist").insert({
-        user_id: uid, task_id: taskId, text, sort_order: sort,
+        user_id: uid,
+        task_id: taskId,
+        text,
+        sort_order: sort,
       });
       if (error) throw error;
     },
@@ -464,7 +518,14 @@ export function useAddChecklistItem() {
 export function useUpdateChecklistItem() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, patch }: { id: string; taskId: string; patch: Partial<ChecklistItem> }) => {
+    mutationFn: async ({
+      id,
+      patch,
+    }: {
+      id: string;
+      taskId: string;
+      patch: Partial<ChecklistItem>;
+    }) => {
       const { error } = await supabase.from("task_checklist").update(patch).eq("id", id);
       if (error) throw error;
     },
@@ -502,10 +563,21 @@ export function useSubtasks(taskId: string) {
 export function useAddSubtask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ taskId, title, sort }: { taskId: string; title: string; sort: number }) => {
+    mutationFn: async ({
+      taskId,
+      title,
+      sort,
+    }: {
+      taskId: string;
+      title: string;
+      sort: number;
+    }) => {
       const uid = await currentUserId();
       const { error } = await supabase.from("subtasks").insert({
-        user_id: uid, task_id: taskId, title, sort_order: sort,
+        user_id: uid,
+        task_id: taskId,
+        title,
+        sort_order: sort,
       });
       if (error) throw error;
     },
@@ -539,6 +611,6 @@ export function useDeleteSubtask() {
 export function computeProgress(checklist: ChecklistItem[], subs: Subtask[]): number {
   const total = checklist.length + subs.length;
   if (total === 0) return 0;
-  const done = checklist.filter(c => c.done).length + subs.filter(s => s.done).length;
+  const done = checklist.filter((c) => c.done).length + subs.filter((s) => s.done).length;
   return Math.round((done / total) * 100);
 }

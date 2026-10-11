@@ -1,19 +1,24 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { ArrowRight, NotebookPen, CheckSquare, Loader2 } from "lucide-react";
+import { ArrowRight, NotebookPen, CheckSquare, Loader2, FolderPlus } from "lucide-react";
 import { AppShell, PageHeader } from "@/components/AppShell";
-import { useAddNote, useAddTask } from "@/lib/data";
+import { useAddCategory, useAddNote, useAddTask, useCategories } from "@/lib/data";
+import { createSubItemsFromOutline } from "@/lib/subitems";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/create")({
-  validateSearch: (search: Record<string, unknown>): { kind?: "note" | "task" } => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { kind?: "note" | "task"; category?: string } => ({
     kind: search.kind === "note" || search.kind === "task" ? search.kind : undefined,
+    category: typeof search.category === "string" ? search.category : undefined,
   }),
   head: () => ({ meta: [{ title: "MemoFlow — إضافة جديدة" }] }),
   component: CreatePage,
 });
 
 function CreatePage() {
-  const { kind } = Route.useSearch();
+  const { kind, category } = Route.useSearch();
   return (
     <AppShell>
       <PageHeader
@@ -42,19 +47,31 @@ function CreatePage() {
           </Link>
         </div>
       ) : (
-        <CreateForm key={kind} kind={kind} />
+        <CreateForm key={`${kind}:${category ?? ""}`} kind={kind} initialCategory={category} />
       )}
     </AppShell>
   );
 }
 
-function CreateForm({ kind }: { kind: "note" | "task" }) {
+function CreateForm({
+  kind,
+  initialCategory,
+}: {
+  kind: "note" | "task";
+  initialCategory?: string;
+}) {
   const [title, setTitle] = useState("");
+  const [categoryId, setCategoryId] = useState(initialCategory ?? "");
+  const [items, setItems] = useState("");
+  const [newCategory, setNewCategory] = useState("");
+  const [showNewCategory, setShowNewCategory] = useState(false);
   const [error, setError] = useState("");
   const addNote = useAddNote();
   const addTask = useAddTask();
+  const addCategory = useAddCategory();
+  const { data: categories = [] } = useCategories();
   const navigate = useNavigate();
-  const busy = addNote.isPending || addTask.isPending;
+  const busy = addNote.isPending || addTask.isPending || addCategory.isPending;
   return (
     <form
       className="space-y-5 px-5"
@@ -71,7 +88,17 @@ function CreateForm({ kind }: { kind: "note" | "task" }) {
             });
             await navigate({ to: "/notes/$id", params: { id: note.id } });
           } else {
-            const task = await addTask.mutateAsync({ title: title.trim() });
+            const task = await addTask.mutateAsync({
+              title: title.trim(),
+              category_id: categoryId || null,
+            });
+            if (items.trim()) {
+              try {
+                await createSubItemsFromOutline("task", task.id, items);
+              } catch {
+                toast.error("حُفظت المهمة، لكن تعذر حفظ بعض البنود. أضفها من صفحة المهمة.");
+              }
+            }
             await navigate({ to: "/tasks/$id", params: { id: task.id } });
           }
         } catch {
@@ -93,6 +120,86 @@ function CreateForm({ kind }: { kind: "note" | "task" }) {
           className="w-full bg-transparent text-lg outline-none"
         />
       </label>
+      {kind === "task" && (
+        <div className="space-y-3 rounded-2xl bg-card p-5">
+          <label className="block text-sm text-muted-foreground" htmlFor="task-category">
+            التصنيف
+          </label>
+          <div className="flex items-center gap-2">
+            <select
+              id="task-category"
+              aria-label="تصنيف المهمة"
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              className="min-h-11 min-w-0 flex-1 rounded-xl bg-secondary px-3 text-sm"
+            >
+              <option value="">بدون تصنيف</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              aria-label="تصنيف جديد"
+              onClick={() => setShowNewCategory((value) => !value)}
+              className="grid size-11 shrink-0 place-items-center rounded-xl bg-secondary text-primary"
+            >
+              <FolderPlus className="size-5" />
+            </button>
+          </div>
+          {showNewCategory && (
+            <div className="flex items-center gap-2">
+              <input
+                aria-label="اسم التصنيف الجديد"
+                maxLength={80}
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                placeholder="مثل: العمل أو تطوير المواقع"
+                className="min-h-11 min-w-0 flex-1 rounded-xl bg-secondary px-3 text-sm outline-none"
+              />
+              <button
+                type="button"
+                disabled={!newCategory.trim() || addCategory.isPending}
+                onClick={async () => {
+                  try {
+                    const category = await addCategory.mutateAsync({
+                      name: newCategory.trim(),
+                      icon: "ListChecks",
+                    });
+                    setCategoryId(category.id);
+                    setNewCategory("");
+                    setShowNewCategory(false);
+                  } catch {
+                    toast.error("تعذر إنشاء التصنيف");
+                  }
+                }}
+                className="min-h-11 rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-50"
+              >
+                حفظ
+              </button>
+            </div>
+          )}
+          <label className="block text-sm text-muted-foreground" htmlFor="task-items">
+            قائمة التحقق الفرعية
+          </label>
+          <textarea
+            id="task-items"
+            aria-label="بنود المهمة الفرعية"
+            rows={5}
+            value={items}
+            onChange={(e) => setItems(e.target.value)}
+            placeholder={
+              "اكتب كل بند في سطر:\nإقفال البرنامج الأول\nتطوير البرنامج الثاني\nإعادة تصميم البرنامج الثالث"
+            }
+            className="w-full resize-y rounded-xl bg-secondary px-4 py-3 text-sm leading-7 outline-none"
+          />
+          <p className="text-xs leading-6 text-muted-foreground">
+            تكتمل المهمة تلقائيًا عند إنجاز جميع البنود. ويمكنك إضافة أو تعديل البنود لاحقًا.
+          </p>
+        </div>
+      )}
       <p className="text-sm leading-7 text-muted-foreground">
         {kind === "note"
           ? "بعد الإنشاء، اكتب المحتوى وأضف مرفقاتك داخل المذكرة."
