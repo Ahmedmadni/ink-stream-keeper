@@ -9,6 +9,7 @@ import { usePwaInstall } from "@/hooks/use-pwa-install";
 import { requestNotificationPermission } from "@/hooks/use-task-reminders";
 import { lockVault } from "@/lib/vault";
 import { toast } from "sonner";
+import { BackupPanel } from "@/features/backup/BackupPanel";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "MemoFlow — الإعدادات" }] }),
@@ -98,6 +99,7 @@ function SettingsPage() {
           <ChevronLeft className="size-4 text-muted-foreground" />
         </button>
       </Group>
+      <BackupPanel />
       <Group title="بياناتك السابقة">
         <details className="p-4">
           <summary className="flex min-h-10 items-center gap-3 text-sm font-medium">
