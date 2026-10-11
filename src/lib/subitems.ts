@@ -62,15 +62,23 @@ export function useSubItems(parentType: SubItemParentType, parentId: string | un
 }
 
 async function logActivity(input: {
-  itemId: string; action: string; parentType: string; parentId: string; meta?: Record<string, unknown>;
+  itemId: string;
+  action: string;
+  parentType: string;
+  parentId: string;
+  meta?: Record<string, unknown>;
 }) {
   const { data: auth } = await supabase.auth.getUser();
   const uid = auth.user?.id;
   if (!uid) return;
   await supabase.from("item_activity").insert({
-    user_id: uid, item_type: "sub_item", item_id: input.itemId,
-    parent_type: input.parentType, parent_id: input.parentId,
-    action: input.action, meta: input.meta ?? {},
+    user_id: uid,
+    item_type: "sub_item",
+    item_id: input.itemId,
+    parent_type: input.parentType,
+    parent_id: input.parentId,
+    action: input.action,
+    meta: input.meta ?? {},
   } as never);
 }
 
@@ -105,25 +113,46 @@ export function useSubItemMutations(parentType: SubItemParentType, parentId: str
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: key });
     qc.invalidateQueries({ queryKey: subItemKeys.activity(parentType, parentId) });
+    if (parentType === "task") {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["tasks", parentId] });
+      qc.invalidateQueries({ queryKey: ["task-sub-item-summaries"] });
+    }
   };
 
   const add = useMutation({
-    mutationFn: async (input: { title: string; parentItemId?: string | null; depth?: number; position?: number }) => {
+    mutationFn: async (input: {
+      title: string;
+      parentItemId?: string | null;
+      depth?: number;
+      position?: number;
+    }) => {
       const { data: auth } = await supabase.auth.getUser();
       const uid = auth.user?.id;
       if (!uid) throw new Error("unauthenticated");
       const depth = Math.min(input.depth ?? 0, MAX_SUBITEM_DEPTH);
-      const { data, error } = await supabase.from("sub_items").insert({
-        user_id: uid,
-        parent_type: parentType,
-        parent_id: parentId,
-        parent_item_id: input.parentItemId ?? null,
-        depth,
-        title: input.title,
-        position: input.position ?? 0,
-      } as never).select("*").single();
+      const { data, error } = await supabase
+        .from("sub_items")
+        .insert({
+          user_id: uid,
+          parent_type: parentType,
+          parent_id: parentId,
+          parent_item_id: input.parentItemId ?? null,
+          depth,
+          title: input.title,
+          position: input.position ?? 0,
+        } as never)
+        .select("*")
+        .single();
       if (error) throw error;
-      await logActivity({ itemId: (data as any).id, action: "created", parentType, parentId, meta: { title: input.title } });
+      const created = data as unknown as Pick<SubItem, "id">;
+      await logActivity({
+        itemId: created.id,
+        action: "created",
+        parentType,
+        parentId,
+        meta: { title: input.title },
+      });
       return data as unknown as SubItem;
     },
     onSuccess: invalidate,
@@ -131,18 +160,30 @@ export function useSubItemMutations(parentType: SubItemParentType, parentId: str
 
   const update = useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: Partial<SubItem> }) => {
-      const { error } = await supabase.from("sub_items").update(patch as never).eq("id", id);
+      const { error } = await supabase
+        .from("sub_items")
+        .update(patch as never)
+        .eq("id", id);
       if (error) throw error;
-      const action = patch.done === true ? "completed" : patch.done === false ? "reopened" : "updated";
-      await logActivity({ itemId: id, action, parentType, parentId, meta: patch as Record<string, unknown> });
+      const action =
+        patch.done === true ? "completed" : patch.done === false ? "reopened" : "updated";
+      await logActivity({
+        itemId: id,
+        action,
+        parentType,
+        parentId,
+        meta: patch as Record<string, unknown>,
+      });
     },
     onMutate: async ({ id, patch }) => {
       await qc.cancelQueries({ queryKey: key });
       const prev = qc.getQueryData<SubItem[]>(key);
-      patchCache((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } as SubItem : r)));
+      patchCache((rows) => rows.map((r) => (r.id === id ? ({ ...r, ...patch } as SubItem) : r)));
       return { prev };
     },
-    onError: (_e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(key, ctx.prev); },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev);
+    },
     onSettled: invalidate,
   });
 
@@ -160,22 +201,34 @@ export function useSubItemMutations(parentType: SubItemParentType, parentId: str
       while (changed) {
         changed = false;
         for (const r of rows) {
-          if (r.parent_item_id && doomed.has(r.parent_item_id) && !doomed.has(r.id)) { doomed.add(r.id); changed = true; }
+          if (r.parent_item_id && doomed.has(r.parent_item_id) && !doomed.has(r.id)) {
+            doomed.add(r.id);
+            changed = true;
+          }
         }
       }
       patchCache((all) => all.filter((r) => !doomed.has(r.id)));
       return { prev };
     },
-    onError: (_e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(key, ctx.prev); },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev);
+    },
     onSettled: invalidate,
   });
 
   /** Reorder / indent / outdent / move — one primitive. */
   const move = useMutation({
-    mutationFn: async (rows: { id: string; position: number; parent_item_id: string | null; depth: number }[]) => {
+    mutationFn: async (
+      rows: { id: string; position: number; parent_item_id: string | null; depth: number }[],
+    ) => {
       for (const r of rows) {
-        const { error } = await supabase.from("sub_items")
-          .update({ position: r.position, parent_item_id: r.parent_item_id, depth: r.depth } as never)
+        const { error } = await supabase
+          .from("sub_items")
+          .update({
+            position: r.position,
+            parent_item_id: r.parent_item_id,
+            depth: r.depth,
+          } as never)
           .eq("id", r.id);
         if (error) throw error;
       }
@@ -190,7 +243,9 @@ export function useSubItemMutations(parentType: SubItemParentType, parentId: str
       patchCache((all) => all.map((r) => (byId.has(r.id) ? { ...r, ...byId.get(r.id)! } : r)));
       return { prev };
     },
-    onError: (_e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(key, ctx.prev); },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev);
+    },
     onSettled: invalidate,
   });
 
@@ -200,46 +255,71 @@ export function useSubItemMutations(parentType: SubItemParentType, parentId: str
       const { data: auth } = await supabase.auth.getUser();
       const uid = auth.user?.id;
       if (!uid) throw new Error("unauthenticated");
-      const { data, error } = await supabase.from("tasks").insert({
-        user_id: uid,
-        title: item.title,
-        description: item.description,
-        notes: item.notes,
-        priority: (item.priority as "low" | "med" | "high") ?? "med",
-        due_at: item.end_at,
-        start_at: item.start_at,
-        reminder_at: item.reminder_at,
-      } as never).select("id").single();
+      const { data, error } = await supabase
+        .from("tasks")
+        .insert({
+          user_id: uid,
+          title: item.title,
+          description: item.description,
+          notes: item.notes,
+          priority: (item.priority as "low" | "med" | "high") ?? "med",
+          due_at: item.end_at,
+          start_at: item.start_at,
+          reminder_at: item.reminder_at,
+        } as never)
+        .select("id")
+        .single();
       if (error) throw error;
-      const taskId = (data as any).id as string;
-      await supabase.from("sub_items").update({ converted_task_id: taskId } as never).eq("id", item.id);
-      await logActivity({ itemId: item.id, action: "converted", parentType, parentId, meta: { taskId } });
+      const taskId = (data as unknown as { id: string }).id;
+      await supabase
+        .from("sub_items")
+        .update({ converted_task_id: taskId } as never)
+        .eq("id", item.id);
+      await logActivity({
+        itemId: item.id,
+        action: "converted",
+        parentType,
+        parentId,
+        meta: { taskId },
+      });
       return taskId;
     },
-    onSuccess: () => { invalidate(); qc.invalidateQueries({ queryKey: ["tasks"] }); },
+    onSuccess: () => {
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+    },
   });
 
   return { add, update, remove, move, convertToTask };
 }
 
 /** Rollup: a parent's progress = weighted completion of its whole subtree. */
-export function computeSubItemsProgress(rows: SubItem[]): { pct: number; done: number; total: number } {
+export function computeSubItemsProgress(rows: SubItem[]): {
+  pct: number;
+  done: number;
+  total: number;
+} {
   if (!rows.length) return { pct: 0, done: 0, total: 0 };
   const done = rows.filter((r) => r.done).length;
   return { pct: Math.round((done / rows.length) * 100), done, total: rows.length };
 }
 
 /** Progress of a single node including its descendants. */
-export function nodeProgress(rows: SubItem[], id: string): { pct: number; done: number; total: number } {
+export function nodeProgress(
+  rows: SubItem[],
+  id: string,
+): { pct: number; done: number; total: number } {
   const children = rows.filter((r) => r.parent_item_id === id);
   if (!children.length) {
     const self = rows.find((r) => r.id === id);
     return { pct: self?.done ? 100 : (self?.progress ?? 0), done: self?.done ? 1 : 0, total: 1 };
   }
-  let done = 0, total = 0;
+  let done = 0,
+    total = 0;
   for (const c of children) {
     const p = nodeProgress(rows, c.id);
-    done += p.done; total += p.total;
+    done += p.done;
+    total += p.total;
   }
   return { pct: total ? Math.round((done / total) * 100) : 0, done, total };
 }
@@ -270,7 +350,10 @@ export function parseOutline(outline: string): { depth: number; title: string }[
     const tabs = (indent.match(/\t/g) ?? []).length;
     const spaces = indent.replace(/\t/g, "").length;
     const depth = Math.min(tabs + Math.floor(spaces / 2), MAX_SUBITEM_DEPTH);
-    const title = raw.trim().replace(/^[-*•]\s*/, "").replace(/^\[[ xX]\]\s*/, "");
+    const title = raw
+      .trim()
+      .replace(/^[-*•]\s*/, "")
+      .replace(/^\[[ xX]\]\s*/, "");
     if (title) out.push({ depth, title });
   }
   return out;
@@ -302,18 +385,25 @@ export async function createSubItemsFromOutline(
   for (const line of lines) {
     const depth = Math.min(line.depth + baseDepth, MAX_SUBITEM_DEPTH);
     const parentItemId =
-      depth > baseDepth ? (stack[depth - 1] ?? opts.baseParentId ?? null) : (opts.baseParentId ?? null);
-    counters[depth] = (counters[depth] ?? (depth === baseDepth ? (opts.startPosition ?? 0) : 0) - 1) + 1;
+      depth > baseDepth
+        ? (stack[depth - 1] ?? opts.baseParentId ?? null)
+        : (opts.baseParentId ?? null);
+    counters[depth] =
+      (counters[depth] ?? (depth === baseDepth ? (opts.startPosition ?? 0) : 0) - 1) + 1;
 
-    const { data, error } = await supabase.from("sub_items").insert({
-      user_id: uid,
-      parent_type: parentType,
-      parent_id: parentId,
-      parent_item_id: parentItemId,
-      depth,
-      title: line.title,
-      position: counters[depth]!,
-    } as never).select("id").single();
+    const { data, error } = await supabase
+      .from("sub_items")
+      .insert({
+        user_id: uid,
+        parent_type: parentType,
+        parent_id: parentId,
+        parent_item_id: parentItemId,
+        depth,
+        title: line.title,
+        position: counters[depth]!,
+      } as never)
+      .select("id")
+      .single();
     if (error) throw error;
 
     stack[depth] = (data as { id: string }).id;
@@ -335,7 +425,12 @@ export async function migrateLegacyTaskItems(taskId: string): Promise<number> {
   const [{ data: checks }, { data: subs }, { data: existing }] = await Promise.all([
     supabase.from("task_checklist").select("id,text,done,sort_order").eq("task_id", taskId),
     supabase.from("subtasks").select("id,title,done,sort_order").eq("task_id", taskId),
-    supabase.from("sub_items").select("position").eq("parent_type", "task").eq("parent_id", taskId).is("parent_item_id", null),
+    supabase
+      .from("sub_items")
+      .select("position")
+      .eq("parent_type", "task")
+      .eq("parent_id", taskId)
+      .is("parent_item_id", null),
   ]);
 
   const rows = [
@@ -348,7 +443,8 @@ export async function migrateLegacyTaskItems(taskId: string): Promise<number> {
   ];
   if (!rows.length) return 0;
 
-  const base = Math.max(-1, ...((existing ?? []) as { position: number }[]).map((r) => r.position)) + 1;
+  const base =
+    Math.max(-1, ...((existing ?? []) as { position: number }[]).map((r) => r.position)) + 1;
   const { error } = await supabase.from("sub_items").insert(
     rows.map((r, i) => ({
       user_id: uid,

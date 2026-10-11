@@ -16,7 +16,6 @@ import {
   useAddSubtask,
   useUpdateSubtask,
   useDeleteSubtask,
-  computeProgress,
   useToggleTask,
   useDeleteTask,
   type TaskExt,
@@ -24,6 +23,7 @@ import {
 import { BlockRenderer, BlockProvider } from "@/components/blocks";
 import { buildTaskBlocks, type TaskCtx } from "@/lib/engine/compositions";
 import { useSubItems, computeSubItemsProgress } from "@/lib/subitems";
+import { taskRollupPatch } from "@/features/tasks/task-rules";
 
 export const Route = createFileRoute("/_authenticated/tasks/$id")({
   head: ({ params }) => ({
@@ -54,18 +54,35 @@ function TaskDetail() {
   const delSub = useDeleteSubtask();
 
   const roll = useMemo(() => computeSubItemsProgress(subItems), [subItems]);
-  const autoProgress = useMemo(
-    () => (roll.total > 0 ? roll.pct : computeProgress(checklist, subs)),
-    [roll, checklist, subs],
-  );
+  const itemCount = roll.total || checklist.length + subs.length;
+  const completedItemCount = roll.total
+    ? roll.done
+    : checklist.filter((item) => item.done).length + subs.filter((item) => item.done).length;
+  const taskProgress = task?.progress ?? 0;
+  const taskDone = task?.done;
+  const taskStatus = task?.status;
+  const taskRecurrence = task?.recurrence;
   useEffect(() => {
-    if (!task) return;
-    if (roll.total + checklist.length + subs.length === 0) return;
-    if ((task.progress ?? 0) !== autoProgress) {
-      update.mutate({ id, patch: { progress: autoProgress } });
+    if (taskDone === undefined || !taskStatus || itemCount === 0) return;
+    // The database advances and resets recurring checklists atomically. A client
+    // write based on the optimistic final check could otherwise mark the freshly
+    // reset occurrence complete again.
+    if (roll.total > 0 && taskRecurrence !== "none" && completedItemCount === itemCount) return;
+    const patch = taskRollupPatch(itemCount, completedItemCount, taskStatus);
+    if (taskProgress !== patch.progress || taskDone !== patch.done || taskStatus !== patch.status) {
+      update.mutate({ id, patch });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoProgress]);
+  }, [
+    completedItemCount,
+    id,
+    itemCount,
+    roll.total,
+    taskDone,
+    taskProgress,
+    taskRecurrence,
+    taskStatus,
+  ]);
 
   if (isLoading) {
     return (
@@ -168,8 +185,9 @@ function TaskDetail() {
             <input
               type="checkbox"
               checked={task.done}
-              disabled={toggle.isPending}
+              disabled={toggle.isPending || itemCount > 0}
               aria-label="إنجاز المهمة"
+              title={itemCount > 0 ? "تُنجز المهمة تلقائيًا عند اكتمال جميع البنود" : undefined}
               className="size-6 shrink-0 accent-primary"
               onChange={(e) =>
                 toggle.mutate(
@@ -194,11 +212,22 @@ function TaskDetail() {
               }}
             />
           </div>
+          {itemCount > 0 && (
+            <p className="px-2 text-xs leading-6 text-muted-foreground">
+              تكتمل المهمة تلقائيًا عند إنجاز جميع البنود، وتعود مفتوحة إذا أعدت فتح أي بند.
+            </p>
+          )}
           <BlockRenderer
             blocks={blocks
               .filter((block) => ["description", "sub_items", "legacy_migrate"].includes(block.id))
               .map((block) =>
-                block.id === "sub_items" ? { ...block, title: "بنود المهمة" } : block,
+                block.id === "sub_items"
+                  ? {
+                      ...block,
+                      title: "قائمة التحقق الفرعية",
+                      props: { ...block.props, title: "قائمة التحقق الفرعية" },
+                    }
+                  : block,
               )}
             context={ctx}
           />

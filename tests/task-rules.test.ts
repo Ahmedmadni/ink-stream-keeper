@@ -4,6 +4,7 @@ import {
   localDayKey,
   matchesTask,
   taskCompletionPatch,
+  taskRollupPatch,
 } from "../src/features/tasks/task-rules";
 
 const task = {
@@ -56,6 +57,23 @@ describe("task checklist semantics", () => {
   test("completion patches keep done and status consistent", () => {
     expect(taskCompletionPatch(true)).toEqual({ done: true, status: "done" });
     expect(taskCompletionPatch(false)).toEqual({ done: false, status: "todo" });
+  });
+  test("checklist rollup completes and reopens the parent task", () => {
+    expect(taskRollupPatch(4, 4, "in_progress")).toEqual({
+      progress: 100,
+      done: true,
+      status: "done",
+    });
+    expect(taskRollupPatch(4, 3, "done")).toEqual({
+      progress: 75,
+      done: false,
+      status: "todo",
+    });
+    expect(taskRollupPatch(0, 0, "in_progress")).toEqual({
+      progress: 0,
+      done: false,
+      status: "in_progress",
+    });
   });
   test("monthly recurrence clamps to month end and preserves local time", () => {
     const next = advanceTaskDate(new Date(2026, 0, 31, 9, 30), "monthly");

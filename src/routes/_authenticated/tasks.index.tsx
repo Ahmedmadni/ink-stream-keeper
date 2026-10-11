@@ -1,10 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Search, Plus, Bell, ChevronLeft, Check } from "lucide-react";
+import { Search, Plus, Bell, ChevronLeft, Check, FolderPlus, ListChecks } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell, PageHeader } from "@/components/AppShell";
 import { LoadingState, ErrorState, EmptyState } from "@/components/feedback";
-import { useTasks, useToggleTask, type Task } from "@/lib/data";
+import {
+  useAddCategory,
+  useCategories,
+  useTaskSubItemSummaries,
+  useTasks,
+  useToggleTask,
+  type Task,
+  type TaskSubItemSummary,
+} from "@/lib/data";
 import { localDayKey, matchesTask, type TaskFilter } from "@/features/tasks/task-rules";
 
 export const Route = createFileRoute("/_authenticated/tasks/")({
@@ -21,23 +29,54 @@ const filters: { key: TaskFilter; label: string }[] = [
 
 function TasksPage() {
   const query = useTasks();
+  const { data: categories = [] } = useCategories();
+  const { data: summaries = {} } = useTaskSubItemSummaries();
+  const addCategory = useAddCategory();
   const [filter, setFilter] = useState<TaskFilter>("all");
   const [search, setSearch] = useState("");
   const [priority, setPriority] = useState("all");
+  const [categoryId, setCategoryId] = useState("all");
+  const [categoryDraft, setCategoryDraft] = useState("");
+  const [addingCategory, setAddingCategory] = useState(false);
   const tasks = useMemo(
     () =>
       (query.data ?? [])
         .filter(
           (task) =>
-            matchesTask(task, filter, search) && (priority === "all" || task.priority === priority),
+            matchesTask(task, filter, search) &&
+            (priority === "all" || task.priority === priority) &&
+            (categoryId === "all"
+              ? true
+              : categoryId === "none"
+                ? !task.category_id
+                : task.category_id === categoryId),
         )
         .sort(
           (a, b) =>
             (a.due_at ? Date.parse(a.due_at) : Infinity) -
             (b.due_at ? Date.parse(b.due_at) : Infinity),
         ),
-    [query.data, filter, search, priority],
+    [query.data, filter, search, priority, categoryId],
   );
+  const groups = useMemo(() => {
+    const categoryName = new Map(categories.map((category) => [category.id, category.name]));
+    const map = new Map<string, { id: string; name: string; tasks: Task[] }>();
+    for (const task of tasks) {
+      const id = task.category_id ?? "none";
+      const group = map.get(id) ?? {
+        id,
+        name: id === "none" ? "بدون تصنيف" : (categoryName.get(id) ?? "تصنيف محذوف"),
+        tasks: [],
+      };
+      group.tasks.push(task);
+      map.set(id, group);
+    }
+    return [...map.values()].sort((a, b) => {
+      if (a.id === "none") return 1;
+      if (b.id === "none") return -1;
+      return a.name.localeCompare(b.name, "ar");
+    });
+  }, [tasks, categories]);
   return (
     <AppShell>
       <PageHeader
@@ -46,7 +85,10 @@ function TasksPage() {
         action={
           <Link
             to="/create"
-            search={{ kind: "task" }}
+            search={{
+              kind: "task",
+              category: categoryId !== "all" && categoryId !== "none" ? categoryId : undefined,
+            }}
             className="grid size-12 place-items-center rounded-2xl bg-primary text-primary-foreground"
             aria-label="مهمة جديدة"
           >
@@ -89,6 +131,78 @@ function TasksPage() {
             <option value="low">منخفضة</option>
           </select>
         </div>
+        <section aria-labelledby="task-categories-title" className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h2 id="task-categories-title" className="text-xs font-medium text-muted-foreground">
+              التصنيفات
+            </h2>
+            <button
+              onClick={() => setAddingCategory((value) => !value)}
+              className="flex min-h-10 items-center gap-2 rounded-full bg-card px-3 text-xs font-medium text-primary"
+            >
+              <FolderPlus className="size-4" />
+              تصنيف جديد
+            </button>
+          </div>
+          {addingCategory && (
+            <form
+              className="flex items-center gap-2 rounded-2xl bg-card p-3"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                const name = categoryDraft.trim();
+                if (!name || addCategory.isPending) return;
+                try {
+                  const category = await addCategory.mutateAsync({ name, icon: "ListChecks" });
+                  setCategoryId(category.id);
+                  setCategoryDraft("");
+                  setAddingCategory(false);
+                } catch {
+                  toast.error("تعذر إنشاء التصنيف. حاول مجددًا.");
+                }
+              }}
+            >
+              <input
+                autoFocus
+                aria-label="اسم التصنيف الجديد"
+                value={categoryDraft}
+                maxLength={80}
+                onChange={(event) => setCategoryDraft(event.target.value)}
+                placeholder="مثل: العمل أو تطوير المواقع"
+                className="min-h-11 min-w-0 flex-1 bg-transparent px-2 text-sm outline-none"
+              />
+              <button
+                type="submit"
+                disabled={!categoryDraft.trim() || addCategory.isPending}
+                className="min-h-11 rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-50"
+              >
+                حفظ
+              </button>
+            </form>
+          )}
+          <div className="flex gap-2 overflow-x-auto pb-1" aria-label="تصفية حسب التصنيف">
+            <CategoryButton
+              active={categoryId === "all"}
+              label="الكل"
+              count={(query.data ?? []).length}
+              onClick={() => setCategoryId("all")}
+            />
+            {categories.map((category) => (
+              <CategoryButton
+                key={category.id}
+                active={categoryId === category.id}
+                label={category.name}
+                count={(query.data ?? []).filter((task) => task.category_id === category.id).length}
+                onClick={() => setCategoryId(category.id)}
+              />
+            ))}
+            <CategoryButton
+              active={categoryId === "none"}
+              label="بدون تصنيف"
+              count={(query.data ?? []).filter((task) => !task.category_id).length}
+              onClick={() => setCategoryId("none")}
+            />
+          </div>
+        </section>
         {query.isLoading ? (
           <LoadingState />
         ) : query.isError ? (
@@ -104,12 +218,24 @@ function TasksPage() {
             description="أضف مهمة بسيطة، ثم افتحها لإضافة التفاصيل."
           />
         ) : (
-          <div className="overflow-hidden rounded-2xl bg-card">
-            <ul className="divide-y divide-border">
-              {tasks.map((task) => (
-                <TaskRow key={task.id} task={task} />
-              ))}
-            </ul>
+          <div className="space-y-4">
+            {groups.map((group) => (
+              <section key={group.id} aria-labelledby={`task-group-${group.id}`}>
+                <div className="mb-2 flex items-center justify-between gap-3 px-1">
+                  <h2 id={`task-group-${group.id}`} className="font-semibold">
+                    {group.name}
+                  </h2>
+                  <span className="text-xs text-muted-foreground">{group.tasks.length} مهمة</span>
+                </div>
+                <div className="overflow-hidden rounded-2xl bg-card">
+                  <ul className="divide-y divide-border">
+                    {group.tasks.map((task) => (
+                      <TaskRow key={task.id} task={task} summary={summaries[task.id]} />
+                    ))}
+                  </ul>
+                </div>
+              </section>
+            ))}
           </div>
         )}
       </div>
@@ -117,7 +243,32 @@ function TasksPage() {
   );
 }
 
-function TaskRow({ task }: { task: Task }) {
+function CategoryButton({
+  active,
+  label,
+  count,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  count: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      aria-pressed={active}
+      onClick={onClick}
+      className={`flex min-h-11 shrink-0 items-center gap-2 rounded-full px-4 text-xs font-medium ${active ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground"}`}
+    >
+      <span>{label}</span>
+      <span className={`rounded-full px-1.5 py-0.5 ${active ? "bg-white/20" : "bg-secondary"}`}>
+        {count}
+      </span>
+    </button>
+  );
+}
+
+function TaskRow({ task, summary }: { task: Task; summary?: TaskSubItemSummary }) {
   const toggle = useToggleTask();
   const due = task.due_at ? new Date(task.due_at) : null;
   const overdue = due && !task.done && localDayKey(due) < localDayKey(new Date());
@@ -166,7 +317,21 @@ function TaskRow({ task }: { task: Task }) {
             )}
             {task.reminder_at && <Bell aria-label="تذكير" className="size-3" />}
             {task.priority === "high" && <span className="text-destructive">أولوية عالية</span>}
+            {summary && (
+              <span className="inline-flex items-center gap-1">
+                <ListChecks className="size-3" />
+                {summary.done} من {summary.total}
+              </span>
+            )}
           </div>
+          {summary && (
+            <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-secondary">
+              <div
+                className="h-full rounded-full bg-primary transition-[width]"
+                style={{ width: `${summary.progress}%` }}
+              />
+            </div>
+          )}
         </div>
         <ChevronLeft className="size-4 shrink-0 text-muted-foreground/60" />
       </Link>

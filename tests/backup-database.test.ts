@@ -252,3 +252,157 @@ describe("backup PostgreSQL transactions and RLS", () => {
     await expect(restore(b)).rejects.toThrow("permission denied");
   });
 });
+
+describe("task categories and checklist rollup in PostgreSQL", () => {
+  test("finishing every checklist item completes its task; reopening one reopens the task", async () => {
+    await db.query("DELETE FROM public.sub_items WHERE parent_type='task' AND parent_id=$1", [
+      TASK,
+    ]);
+    const first = "99999999-9999-4999-8999-999999999991";
+    const second = "99999999-9999-4999-8999-999999999992";
+    await db.query(
+      "INSERT INTO public.sub_items(id,user_id,parent_type,parent_id,title,position) VALUES ($1,$2,'task',$3,'الأول',0),($4,$2,'task',$3,'الثاني',1)",
+      [first, ACCOUNT, TASK, second],
+    );
+    await db.query("UPDATE public.sub_items SET done=true,status='done',progress=100 WHERE id=$1", [
+      first,
+    ]);
+    let task = (
+      await db.query<{ done: boolean; status: string; progress: number }>(
+        "SELECT done,status,progress FROM public.tasks WHERE id=$1",
+        [TASK],
+      )
+    ).rows[0];
+    expect(task).toEqual({ done: false, status: "todo", progress: 50 });
+    await db.query("UPDATE public.sub_items SET done=true,status='done',progress=100 WHERE id=$1", [
+      second,
+    ]);
+    task = (await db.query("SELECT done,status,progress FROM public.tasks WHERE id=$1", [TASK]))
+      .rows[0] as typeof task;
+    expect(task).toEqual({ done: true, status: "done", progress: 100 });
+    await db.query("UPDATE public.sub_items SET done=false,status='todo',progress=0 WHERE id=$1", [
+      first,
+    ]);
+    task = (await db.query("SELECT done,status,progress FROM public.tasks WHERE id=$1", [TASK]))
+      .rows[0] as typeof task;
+    expect(task).toEqual({ done: false, status: "todo", progress: 50 });
+  });
+
+  test("adding an unfinished item reopens a previously completed task", async () => {
+    await db.query("DELETE FROM public.sub_items WHERE parent_type='task' AND parent_id=$1", [
+      TASK,
+    ]);
+    await db.query("UPDATE public.tasks SET done=true,status='done',progress=100 WHERE id=$1", [
+      TASK,
+    ]);
+    await db.query(
+      "INSERT INTO public.sub_items(user_id,parent_type,parent_id,title) VALUES ($1,'task',$2,'بند جديد')",
+      [ACCOUNT, TASK],
+    );
+    expect(
+      (await db.query("SELECT done,status,progress FROM public.tasks WHERE id=$1", [TASK])).rows[0],
+    ).toEqual({ done: false, status: "todo", progress: 0 });
+  });
+
+  test("deleting the last checklist item leaves the task open with zero progress", async () => {
+    await db.query("DELETE FROM public.sub_items WHERE parent_type='task' AND parent_id=$1", [
+      TASK,
+    ]);
+    await db.query(
+      "INSERT INTO public.sub_items(user_id,parent_type,parent_id,title,done,status,progress) VALUES ($1,'task',$2,'وحيد',true,'done',100)",
+      [ACCOUNT, TASK],
+    );
+    await db.query("DELETE FROM public.sub_items WHERE parent_type='task' AND parent_id=$1", [
+      TASK,
+    ]);
+    expect(
+      (await db.query("SELECT done,status,progress FROM public.tasks WHERE id=$1", [TASK])).rows[0],
+    ).toEqual({ done: false, status: "todo", progress: 0 });
+  });
+
+  test("a recurring task advances once and resets its checklist for the next occurrence", async () => {
+    await db.query("DELETE FROM public.sub_items WHERE parent_type='task' AND parent_id=$1", [
+      TASK,
+    ]);
+    const due = "2026-10-31T06:30:00.000Z";
+    const reminder = "2026-10-31T05:30:00.000Z";
+    await db.query(
+      "UPDATE public.tasks SET recurrence='monthly',due_at=$2,reminder_at=$3 WHERE id=$1",
+      [TASK, due, reminder],
+    );
+    await db.query(
+      "INSERT INTO public.sub_items(user_id,parent_type,parent_id,title,done,status,progress) VALUES ($1,'task',$2,'دورة',true,'done',100)",
+      [ACCOUNT, TASK],
+    );
+    const task = (
+      await db.query<{
+        done: boolean;
+        progress: number;
+        due_at: string;
+        reminder_at: string;
+      }>("SELECT done,progress,due_at,reminder_at FROM public.tasks WHERE id=$1", [TASK])
+    ).rows[0];
+    expect(task.done).toBe(false);
+    expect(task.progress).toBe(0);
+    expect(new Date(task.due_at).toISOString()).toBe("2026-11-30T06:30:00.000Z");
+    expect(new Date(task.reminder_at).toISOString()).toBe("2026-11-30T05:30:00.000Z");
+    expect(
+      (
+        await db.query<{ done: boolean }>(
+          "SELECT done FROM public.sub_items WHERE parent_type='task' AND parent_id=$1",
+          [TASK],
+        )
+      ).rows[0].done,
+    ).toBe(false);
+  });
+
+  test("cross-account categories, task parents and nested parents are rejected", async () => {
+    const noteItem = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab";
+    await db.exec("RESET ROLE");
+    const otherCategory = (
+      await db.query<{ id: string }>("SELECT id FROM public.categories WHERE user_id=$1 LIMIT 1", [
+        OTHER,
+      ])
+    ).rows[0].id;
+    await asUser();
+    await expect(
+      db.query("UPDATE public.tasks SET category_id=$2 WHERE id=$1", [TASK, otherCategory]),
+    ).rejects.toThrow("MF_INVALID_TASK_CATEGORY");
+    await expect(
+      db.query(
+        "INSERT INTO public.sub_items(user_id,parent_type,parent_id,title) VALUES ($1,'task',$2,'غير صالح')",
+        [ACCOUNT, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"],
+      ),
+    ).rejects.toThrow("MF_INVALID_TASK_PARENT");
+    await db.query(
+      "INSERT INTO public.sub_items(id,user_id,parent_type,parent_id,title) VALUES ($1,$2,'note',$3,'بند مذكرة')",
+      [noteItem, ACCOUNT, NOTE],
+    );
+    await expect(
+      db.query(
+        "INSERT INTO public.sub_items(user_id,parent_type,parent_id,parent_item_id,depth,title) VALUES ($1,'task',$2,$3,1,'غير صالح')",
+        [ACCOUNT, TASK, noteItem],
+      ),
+    ).rejects.toThrow("MF_INVALID_SUB_ITEM_PARENT");
+  });
+
+  test("deleting a task removes its polymorphic checklist rows", async () => {
+    expect(
+      (
+        await db.query<{ count: number }>(
+          "SELECT count(*)::int AS count FROM public.sub_items WHERE parent_type='task' AND parent_id=$1",
+          [TASK],
+        )
+      ).rows[0].count,
+    ).toBeGreaterThan(0);
+    await db.query("DELETE FROM public.tasks WHERE id=$1", [TASK]);
+    expect(
+      (
+        await db.query<{ count: number }>(
+          "SELECT count(*)::int AS count FROM public.sub_items WHERE parent_type='task' AND parent_id=$1",
+          [TASK],
+        )
+      ).rows[0].count,
+    ).toBe(0);
+  });
+});

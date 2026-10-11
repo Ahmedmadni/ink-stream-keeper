@@ -48,3 +48,17 @@ export function advanceTaskDate(
 export function taskCompletionPatch(done: boolean) {
   return { done, status: done ? ("done" as const) : ("todo" as const) };
 }
+
+export function taskRollupPatch(
+  total: number,
+  completed: number,
+  currentStatus: "todo" | "in_progress" | "blocked" | "done",
+) {
+  const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const done = total > 0 && completed === total;
+  return {
+    progress,
+    done,
+    status: done ? ("done" as const) : currentStatus === "done" ? ("todo" as const) : currentStatus,
+  };
+}
