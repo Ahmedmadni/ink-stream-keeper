@@ -85,13 +85,11 @@ export function RichEditor({
   });
 
   // Sync external value when switching notes
-  const lastValue = useRef(initial);
   useEffect(() => {
     if (!editor) return;
     const html = normalizeToHtml(value);
-    if (html !== editor.getHTML() && html !== lastValue.current) {
+    if (html !== editor.getHTML()) {
       editor.commands.setContent(html, { emitUpdate: false });
-      lastValue.current = html;
     }
   }, [value, editor]);
 
