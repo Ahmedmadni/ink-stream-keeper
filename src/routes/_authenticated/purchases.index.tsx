@@ -12,7 +12,7 @@ import { formatCurrency } from "@/lib/item-types";
 import { ProgressCard } from "@/components/items/ProgressCard";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export const Route = createFileRoute("/_authenticated/purchases")({
+export const Route = createFileRoute("/_authenticated/purchases/")({
   head: () => ({
     meta: [
       { title: "MemoFlow — قوائم المشتريات" },

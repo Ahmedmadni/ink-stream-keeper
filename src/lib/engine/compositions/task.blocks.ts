@@ -17,6 +17,7 @@ export type TaskCtx = {
     done?: boolean | null;
     start_at?: string | null;
     due_at?: string | null;
+    reminder_at?: string | null;
     recurrence?: string | null;
     tags?: string[] | null;
     links?: string[] | null;
@@ -107,6 +108,15 @@ export function buildTaskBlocks(ctx: TaskCtx, opts: TaskBuildOpts = {}): BlockCo
         onChange: (e: any) => upd({ due_at: e.target.value ? new Date(e.target.value).toISOString() : null }),
       }),
     },
+    {
+      key: "reminder", label: "موعد التذكير", icon: Clock,
+      value: task.reminder_at ? new Date(task.reminder_at).toLocaleString("ar-EG") : "—",
+      editor: readonly ? undefined : createElement("input", {
+        type: "datetime-local", value: toLocalInput(task.reminder_at), className: dateInputCls,
+        "aria-label": "موعد التذكير",
+        onChange: (e: React.ChangeEvent<HTMLInputElement>) => upd({ reminder_at: e.target.value ? new Date(e.target.value).toISOString() : null }),
+      }),
+    },
     ...(opts.categories && opts.categories.length ? [{
       key: "category", label: "التصنيف", icon: TagIcon,
       value: opts.categories.find((c) => c.id === task.category_id)?.name ?? "—",
@@ -180,7 +190,7 @@ export function buildTaskBlocks(ctx: TaskCtx, opts: TaskBuildOpts = {}): BlockCo
     defineBlock({
       id: "sub_items", type: "sub_items", priority: 50, title: "التقسيم الهرمي",
       layout: { span: 4 },
-      props: { parentType: "task", parentId: task.id, readonly, allowConvertToTask: true },
+      props: { parentType: "task", parentId: task.id, readonly, allowConvertToTask: false },
     }),
     defineBlock({
       id: "tags", type: "tags", priority: 60,

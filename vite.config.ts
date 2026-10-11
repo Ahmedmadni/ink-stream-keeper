@@ -19,12 +19,14 @@ export default defineConfig({
         registerType: "autoUpdate",
         injectRegister: null,
         filename: "sw.js",
+        outDir: ".output/public",
         devOptions: { enabled: false },
         includeAssets: ["icon.svg", "apple-touch-icon.png", "robots.txt"],
         manifest: false,
         workbox: {
           globPatterns: ["**/*.{js,css,html,svg,png,ico,webp,woff,woff2}"],
-          navigateFallback: "/",
+          // TanStack Start renders HTML on the server; there is no static index.html.
+          navigateFallback: undefined,
           navigateFallbackDenylist: [/^\/~oauth/, /^\/api\//],
           cleanupOutdatedCaches: true,
           skipWaiting: true,
@@ -55,19 +57,6 @@ export default defineConfig({
               options: {
                 cacheName: "images",
                 expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 30 },
-              },
-            },
-            {
-              urlPattern: /^https:\/\/fonts\.googleapis\.com\//,
-              handler: "StaleWhileRevalidate",
-              options: { cacheName: "google-fonts-css" },
-            },
-            {
-              urlPattern: /^https:\/\/fonts\.gstatic\.com\//,
-              handler: "CacheFirst",
-              options: {
-                cacheName: "google-fonts-files",
-                expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
               },
             },
           ],

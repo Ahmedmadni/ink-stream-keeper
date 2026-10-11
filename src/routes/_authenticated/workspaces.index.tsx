@@ -7,7 +7,7 @@ import {
   type Workspace,
 } from "@/lib/workspaces";
 
-export const Route = createFileRoute("/_authenticated/workspaces")({
+export const Route = createFileRoute("/_authenticated/workspaces/")({
   head: () => ({
     meta: [
       { title: "MemoFlow — مساحات العمل" },

@@ -17,13 +17,18 @@ export type PropertiesBlockProps = {
 
 export function PropertiesBlock({ block }: BlockRendererProps<PropertiesBlockProps>) {
   const { items, columns = 2 } = block.props;
-  const cols = columns === 3 ? "grid-cols-2 sm:grid-cols-3" : columns === 2 ? "grid-cols-2" : "grid-cols-1";
+  const cols =
+    columns === 3
+      ? "grid-cols-1 sm:grid-cols-3"
+      : columns === 2
+        ? "grid-cols-1 sm:grid-cols-2"
+        : "grid-cols-1";
   return (
     <div className={`grid gap-2 ${cols}`}>
       {items.map((p) => {
         const Icon = p.icon;
         return (
-          <div key={p.key} className="rounded-xl bg-muted/40 p-3">
+          <div key={p.key} className="min-w-0 rounded-xl bg-muted/40 p-3">
             <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground">
               {Icon ? <Icon className="size-3.5" /> : null}
               <span>{p.label}</span>

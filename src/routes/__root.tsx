@@ -1,3 +1,5 @@
+import { vaultSession } from "@/features/vault/session";
+import { VaultSecurity } from "@/components/VaultSecurity";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -107,12 +109,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "icon", href: "/icon.svg", type: "image/svg+xml" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap",
-      },
     ],
   }),
   shellComponent: RootShell,
@@ -145,7 +141,16 @@ function RootComponent() {
   }, []);
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+    let lastUser: string | null = null;
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      const nextUser = session?.user.id ?? null;
+      vaultSession.setUser(nextUser);
+      if (nextUser !== lastUser) {
+        lastUser = nextUser;
+        void queryClient.cancelQueries();
+        queryClient.clear();
+      }
+      if (event === "SIGNED_OUT") vaultSession.lock();
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
       router.invalidate();
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
@@ -156,6 +161,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+      <VaultSecurity />
       <PanelProvider>
         <Outlet />
         <Toaster position="top-center" dir="rtl" richColors closeButton />

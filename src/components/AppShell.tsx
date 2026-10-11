@@ -1,194 +1,105 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { Home, NotebookText, CheckSquare, Settings, Plus, ShieldCheck, LayoutGrid, Target, ShoppingBag } from "lucide-react";
-import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { NotebookText, CheckSquare, Settings, ShieldCheck } from "lucide-react";
+import { useEffect, type ReactNode } from "react";
+import { useProfile } from "@/lib/data";
 import { useTaskReminders } from "@/hooks/use-task-reminders";
-import { useIsTablet, usePanel, type PanelKind } from "@/hooks/use-panel";
-import { useWorkspaces } from "@/lib/workspaces";
-import { DetailPanel } from "@/components/DetailPanel";
 import { CommandPalette } from "@/components/CommandPalette";
+import { PageFade } from "@/components/motion";
 
-type NavItem = {
-  to: "/" | "/notes" | "/create" | "/tasks" | "/vault" | "/settings";
-  label: string;
-  icon: typeof Home;
-  primary?: boolean;
-};
-
-const nav: NavItem[] = [
-  { to: "/", label: "الرئيسية", icon: Home },
-  { to: "/create", label: "إنشاء", icon: Plus, primary: true },
-  { to: "/vault", label: "الخزنة", icon: ShieldCheck },
-  { to: "/settings", label: "إعدادات", icon: Settings },
-];
-
-// Tablet sidebar nav — flat list, no FAB.
-const tabletNav: { to: NavItem["to"] | "/purchases" | "/plans" | "/workspaces"; label: string; icon: typeof Home }[] = [
-  { to: "/", label: "الرئيسية", icon: Home },
-  { to: "/notes", label: "الملاحظات", icon: NotebookText },
+const nav = [
+  { to: "/notes", label: "المذكرات", icon: NotebookText },
   { to: "/tasks", label: "المهام", icon: CheckSquare },
-  { to: "/purchases", label: "المشتريات", icon: ShoppingBag },
-  { to: "/plans", label: "الخطط", icon: Target },
-  { to: "/workspaces", label: "مساحات العمل", icon: LayoutGrid },
   { to: "/vault", label: "الخزنة", icon: ShieldCheck },
-  { to: "/settings", label: "الإعدادات", icon: Settings },
-];
-
-/** Intercepts detail links in tablet mode → open panel instead of full navigation. */
-function usePanelLinkInterceptor(enabled: boolean) {
-  const { select } = usePanel();
-  useEffect(() => {
-    if (!enabled || typeof document === "undefined") return;
-    const handler = (e: MouseEvent) => {
-      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      const a = (e.target as HTMLElement | null)?.closest("a");
-      if (!a) return;
-      const href = a.getAttribute("href");
-      if (!href) return;
-      const m = href.match(/^\/(notes|tasks|purchases|plans|workspaces)\/([^/?#]+)$/);
-      if (!m) return;
-      e.preventDefault();
-      select({ kind: m[1] as PanelKind, id: decodeURIComponent(m[2]) });
-    };
-    document.addEventListener("click", handler);
-    return () => document.removeEventListener("click", handler);
-  }, [enabled, select]);
-}
+] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
-  const isTablet = useIsTablet();
   useTaskReminders();
-  usePanelLinkInterceptor(isTablet);
-
-  if (isTablet) {
-    return (
-      <>
-        <CommandPalette />
-        <TabletShell pathname={pathname}>{children}</TabletShell>
-      </>
-    );
-  }
-
+  const { data: profile } = useProfile();
+  useEffect(() => {
+    if (profile) document.documentElement.classList.toggle("dark", profile.theme === "dark");
+  }, [profile]);
   return (
     <div className="min-h-dvh bg-background text-foreground">
       <CommandPalette />
-      <main id="main" className="mx-auto max-w-md pb-[calc(env(safe-area-inset-bottom)+7rem)] safe-x">
-        {children}
-      </main>
-
-      <nav
-        aria-label="التنقل الرئيسي"
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-white/60 glass-strong safe-bottom safe-x"
-      >
-        <div className="mx-auto flex max-w-md items-center justify-around px-2 py-2">
-          {nav.map((item) => {
-            const active = pathname === item.to;
-            const Icon = item.icon;
-            if (item.primary) {
+      <div className="mx-auto max-w-6xl md:grid md:grid-cols-[220px_minmax(0,1fr)]">
+        <aside className="sticky top-0 hidden h-dvh border-e border-border px-4 py-8 md:flex md:flex-col">
+          <Link to="/notes" className="mb-10 flex items-center gap-3 px-3 text-xl font-semibold">
+            <span className="grid size-10 place-items-center rounded-2xl bg-primary text-primary-foreground">
+              <NotebookText className="size-5" />
+            </span>
+            <span dir="ltr">MemoFlow</span>
+          </Link>
+          <nav aria-label="التنقل الجانبي" className="space-y-2">
+            {nav.map(({ to, label, icon: Icon }) => {
+              const active = pathname.startsWith(to);
               return (
                 <Link
-                  key={item.to}
-                  to={item.to}
-                  className="-mt-8 grid h-14 w-14 shrink-0 place-items-center rounded-2xl gradient-primary text-primary-foreground shadow-fab transition-transform hover:scale-[1.03] active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
-                  aria-label={item.label}
+                  key={to}
+                  to={to}
+                  aria-current={active ? "page" : undefined}
+                  className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium ${active ? "bg-primary-soft text-primary" : "text-muted-foreground hover:bg-secondary"}`}
                 >
-                  <Icon className="size-7" strokeWidth={2.5} />
+                  <Icon className="size-5" />
+                  {label}
                 </Link>
               );
-            }
+            })}
+          </nav>
+          <Link
+            to="/settings"
+            className="mt-auto flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-muted-foreground hover:bg-secondary"
+          >
+            <Settings className="size-5" />
+            الإعدادات
+          </Link>
+        </aside>
+        <main
+          id="main"
+          className="min-w-0 pb-[calc(env(safe-area-inset-bottom)+6rem)] safe-x md:pb-12"
+        >
+          <div className="mx-auto flex max-w-3xl items-center justify-between px-5 pt-[max(env(safe-area-inset-top),1rem)] md:pt-8">
+            <Link
+              to="/notes"
+              className="text-sm font-semibold tracking-wide text-muted-foreground"
+              dir="ltr"
+            >
+              MemoFlow
+            </Link>
+            <Link
+              to="/settings"
+              aria-label="الإعدادات"
+              className="grid size-11 place-items-center rounded-full text-muted-foreground hover:bg-secondary"
+            >
+              <Settings className="size-5" />
+            </Link>
+          </div>
+          <PageFade key={pathname} className="mx-auto max-w-3xl">
+            {children}
+          </PageFade>
+        </main>
+      </div>
+      <nav
+        aria-label="التنقل الرئيسي"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/90 backdrop-blur-xl safe-bottom safe-x md:hidden"
+      >
+        <div className="mx-auto grid max-w-lg grid-cols-3 gap-2 px-4 py-2">
+          {nav.map(({ to, label, icon: Icon }) => {
+            const active = pathname.startsWith(to);
             return (
               <Link
-                key={item.to}
-                to={item.to}
+                key={to}
+                to={to}
                 aria-current={active ? "page" : undefined}
-                aria-label={item.label}
-                className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[10px] font-medium tap-44 transition-colors ${
-                  active ? "text-primary" : "text-muted-foreground hover:text-foreground"
-                }`}
+                className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-xs font-medium transition-colors ${active ? "bg-primary-soft text-primary" : "text-muted-foreground"}`}
               >
-                <Icon className="size-5" strokeWidth={active ? 2.5 : 2} />
-                <span className="truncate">{item.label}</span>
+                <Icon className="size-5" strokeWidth={active ? 2.25 : 1.75} />
+                <span>{label}</span>
               </Link>
             );
           })}
         </div>
       </nav>
-    </div>
-  );
-}
-
-function TabletShell({ children, pathname }: { children: ReactNode; pathname: string }) {
-  const { data: workspaces = [] } = useWorkspaces();
-  const { select } = usePanel();
-  return (
-    <div dir="ltr" className="grid min-h-dvh bg-background text-foreground grid-cols-[280px_minmax(0,1fr)_min(420px,32vw)]">
-      {/* LEFT — Navigation + Workspaces */}
-      <aside dir="rtl" className="sticky top-0 h-dvh overflow-y-auto border-e border-white/50 glass-subtle">
-        <div className="flex items-center gap-2 px-5 py-4">
-          <div className="grid size-9 place-items-center rounded-xl gradient-primary text-primary-foreground shadow-fab">
-            <NotebookText className="size-5" />
-          </div>
-          <span className="text-lg font-extrabold tracking-tight">MemoFlow</span>
-        </div>
-        <nav aria-label="التنقل الجانبي" className="px-2 pb-4">
-          <ul className="space-y-0.5">
-            {tabletNav.map((item) => {
-              const active = pathname === item.to || (item.to !== "/" && pathname.startsWith(item.to));
-              const Icon = item.icon;
-              return (
-                <li key={item.to}>
-                  <Link
-                    to={item.to}
-                    aria-current={active ? "page" : undefined}
-                    className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors tap-44 ${
-                      active ? "glass-strong text-primary shadow-card" : "text-muted-foreground hover:bg-white/40 hover:text-foreground"
-                    }`}
-                  >
-                    <Icon className="size-4 shrink-0" strokeWidth={active ? 2.5 : 2} />
-                    <span className="truncate">{item.label}</span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-
-          <div className="mt-6">
-            <div className="flex items-center justify-between px-3 pb-2">
-              <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">مساحات العمل</span>
-              <Link to="/create" className="text-xs font-bold text-primary hover:underline">جديد</Link>
-            </div>
-            {workspaces.length === 0 ? (
-              <p className="px-3 text-xs text-muted-foreground">لا توجد مساحات بعد.</p>
-            ) : (
-              <ul className="space-y-0.5">
-                {workspaces.slice(0, 12).map((w) => (
-                  <li key={w.id}>
-                    <button
-                      type="button"
-                      onClick={() => select({ kind: "workspaces", id: w.id })}
-                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-start text-sm text-foreground hover:bg-muted"
-                    >
-                      <span className="text-base">{w.icon || "📁"}</span>
-                      <span className="min-w-0 flex-1 truncate">{w.name}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </nav>
-      </aside>
-
-      {/* CENTER — the current route */}
-      <main id="main" dir="rtl" className="min-w-0 overflow-y-auto max-h-dvh">
-        <div className="mx-auto max-w-2xl pb-16">{children}</div>
-      </main>
-
-      {/* RIGHT — details panel */}
-      <aside dir="rtl" className="sticky top-0 h-dvh overflow-hidden border-s border-white/50 glass-subtle">
-        <DetailPanel />
-      </aside>
     </div>
   );
 }
@@ -203,12 +114,10 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-5 pb-2 pt-6">
+    <header className="flex items-center justify-between gap-3 px-5 pb-6 pt-4">
       <div className="min-w-0">
-        <h1 className="truncate text-2xl font-extrabold tracking-tight">{title}</h1>
-        {subtitle ? (
-          <p className="mt-0.5 truncate text-sm text-muted-foreground">{subtitle}</p>
-        ) : null}
+        <h1 className="text-3xl font-semibold leading-relaxed">{title}</h1>
+        {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
       </div>
       {action}
     </header>
