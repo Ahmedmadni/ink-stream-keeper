@@ -1,5 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
+
+// memoflow_* RPCs are created by a manual migration and are absent from the
+// generated types; call them through a loosely typed rpc handle.
+type RpcResult = { data: unknown; error: { message: string; statusCode?: string } | null };
+const rpc = supabase.rpc as unknown as (fn: string, args?: Record<string, unknown>) => Promise<RpcResult>;
 import type { BackupPort } from "./service";
 import { MAX_ATTACHMENT_BYTES } from "./format";
 
