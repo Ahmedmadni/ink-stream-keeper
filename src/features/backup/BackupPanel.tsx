@@ -33,7 +33,7 @@ function AccountBackup({ accountId }: { accountId: string }) {
   const qc = useQueryClient();
   useEffect(() => {
     mounted.current = true;
-    supabase.rpc("memoflow_backup_tables_v1").then(({ data, error }) => {
+    (supabase.rpc as unknown as (fn: string) => Promise<{ data: unknown; error: unknown }>)("memoflow_backup_tables_v1").then(({ data, error }) => {
       if (mounted.current)
         setReady(!error && Array.isArray(data) && data.includes("vault_settings"));
     });

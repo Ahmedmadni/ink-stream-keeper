@@ -1335,9 +1335,7 @@ export type Database = {
       }
     }
     Functions: {
-      memoflow_backup_tables_v1: { Args: Record<PropertyKey, never>; Returns: string[] }
-      memoflow_export_v1: { Args: Record<PropertyKey, never>; Returns: Json }
-      memoflow_restore_v1: { Args: { payload: Json; expected_account: string }; Returns: Json }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never

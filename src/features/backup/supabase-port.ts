@@ -1,5 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
+
+// memoflow_* RPCs are created by a manual migration and are absent from the
+// generated types; call them through a loosely typed rpc handle.
+type RpcResult = { data: unknown; error: { message: string; statusCode?: string } | null };
+const rpc = supabase.rpc as unknown as (fn: string, args?: Record<string, unknown>) => Promise<RpcResult>;
 import type { BackupPort } from "./service";
 import { MAX_ATTACHMENT_BYTES } from "./format";
 
@@ -32,7 +37,7 @@ export function createBackupPort(accountId: string, stillActive: () => boolean):
   return {
     assertAccount,
     async snapshot() {
-      const { data, error } = await supabase.rpc("memoflow_export_v1");
+      const { data, error } = await rpc("memoflow_export_v1");
       if (error) throw error;
       return data as unknown as Awaited<ReturnType<BackupPort["snapshot"]>>;
     },
@@ -56,7 +61,7 @@ export function createBackupPort(accountId: string, stillActive: () => boolean):
       if (error) throw error;
     },
     async restore(backup) {
-      const { data, error } = await supabase.rpc("memoflow_restore_v1", {
+      const { data, error } = await rpc("memoflow_restore_v1", {
         expected_account: accountId,
         payload: { version: 1, accountId, tables: backup.tables } as unknown as Json,
       });
