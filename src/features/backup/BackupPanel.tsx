@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { lockVault } from "@/lib/vault";
+import { files } from "@/services/files";
 import { backupError, createBackupPort } from "./supabase-port";
 import { exportBackup, previewBackup, restoreBackup } from "./service";
 import { MAX_FILE_BYTES, type Backup } from "./format";
@@ -23,6 +24,7 @@ function AccountBackup({ accountId }: { accountId: string }) {
   const [download, setDownload] = useState<File | null>(null);
   const [preview, setPreview] = useState<Backup | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deliveryBusy, setDeliveryBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [confirmed, setConfirmed] = useState(false);
@@ -44,6 +46,7 @@ function AccountBackup({ accountId }: { accountId: string }) {
       setDownload(null);
       setConfirmed(false);
       setBusy(false);
+      setDeliveryBusy(false);
       setError("");
       setMessage(
         "أُغلقت المعاينة عند إخفاء التطبيق. يمكنك إعادة العملية؛ الاستعادة لا تكرر العناصر.",
@@ -157,12 +160,15 @@ function AccountBackup({ accountId }: { accountId: string }) {
                     const text = await exportBackup(port, accountId, password);
                     checkDrafts();
                     if (!active()) return;
+                    const stamp = new Date()
+                      .toISOString()
+                      .replace(/\.\d{3}Z$/, "")
+                      .replace("T", "-")
+                      .replaceAll(":", "");
                     setDownload(
-                      new File(
-                        [text],
-                        `MemoFlow-${new Date().toISOString().slice(0, 10)}.memoflow`,
-                        { type: "application/octet-stream" },
-                      ),
+                      new File([text], `MemoFlow-${stamp}.memoflow`, {
+                        type: "application/octet-stream",
+                      }),
                     );
                     setPassword("");
                     setRepeat("");
@@ -177,44 +183,56 @@ function AccountBackup({ accountId }: { accountId: string }) {
               <div className="space-y-2 rounded-xl bg-secondary/50 p-3">
                 <button
                   className={`${button} bg-secondary flex w-full items-center justify-center gap-2`}
-                  onClick={() => {
-                    const url = URL.createObjectURL(download);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = download.name;
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-                    setMessage("تم طلب تنزيل الملف. تحقق من مجلد التنزيلات.");
+                  disabled={deliveryBusy}
+                  onClick={async () => {
+                    setDeliveryBusy(true);
+                    setError("");
+                    try {
+                      const result = await files.save(download, download.name);
+                      setMessage(
+                        result.mode === "native"
+                          ? `حُفظ الملف على الجهاز داخل ${result.path}.`
+                          : "تم طلب تنزيل الملف. تحقق من مجلد التنزيلات.",
+                      );
+                    } catch {
+                      setError(
+                        "تعذر حفظ الملف على الجهاز. استخدم المشاركة أو أعد المحاولة بعد تحديث التطبيق.",
+                      );
+                    } finally {
+                      setDeliveryBusy(false);
+                    }
                   }}
                 >
                   <Download className="size-4" />
-                  تنزيل الملف
+                  حفظ على الجهاز
                 </button>
-                {typeof navigator !== "undefined" &&
-                  navigator.canShare?.({ files: [download] }) && (
-                    <button
-                      className={`${button} bg-secondary flex w-full items-center justify-center gap-2`}
-                      onClick={async () => {
-                        try {
-                          await navigator.share({
-                            files: [download],
-                            title: "نسخة MemoFlow المشفّرة",
-                          });
-                        } catch (e) {
-                          if (!(e instanceof DOMException && e.name === "AbortError"))
-                            setError("تعذرت مشاركة الملف. يمكنك تنزيله ورفعه يدويًا.");
-                        }
-                      }}
-                    >
-                      <Share2 className="size-4" />
-                      مشاركة الملف
-                    </button>
-                  )}
+                {files.canShare(download, download.name) && (
+                  <button
+                    className={`${button} bg-secondary flex w-full items-center justify-center gap-2`}
+                    disabled={deliveryBusy}
+                    onClick={async () => {
+                      setDeliveryBusy(true);
+                      setError("");
+                      try {
+                        const result = await files.share(download, download.name);
+                        if (result === "shared")
+                          setMessage("تم تسليم الملف إلى التطبيق الذي اخترته.");
+                        if (result === "unavailable")
+                          setError("المشاركة غير متاحة على هذا الجهاز. استخدم الحفظ على الجهاز.");
+                      } catch {
+                        setError("تعذرت مشاركة الملف. احفظه على الجهاز ثم ارفعه إلى Drive يدويًا.");
+                      } finally {
+                        setDeliveryBusy(false);
+                      }
+                    }}
+                  >
+                    <Share2 className="size-4" />
+                    مشاركة أو حفظ في Google Drive
+                  </button>
+                )}
                 <p className="text-xs leading-6 text-muted-foreground">
-                  للحفظ على Google Drive: ارفع الملف الذي نزّلته، أو اختر Drive من المشاركة إن ظهر.
-                  للاستعادة، نزّل الملف من Drive واختره أدناه.
+                  على أندرويد يمكنك حفظ نسخة داخل مجلد Documents، أو اختيار Google Drive من نافذة
+                  المشاركة. وللاستعادة اختر الملف من الجهاز أو من Drive في منتقي الملفات أدناه.
                 </p>
               </div>
             )}

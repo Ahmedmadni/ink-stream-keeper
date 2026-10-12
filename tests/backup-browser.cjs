@@ -203,8 +203,14 @@ const snapshot = { version: 1, accountId: user.id, createdAt: note.created_at, t
       user.id,
     );
     await page.getByRole("button", { name: "تجهيز النسخة المشفّرة" }).click();
-    const dlButton = page.getByRole("button", { name: "تنزيل الملف", exact: true });
+    const dlButton = page.getByRole("button", { name: "حفظ على الجهاز", exact: true });
     await dlButton.waitFor();
+    await page.getByText("اختيار Google Drive من نافذة", { exact: false }).waitFor();
+    await dlButton.scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: resolve(artifacts, "backup-delivery-mobile.png"),
+      fullPage: true,
+    });
     assert.equal(await pass.inputValue(), "");
     const [download] = await Promise.all([page.waitForEvent("download"), dlButton.click()]);
     const encrypted = readFileSync(await download.path(), "utf8");
@@ -269,7 +275,7 @@ const snapshot = { version: 1, accountId: user.id, createdAt: note.created_at, t
     assert.equal(await dlButton.count(), 0);
     assert.deepEqual(errors, []);
     console.log(
-      "PASS encrypted backup browser: capability gate, drafts, export/download, password/tamper failures, preview, restore retry, account switch, RTL",
+      "PASS encrypted backup browser: capability gate, drafts, device save, password/tamper failures, preview, restore retry, account switch, RTL",
     );
   } catch (error) {
     if (page)
