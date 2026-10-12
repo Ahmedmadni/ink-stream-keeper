@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MemoFlow</string>
+    <string name="title_activity_main">MemoFlow</string>
+    <string name="package_name">app.lovable.c357f296dbad4d33991e76d86c92e6d0</string>
+    <string name="custom_url_scheme">app.lovable.c357f296dbad4d33991e76d86c92e6d0</string>
+</resources>

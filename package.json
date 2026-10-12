@@ -12,7 +12,10 @@
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "test": "bun test tests",
-    "test:browser": "node tests/browser-smoke.cjs && node tests/note-browser.cjs && node tests/backup-browser.cjs"
+    "test:browser": "node tests/browser-smoke.cjs && node tests/note-browser.cjs && node tests/backup-browser.cjs",
+    "android:sync": "bun run build && cap sync android",
+    "android:debug": "bun run android:sync && cd android && ./gradlew assembleDebug",
+    "android:bundle": "bun run android:sync && cd android && ./gradlew bundleRelease"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

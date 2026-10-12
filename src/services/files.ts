@@ -75,6 +75,11 @@ export const files: FilesService = {
     }
 
     const { Directory, Filesystem } = await import("@capacitor/filesystem");
+    const permission = await Filesystem.checkPermissions();
+    if (permission.publicStorage !== "granted") {
+      const requested = await Filesystem.requestPermissions();
+      if (requested.publicStorage !== "granted") throw new Error("FILE_PERMISSION_DENIED");
+    }
     const path = `${BACKUP_FOLDER}/${name}`;
     const result = await Filesystem.writeFile({
       path,
