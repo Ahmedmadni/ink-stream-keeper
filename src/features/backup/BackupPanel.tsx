@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { lockVault } from "@/lib/vault";
 import { files } from "@/services/files";
+import { callUntypedRpc } from "./rpc";
 import { backupError, createBackupPort } from "./supabase-port";
 import { exportBackup, previewBackup, restoreBackup } from "./service";
 import { MAX_FILE_BYTES, type Backup } from "./format";
@@ -33,7 +34,7 @@ function AccountBackup({ accountId }: { accountId: string }) {
   const qc = useQueryClient();
   useEffect(() => {
     mounted.current = true;
-    (supabase.rpc as unknown as (fn: string) => Promise<{ data: unknown; error: unknown }>)("memoflow_backup_tables_v1").then(({ data, error }) => {
+    callUntypedRpc(supabase, "memoflow_backup_tables_v1").then(({ data, error }) => {
       if (mounted.current)
         setReady(!error && Array.isArray(data) && data.includes("vault_settings"));
     });

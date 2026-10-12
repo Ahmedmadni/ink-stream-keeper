@@ -7,6 +7,7 @@ import {
   restoreBackup,
   type BackupPort,
 } from "../src/features/backup/service";
+import { callUntypedRpc } from "../src/features/backup/rpc";
 import { ACCOUNT, OTHER, NOTE, fixture } from "./backup-fixture";
 const PASSWORD = "strong backup phrase 2026";
 async function withFile() {
@@ -58,6 +59,21 @@ function portFor(b = fixture()) {
   return { port, calls, files };
 }
 describe("encrypted backups", () => {
+  test("manual RPC calls keep the Supabase client receiver", async () => {
+    const client = {
+      marker: "bound",
+      rpc(this: { marker: string }, fn: string) {
+        expect(this.marker).toBe("bound");
+        return Promise.resolve({ data: fn, error: null });
+      },
+    };
+
+    expect(await callUntypedRpc(client, "memoflow_export_v1")).toEqual({
+      data: "memoflow_export_v1",
+      error: null,
+    });
+  });
+
   test("Arabic content and attachment bytes round trip with randomized ciphertext", async () => {
     const b = await withFile();
     const first = await encryptBackup(b, PASSWORD),
