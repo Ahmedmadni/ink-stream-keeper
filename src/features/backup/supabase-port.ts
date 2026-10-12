@@ -37,7 +37,7 @@ export function createBackupPort(accountId: string, stillActive: () => boolean):
   return {
     assertAccount,
     async snapshot() {
-      const { data, error } = await supabase.rpc("memoflow_export_v1");
+      const { data, error } = await rpc("memoflow_export_v1");
       if (error) throw error;
       return data as unknown as Awaited<ReturnType<BackupPort["snapshot"]>>;
     },
@@ -61,7 +61,7 @@ export function createBackupPort(accountId: string, stillActive: () => boolean):
       if (error) throw error;
     },
     async restore(backup) {
-      const { data, error } = await supabase.rpc("memoflow_restore_v1", {
+      const { data, error } = await rpc("memoflow_restore_v1", {
         expected_account: accountId,
         payload: { version: 1, accountId, tables: backup.tables } as unknown as Json,
       });
