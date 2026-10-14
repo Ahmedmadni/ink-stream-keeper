@@ -26,6 +26,26 @@
 
         </activity>
 
+        <activity
+            android:name=".autofill.MemoFlowAutofillAuthActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:theme="@style/AppTheme.NoActionBar" />
+
+        <service
+            android:name=".autofill.MemoFlowAutofillService"
+            android:description="@string/autofill_service_description"
+            android:exported="true"
+            android:label="@string/autofill_service_label"
+            android:permission="android.permission.BIND_AUTOFILL_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.autofill.AutofillService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.autofill"
+                android:resource="@xml/autofill_service" />
+        </service>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

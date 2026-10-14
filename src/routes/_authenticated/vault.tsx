@@ -20,6 +20,9 @@ import {
   X,
   Search,
   Check,
+  Download,
+  RefreshCw,
+  Smartphone,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ErrorState, LoadingState } from "@/components/feedback";
@@ -40,6 +43,7 @@ import {
   type VaultCategory,
   type VaultEntry,
 } from "@/lib/vault";
+import { androidAutofill, type AutofillStatus } from "@/services/autofill";
 
 export const Route = createFileRoute("/_authenticated/vault")({
   head: () => ({
@@ -47,7 +51,10 @@ export const Route = createFileRoute("/_authenticated/vault")({
       { title: "MemoFlow — خزنة كلمات السر" },
       { name: "description", content: "احفظ كلمات السر بأمان داخل خزنة مشفّرة محمية برمز سري." },
       { property: "og:title", content: "MemoFlow — خزنة كلمات السر" },
-      { property: "og:description", content: "احفظ كلمات السر بأمان داخل خزنة مشفّرة محمية برمز سري." },
+      {
+        property: "og:description",
+        content: "احفظ كلمات السر بأمان داخل خزنة مشفّرة محمية برمز سري.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -343,6 +350,8 @@ function VaultHome() {
         </div>
       </div>
 
+      <AndroidAutofillCard entries={entries} ready={!entryQuery.isLoading && !entryQuery.isError} />
+
       <section className="px-5 pt-5">
         <div className="flex gap-2 overflow-x-auto pb-1">
           <CatChip
@@ -410,6 +419,185 @@ function VaultHome() {
         />
       )}
     </AppShell>
+  );
+}
+
+function AndroidAutofillCard({ entries, ready }: { entries: VaultEntry[]; ready: boolean }) {
+  const available = androidAutofill.isAvailable();
+  const [status, setStatus] = useState<AutofillStatus | null>(null);
+  const [busy, setBusy] = useState<"sync" | "import" | "enable" | null>(null);
+  const synced = useRef(false);
+  const add = useAddVaultEntry();
+  const update = useUpdateVaultEntry();
+
+  const refreshStatus = async () => {
+    if (!available) return;
+    try {
+      setStatus(await androidAutofill.status());
+    } catch {
+      toast.error("تعذر قراءة حالة الملء التلقائي.");
+    }
+  };
+
+  const syncNow = async (notify: boolean) => {
+    if (!available || !ready) return;
+    setBusy("sync");
+    try {
+      const credentials = await Promise.all(
+        entries.map(async (entry) => ({
+          id: entry.id,
+          label: entry.label,
+          username: entry.username,
+          password: await revealPassword(entry),
+          url: entry.url,
+        })),
+      );
+      const result = await androidAutofill.sync(credentials);
+      setStatus((current) =>
+        current ? { ...current, ...result } : { supported: true, enabled: true, ...result },
+      );
+      if (notify) toast.success("تم تحديث حسابات الملء التلقائي بأمان.");
+    } catch {
+      synced.current = false;
+      toast.error("تعذرت مزامنة الحسابات. افتح الخزنة وحاول مجددًا.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!available) return;
+    void refreshStatus();
+    const onFocus = () => void refreshStatus();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [available]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!ready || !status?.enabled || synced.current) return;
+    synced.current = true;
+    void syncNow(false);
+  }, [ready, status?.enabled, entries]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!available || !status?.supported) return null;
+
+  const importPending = async () => {
+    setBusy("import");
+    const imported: string[] = [];
+    try {
+      const pending = await androidAutofill.pending();
+      for (const credential of pending) {
+        const existing = entries.find((entry) => entry.id === credential.id);
+        if (existing) {
+          await update.mutateAsync({
+            id: existing.id,
+            categoryId: existing.category_id,
+            label: existing.label || credential.label,
+            username: credential.username,
+            password: credential.password,
+            url: credential.url || existing.url,
+            notes: existing.notes,
+          });
+        } else {
+          await add.mutateAsync({
+            categoryId: null,
+            label:
+              credential.label || credential.webDomain || credential.packageName || "حساب محفوظ",
+            username: credential.username,
+            password: credential.password,
+            url: credential.url,
+            notes: "حُفظ تلقائيًا من Android Autofill.",
+          });
+        }
+        imported.push(credential.id);
+        await androidAutofill.markImported([credential.id]);
+      }
+      await refreshStatus();
+      toast.success(`تم استيراد ${imported.length} حساب إلى الخزنة.`);
+    } catch {
+      toast.error(
+        imported.length
+          ? "اكتمل جزء من الاستيراد؛ بقيت الحسابات غير المستوردة محفوظة على الجهاز."
+          : "تعذر استيراد الحسابات المحفوظة من أندرويد.",
+      );
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <section className="px-5 pt-4">
+      <div className="rounded-2xl border border-primary/15 bg-primary-soft/60 p-4 shadow-card">
+        <div className="flex items-start gap-3">
+          <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground">
+            <Smartphone className="size-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-bold">الملء التلقائي على أندرويد</h2>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {status.enabled
+                    ? `${status.credentialCount} حساب مشفّر على هذا الجهاز`
+                    : "فعّل MemoFlow من إعدادات الملء التلقائي مرة واحدة"}
+                </p>
+              </div>
+              <span
+                className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                  status.enabled ? "bg-success/15 text-success" : "bg-warning/15 text-warning"
+                }`}
+              >
+                {status.enabled ? "مفعّل" : "غير مفعّل"}
+              </span>
+            </div>
+
+            <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+              يعرض أندرويد نافذة تأكيد قبل حفظ بيانات دخول جديدة، ويطلب قفل الجهاز قبل ملء كلمة
+              المرور. البيانات المحلية مشفّرة ولا تدخل النسخة الاحتياطية للنظام.
+            </p>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                disabled={busy !== null}
+                onClick={async () => {
+                  setBusy("enable");
+                  try {
+                    await androidAutofill.requestEnable();
+                  } catch {
+                    toast.error("تعذر فتح إعدادات الملء التلقائي.");
+                  } finally {
+                    setBusy(null);
+                  }
+                }}
+                className="rounded-lg bg-primary px-3 py-2 text-[11px] font-bold text-primary-foreground disabled:opacity-50"
+              >
+                {status.enabled ? "إدارة الإعداد" : "تفعيل الآن"}
+              </button>
+              {status.enabled && (
+                <button
+                  disabled={busy !== null || !ready}
+                  onClick={() => void syncNow(true)}
+                  className="flex items-center gap-1.5 rounded-lg bg-card px-3 py-2 text-[11px] font-bold text-foreground disabled:opacity-50"
+                >
+                  <RefreshCw className={`size-3.5 ${busy === "sync" ? "animate-spin" : ""}`} />
+                  تحديث الحسابات
+                </button>
+              )}
+              {status.pendingCount > 0 && (
+                <button
+                  disabled={busy !== null}
+                  onClick={() => void importPending()}
+                  className="flex items-center gap-1.5 rounded-lg bg-success px-3 py-2 text-[11px] font-bold text-white disabled:opacity-50"
+                >
+                  <Download className="size-3.5" />
+                  استيراد المحفوظ ({status.pendingCount})
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
