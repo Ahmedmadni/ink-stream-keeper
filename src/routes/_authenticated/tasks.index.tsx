@@ -14,9 +14,17 @@ import {
   type TaskSubItemSummary,
 } from "@/lib/data";
 import { localDayKey, matchesTask, type TaskFilter } from "@/features/tasks/task-rules";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/tasks/")({
-  head: () => ({ meta: [{ title: "MemoFlow — المهام" }] }),
+  head: () => ({ meta: [
+    { title: "MemoFlow — المهام" },
+    { name: "description", content: "بطاقات مهامك مع مواعيدها وأولوياتها وتقدم البنود الفرعية." },
+    { property: "og:title", content: "MemoFlow — المهام" },
+    { property: "og:description", content: "تابع مهامك وبنودها الفرعية في بطاقات مرتبة حسب التصنيف." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary" },
+  ] }),
   component: TasksPage,
 });
 
@@ -227,13 +235,11 @@ function TasksPage() {
                   </h2>
                   <span className="text-xs text-muted-foreground">{group.tasks.length} مهمة</span>
                 </div>
-                <div className="overflow-hidden rounded-2xl bg-card">
-                  <ul className="divide-y divide-border">
+                  <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2" aria-label={`بطاقات ${group.name}`}>
                     {group.tasks.map((task) => (
-                      <TaskRow key={task.id} task={task} summary={summaries[task.id]} />
+                      <TaskCard key={task.id} task={task} summary={summaries[task.id]} />
                     ))}
                   </ul>
-                </div>
               </section>
             ))}
           </div>
@@ -268,13 +274,15 @@ function CategoryButton({
   );
 }
 
-function TaskRow({ task, summary }: { task: Task; summary?: TaskSubItemSummary }) {
+function TaskCard({ task, summary }: { task: Task; summary?: TaskSubItemSummary }) {
   const toggle = useToggleTask();
   const due = task.due_at ? new Date(task.due_at) : null;
   const overdue = due && !task.done && localDayKey(due) < localDayKey(new Date());
   return (
-    <li className="flex items-center gap-1 px-2 py-2">
-      <button
+    <li className="relative flex min-h-52 items-start gap-2 rounded-2xl border border-border bg-card p-4 shadow-card transition-shadow hover:shadow-elevated">
+      <Button
+        variant="ghost"
+        size="icon"
         role="checkbox"
         aria-checked={task.done}
         aria-label={`${task.done ? "إلغاء إنجاز" : "إنجاز"} ${task.title}`}
@@ -285,26 +293,27 @@ function TaskRow({ task, summary }: { task: Task; summary?: TaskSubItemSummary }
             { onError: () => toast.error("تعذر حفظ حالة المهمة. حاول مجددًا.") },
           )
         }
-        className="grid size-12 shrink-0 place-items-center rounded-xl disabled:opacity-50"
+        className="size-11 shrink-0 rounded-xl disabled:opacity-50"
       >
         <span
           className={`grid size-6 place-items-center rounded-full border-2 ${task.done ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40"}`}
         >
           {task.done && <Check className="size-4" />}
         </span>
-      </button>
+      </Button>
       <Link
         to="/tasks/$id"
         params={{ id: task.id }}
-        className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-2 pe-3"
+        className="flex min-h-44 min-w-0 flex-1 flex-col items-stretch gap-3 rounded-lg py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-1 flex-col">
           <p
-            className={`break-words text-[15px] font-medium ${task.done ? "text-muted-foreground line-through" : ""}`}
+            className={`line-clamp-3 break-words text-base font-semibold ${task.done ? "text-muted-foreground line-through" : ""}`}
           >
             {task.title}
           </p>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          {task.description && <p className="mt-2 line-clamp-2 break-words text-sm leading-relaxed text-muted-foreground">{task.description}</p>}
+          <div className="mt-auto flex flex-wrap items-center gap-2 pt-4 text-xs text-muted-foreground">
             {due && (
               <span className={overdue ? "text-destructive" : ""}>
                 {overdue ? "متأخرة · " : ""}
@@ -333,7 +342,10 @@ function TaskRow({ task, summary }: { task: Task; summary?: TaskSubItemSummary }
             </div>
           )}
         </div>
-        <ChevronLeft className="size-4 shrink-0 text-muted-foreground/60" />
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>{task.done ? "مكتملة" : summary && summary.total > 0 ? `${summary.progress}% مكتمل` : "غير مكتملة"}</span>
+          <ChevronLeft className="size-4 shrink-0" />
+        </div>
       </Link>
     </li>
   );
