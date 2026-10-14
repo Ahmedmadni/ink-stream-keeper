@@ -28,6 +28,24 @@ android/app/build/outputs/apk/debug/app-debug.apk
 GitHub Actions also builds the same APK and publishes it as the
 `MemoFlow-Android-Debug` workflow artifact after all web tests pass.
 
+## Android Autofill
+
+MemoFlow declares a native `AutofillService` on Android 8 (API 26) and newer.
+After installing the app:
+
+1. Open and unlock the vault.
+2. Select **تفعيل الآن** in the Android Autofill card.
+3. Confirm MemoFlow as the device autofill provider.
+4. Return to the vault so its entries are mirrored into device-only encrypted storage.
+
+The local mirror uses AES-256-GCM with a non-exportable Android Keystore key. Autofill requires
+the device screen lock before releasing a password. Android's system UI asks for confirmation
+before a newly entered login is saved. Newly saved logins stay encrypted on the device until the
+user opens the unlocked MemoFlow vault and imports them.
+
+The native mirror is excluded from Android backup (`allowBackup=false`) and does not replace
+MemoFlow's encrypted export file.
+
 ## Prepare a Play Store release
 
 1. Replace the hosted preview URL in `capacitor.config.ts` with the stable

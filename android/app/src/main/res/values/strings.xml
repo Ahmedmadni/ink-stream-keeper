@@ -4,4 +4,6 @@
     <string name="title_activity_main">MemoFlow</string>
     <string name="package_name">app.lovable.c357f296dbad4d33991e76d86c92e6d0</string>
     <string name="custom_url_scheme">app.lovable.c357f296dbad4d33991e76d86c92e6d0</string>
+    <string name="autofill_service_label">MemoFlow — الملء التلقائي</string>
+    <string name="autofill_service_description">ملء وحفظ بيانات الدخول في خزنة MemoFlow المشفرة بعد موافقتك.</string>
 </resources>
