@@ -134,7 +134,7 @@ function PinPad({
   return (
     <div className="space-y-6">
       <div className="flex justify-center gap-3">{dots}</div>
-      <div dir="rtl" className="mx-auto grid max-w-[260px] grid-cols-3 gap-3">
+      <div dir="ltr" className="mx-auto grid max-w-[260px] grid-cols-3 gap-3">
         {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((n) => (
           <button
             key={n}
