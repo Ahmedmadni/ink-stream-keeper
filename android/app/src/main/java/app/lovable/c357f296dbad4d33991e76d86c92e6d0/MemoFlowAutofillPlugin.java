@@ -41,7 +41,7 @@ public final class MemoFlowAutofillPlugin extends Plugin {
         Intent intent = new Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE);
         intent.setData(Uri.parse("package:" + getContext().getPackageName()));
         if (intent.resolveActivity(getContext().getPackageManager()) == null) {
-            intent = new Intent(Settings.ACTION_AUTOFILL_SETTINGS);
+            intent = new Intent(Settings.ACTION_SETTINGS);
         }
         getActivity().startActivity(intent);
         call.resolve();

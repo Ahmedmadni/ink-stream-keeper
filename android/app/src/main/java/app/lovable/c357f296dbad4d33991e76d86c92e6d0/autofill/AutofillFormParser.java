@@ -3,6 +3,7 @@ package app.lovable.c357f296dbad4d33991e76d86c92e6d0.autofill;
 import android.app.assist.AssistStructure;
 import android.text.InputType;
 import android.view.View;
+import android.view.ViewStructure;
 import android.view.autofill.AutofillId;
 import android.view.autofill.AutofillValue;
 
@@ -72,7 +73,7 @@ final class AutofillFormParser {
         append(clues, node.getClassName());
         String[] autofillHints = node.getAutofillHints();
         if (autofillHints != null) for (String hint : autofillHints) append(clues, hint);
-        AssistStructure.ViewNode.HtmlInfo html = node.getHtmlInfo();
+        ViewStructure.HtmlInfo html = node.getHtmlInfo();
         if (html != null) {
             List<android.util.Pair<String, String>> attributes = html.getAttributes();
             if (attributes != null) {
