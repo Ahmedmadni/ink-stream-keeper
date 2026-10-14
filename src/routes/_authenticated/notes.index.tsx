@@ -14,6 +14,10 @@ export const Route = createFileRoute("/_authenticated/notes/")({
     meta: [
       { title: "MemoFlow — المذكرات" },
       { name: "description", content: "تصفح جميع ملاحظاتك، صنفها، ابحث وفلتر حسب التصنيف." },
+      { property: "og:title", content: "MemoFlow — المذكرات" },
+      { property: "og:description", content: "مذكراتك في بطاقات مرتبة مع البحث والتصنيفات." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: NotesPage,
@@ -100,9 +104,9 @@ function NotesPage() {
           }}
         />
       )}
-      <div className="mt-4 space-y-2.5 px-5">
+      <div className="mt-4 grid grid-cols-1 gap-4 px-5 sm:grid-cols-2" aria-label="بطاقات المذكرات">
         {!notesQuery.isLoading && !notesQuery.isError && filtered.length === 0 && (
-          <div className="rounded-2xl bg-card p-8 text-center text-sm text-muted-foreground shadow-card">
+            <div className="col-span-full rounded-2xl bg-card p-8 text-center text-sm text-muted-foreground shadow-card">
             لا توجد ملاحظات مطابقة.
           </div>
         )}
@@ -113,20 +117,23 @@ function NotesPage() {
               key={n.id}
               to="/notes/$id"
               params={{ id: n.id }}
-              className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 rounded-2xl bg-card p-3.5 shadow-card transition-transform active:scale-[0.98]"
+              className="group relative flex min-h-52 flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-card transition-shadow hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
             >
+              <div className="flex items-center justify-between gap-2">
               <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary-soft text-xl text-primary">
                 {n.emoji || <NotebookText className="size-5" />}
               </div>
-              <div className="min-w-0">
+              {n.pinned && <Pin aria-label="مثبتة" className="size-4 shrink-0 rotate-45 text-primary" />}
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col">
                 <div className="flex items-center gap-2">
-                  <h3 className="truncate text-sm font-bold">{n.title || "بدون عنوان"}</h3>
+                  <h3 className="line-clamp-2 break-words text-base font-semibold">{n.title || "بدون عنوان"}</h3>
                   {n.favorite && <Star className="size-3.5 shrink-0 fill-warning text-warning" />}
                 </div>
-                <p className="line-clamp-2 text-xs text-muted-foreground">
+                <p className="mt-2 line-clamp-3 break-words text-sm leading-relaxed text-muted-foreground">
                   {plainTextFromHtml(n.content) || "ملاحظة فارغة"}
                 </p>
-                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
                   {c && (
                     <span className="rounded-md bg-primary-soft px-1.5 py-0.5 text-[10px] font-semibold text-primary">
                       {c.name}
@@ -137,7 +144,6 @@ function NotesPage() {
                   </span>
                 </div>
               </div>
-              {n.pinned && <Pin className="size-4 shrink-0 rotate-45 text-primary" />}
             </Link>
           );
         })}
