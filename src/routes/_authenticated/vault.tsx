@@ -46,6 +46,10 @@ export const Route = createFileRoute("/_authenticated/vault")({
     meta: [
       { title: "MemoFlow — خزنة كلمات السر" },
       { name: "description", content: "احفظ كلمات السر بأمان داخل خزنة مشفّرة محمية برمز سري." },
+      { property: "og:title", content: "MemoFlow — خزنة كلمات السر" },
+      { property: "og:description", content: "احفظ كلمات السر بأمان داخل خزنة مشفّرة محمية برمز سري." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: VaultPage,
@@ -130,7 +134,7 @@ function PinPad({
   return (
     <div className="space-y-6">
       <div className="flex justify-center gap-3">{dots}</div>
-      <div className="mx-auto grid max-w-[260px] grid-cols-3 gap-3">
+      <div dir="rtl" className="mx-auto grid max-w-[260px] grid-cols-3 gap-3">
         {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((n) => (
           <button
             key={n}
