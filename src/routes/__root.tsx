@@ -19,6 +19,8 @@ import { Toaster } from "@/components/ui/sonner";
 import { registerAppSw } from "@/lib/pwa/register-sw";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { PanelProvider } from "@/hooks/use-panel";
+import { AppLockGate } from "@/components/AppLockGate";
+import { AutoBackupAgent } from "@/features/backup/AutoBackupAgent";
 
 function NotFoundComponent() {
   return (
@@ -84,22 +86,46 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+      {
+        name: "viewport",
+        content:
+          "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content",
+      },
       { title: "MemoFlow — ملاحظات ومهام بالعربية" },
-      { name: "description", content: "تطبيق سريع وآمن لتدوين الملاحظات وإدارة المهام بالعربية. تصنيفات مخصصة، بحث ذكي، تثبيت كتطبيق على الهاتف." },
+      {
+        name: "description",
+        content:
+          "تطبيق سريع وآمن لتدوين الملاحظات وإدارة المهام بالعربية. تصنيفات مخصصة، بحث ذكي، تثبيت كتطبيق على الهاتف.",
+      },
       { name: "author", content: "MemoFlow" },
       { name: "theme-color", content: "#2D6CDF" },
       { property: "og:title", content: "MemoFlow — ملاحظات ومهام بالعربية" },
-      { property: "og:description", content: "تطبيق سريع وآمن لتدوين الملاحظات وإدارة المهام بالعربية. تصنيفات مخصصة، بحث ذكي، تثبيت كتطبيق على الهاتف." },
+      {
+        property: "og:description",
+        content:
+          "تطبيق سريع وآمن لتدوين الملاحظات وإدارة المهام بالعربية. تصنيفات مخصصة، بحث ذكي، تثبيت كتطبيق على الهاتف.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "default" },
       { name: "apple-mobile-web-app-title", content: "MemoFlow" },
       { name: "twitter:title", content: "MemoFlow — ملاحظات ومهام بالعربية" },
-      { name: "twitter:description", content: "تطبيق سريع وآمن لتدوين الملاحظات وإدارة المهام بالعربية. تصنيفات مخصصة، بحث ذكي، تثبيت كتطبيق على الهاتف." },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/sHg6QnS04TcmbXVlhYYOOD3JhZB2/social-images/social-1782327353094-ChatGPT_Image_Jun_24,_2026,_09_55_35_PM.webp" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/sHg6QnS04TcmbXVlhYYOOD3JhZB2/social-images/social-1782327353094-ChatGPT_Image_Jun_24,_2026,_09_55_35_PM.webp" },
+      {
+        name: "twitter:description",
+        content:
+          "تطبيق سريع وآمن لتدوين الملاحظات وإدارة المهام بالعربية. تصنيفات مخصصة، بحث ذكي، تثبيت كتطبيق على الهاتف.",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://storage.googleapis.com/gpt-engineer-file-uploads/sHg6QnS04TcmbXVlhYYOOD3JhZB2/social-images/social-1782327353094-ChatGPT_Image_Jun_24,_2026,_09_55_35_PM.webp",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://storage.googleapis.com/gpt-engineer-file-uploads/sHg6QnS04TcmbXVlhYYOOD3JhZB2/social-images/social-1782327353094-ChatGPT_Image_Jun_24,_2026,_09_55_35_PM.webp",
+      },
     ],
     links: [
       {
@@ -160,12 +186,15 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <VaultSecurity />
-      <PanelProvider>
-        <Outlet />
-        <Toaster position="top-center" dir="rtl" richColors closeButton />
-      </PanelProvider>
+      <AppLockGate>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <VaultSecurity />
+        <AutoBackupAgent />
+        <PanelProvider>
+          <Outlet />
+          <Toaster position="top-center" dir="rtl" richColors closeButton />
+        </PanelProvider>
+      </AppLockGate>
     </QueryClientProvider>
   );
 }

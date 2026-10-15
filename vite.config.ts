@@ -7,11 +7,16 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { VitePWA } from "vite-plugin-pwa";
 
+const isNativeBuild = process.env.MEMOFLOW_NATIVE_BUILD === "1";
+
 export default defineConfig({
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
     server: { entry: "server" },
+    // Android ships the UI inside the APK. TanStack Start emits a client-only
+    // shell that scripts/prepare-native-web.mjs promotes to index.html.
+    ...(isNativeBuild ? { spa: { enabled: true } } : {}),
   },
   vite: {
     plugins: [

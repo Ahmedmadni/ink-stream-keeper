@@ -16,6 +16,7 @@ public final class MemoFlowAuthPlugin extends Plugin {
     private static final String APP_SCHEME = "app.lovable.c357f296dbad4d33991e76d86c92e6d0";
     private static final String APP_CALLBACK_HOST = "auth";
     private static final String APP_CALLBACK_PATH = "/callback";
+    private static final String APP_RECOVERY_PATH = "/recovery";
     private static final String OAUTH_HOST = "ink-stream-keeper.lovable.app";
     private static final String OAUTH_PATH = "/~oauth/initiate";
 
@@ -75,7 +76,7 @@ public final class MemoFlowAuthPlugin extends Plugin {
             URI url = new URI(rawUrl);
             return APP_SCHEME.equals(url.getScheme())
                     && APP_CALLBACK_HOST.equals(url.getHost())
-                    && APP_CALLBACK_PATH.equals(url.getPath());
+                    && (APP_CALLBACK_PATH.equals(url.getPath()) || APP_RECOVERY_PATH.equals(url.getPath()));
         } catch (Exception ignored) {
             return false;
         }

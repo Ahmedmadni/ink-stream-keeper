@@ -9,4 +9,4 @@
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
 
-- Mobile: Capacitor in hosted mode (server.url → live app) — server functions/transcription need the web backend; native APIs load lazily behind isNative().
+- Mobile: Capacitor ships a local SPA bundle (`build:native` promotes TanStack Start's `_shell.html` to `index.html`). Keep `server.url` unset so installed builds cannot silently load an older published UI. Remote-only features must call explicit HTTPS endpoints; native APIs load lazily behind `isNative()`.

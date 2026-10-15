@@ -1,17 +1,49 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 
 import config from "../capacitor.config";
 
-describe("Android hosted app configuration", () => {
-  test("uses the public MemoFlow deployment instead of a protected Lovable preview", () => {
-    const hostedUrl = config.server?.url;
-
-    expect(hostedUrl).toBe("https://ink-stream-keeper.lovable.app");
-    expect(hostedUrl).not.toContain("id-preview--");
+describe("Android bundled app configuration", () => {
+  test("loads the UI bundled in the APK", () => {
+    expect(config.webDir).toBe(".output/public");
+    expect(config.server?.url).toBeUndefined();
   });
 
-  test("keeps hosted traffic on HTTPS", () => {
-    expect(config.server?.cleartext).toBe(false);
-    expect(new URL(config.server?.url ?? "").protocol).toBe("https:");
+  test("does not allow mixed HTTP content", () => {
+    expect(config.android?.allowMixedContent).toBe(false);
+  });
+
+  test("never logs sensitive native plugin arguments", () => {
+    expect(config.loggingBehavior).toBe("none");
+  });
+
+  test("uses native HTTP for explicit remote backend calls", () => {
+    expect(config.plugins?.CapacitorHttp?.enabled).toBe(true);
+  });
+});
+
+describe("Android security and recovery wiring", () => {
+  const mainActivity = readFileSync(
+    new URL(
+      "../android/app/src/main/java/app/lovable/c357f296dbad4d33991e76d86c92e6d0/MainActivity.java",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const manifest = readFileSync(
+    new URL("../android/app/src/main/AndroidManifest.xml", import.meta.url),
+    "utf8",
+  );
+
+  test("registers app lock and automatic backup plugins", () => {
+    expect(mainActivity).toContain("registerPlugin(MemoFlowAppLockPlugin.class)");
+    expect(mainActivity).toContain("registerPlugin(MemoFlowBackupPlugin.class)");
+    expect(mainActivity).toContain("FLAG_SECURE");
+    expect(mainActivity).toContain("setWebContentsDebuggingEnabled(false)");
+  });
+
+  test("returns password recovery links to the exact native path", () => {
+    expect(manifest).toContain('android:path="/recovery"');
+    expect(manifest).toContain('android:host="auth"');
   });
 });

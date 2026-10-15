@@ -7,8 +7,8 @@ android {
         applicationId "app.lovable.c357f296dbad4d33991e76d86c92e6d0"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 4
-        versionName "1.1.2-auth-ui"
+        versionCode 6
+        versionName "1.2.0-security-backup"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

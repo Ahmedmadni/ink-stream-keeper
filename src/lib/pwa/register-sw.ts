@@ -1,13 +1,17 @@
 /**
  * Guarded service-worker registration.
- * Refuses in dev, iframes, Lovable preview / editor / beta hosts, and ?sw=off.
+ * Refuses in native apps, dev, iframes, Lovable preview / editor / beta hosts,
+ * and ?sw=off.
  * In any refused context also unregisters any stale /sw.js registration.
  */
+import { Capacitor } from "@capacitor/core";
+
 const APP_SW_PATH = "/sw.js";
 
 function isRefusedContext(): boolean {
   if (typeof window === "undefined") return true;
   if (!("serviceWorker" in navigator)) return true;
+  if (Capacitor.isNativePlatform()) return true;
   if (!import.meta.env.PROD) return true;
   try {
     if (window.self !== window.top) return true;
