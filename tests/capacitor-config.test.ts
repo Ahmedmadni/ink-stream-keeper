@@ -2,16 +2,17 @@ import { describe, expect, test } from "bun:test";
 
 import config from "../capacitor.config";
 
-describe("Android hosted app configuration", () => {
-  test("uses the public MemoFlow deployment instead of a protected Lovable preview", () => {
-    const hostedUrl = config.server?.url;
-
-    expect(hostedUrl).toBe("https://ink-stream-keeper.lovable.app");
-    expect(hostedUrl).not.toContain("id-preview--");
+describe("Android bundled app configuration", () => {
+  test("loads the UI bundled in the APK", () => {
+    expect(config.webDir).toBe(".output/public");
+    expect(config.server?.url).toBeUndefined();
   });
 
-  test("keeps hosted traffic on HTTPS", () => {
-    expect(config.server?.cleartext).toBe(false);
-    expect(new URL(config.server?.url ?? "").protocol).toBe("https:");
+  test("does not allow mixed HTTP content", () => {
+    expect(config.android?.allowMixedContent).toBe(false);
+  });
+
+  test("uses native HTTP for explicit remote backend calls", () => {
+    expect(config.plugins?.CapacitorHttp?.enabled).toBe(true);
   });
 });

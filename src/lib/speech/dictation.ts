@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getDialect } from "./dialect";
+import { resolveAppEndpoint } from "@/lib/native-url";
 
 const TARGET_RATE = 16000;
 
@@ -61,7 +62,7 @@ export async function transcribeBlob(blob: Blob, language?: string): Promise<str
   fd.append("file", blob, `recording.${ext}`);
   fd.append("language", language || "ar");
   fd.append("dialect", getDialect());
-  const res = await fetch("/api/transcribe", { method: "POST", body: fd });
+  const res = await fetch(resolveAppEndpoint("/api/transcribe"), { method: "POST", body: fd });
   const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
   if (!res.ok) throw new Error(data.error || "تعذّر تفريغ الصوت.");
   return (data.text ?? "").trim();

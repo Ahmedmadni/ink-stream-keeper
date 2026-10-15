@@ -1,8 +1,10 @@
 # MemoFlow Android
 
-MemoFlow is packaged as a Capacitor 8 Android application. The shell currently
-uses hosted mode so authentication, Supabase data, and server features continue
-to use the published Lovable application.
+MemoFlow is packaged as a Capacitor 8 Android application. Production builds
+ship a client-only TanStack Start bundle inside the APK. `server.url` must stay
+unset so an installed version cannot silently render an older published UI.
+Supabase remains remote, while server-only features use explicit HTTPS backend
+URLs through Capacitor's native HTTP transport.
 
 ## Requirements
 
@@ -48,13 +50,15 @@ MemoFlow's encrypted export file.
 
 ## Prepare a Play Store release
 
-1. Replace the hosted preview URL in `capacitor.config.ts` with the stable
-   production Lovable URL, then run `bun run android:sync`.
+1. Run `bun run android:sync`. This cleans stale assets, builds the native SPA,
+   promotes `_shell.html` to `index.html`, and copies that exact bundle into the
+   Android project. Do not add a production `server.url`.
 2. Create and protect a release keystore outside Git. Never commit the keystore
    or its passwords.
 3. Configure Android Studio's signed bundle flow and build an Android App Bundle
    (`.aab`).
-4. Test login, notes, task checklist rollups, vault lock/unlock, encrypted backup
+4. Test the browser-to-app OAuth callback, login, notes, task checklist rollups,
+   responsive layout on a small screen, vault lock/unlock, encrypted backup
    export/import, and Google Drive sharing on a physical Android device.
 5. Apply the deferred Supabase migrations before relying on task checklist
    rollups or encrypted account backups in production.
