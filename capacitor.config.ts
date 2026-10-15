@@ -7,7 +7,10 @@ const config: CapacitorConfig = {
   appName: "MemoFlow",
   webDir: ".output/public",
   server: {
-    url: "https://id-preview--c357f296-dbad-4d33-991e-76d86c92e6d0.lovable.app?forceHideBadge=true",
+    // Never point a distributable build at Lovable's private `id-preview--`
+    // surface. It is protected by the Lovable editor login, whose browser
+    // session cannot be handed back to this app's WebView.
+    url: "https://ink-stream-keeper.lovable.app",
     cleartext: false,
   },
   android: { allowMixedContent: false },
