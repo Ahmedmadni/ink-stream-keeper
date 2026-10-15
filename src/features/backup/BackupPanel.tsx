@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { Download, FileLock2, Share2, Upload } from "lucide-react";
+import {
+  Cloud,
+  Download,
+  FileLock2,
+  FolderOpen,
+  HardDrive,
+  RefreshCw,
+  Share2,
+  Upload,
+} from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +18,8 @@ import { callUntypedRpc } from "./rpc";
 import { backupError, createBackupPort } from "./supabase-port";
 import { exportBackup, previewBackup, restoreBackup } from "./service";
 import { MAX_FILE_BYTES, type Backup } from "./format";
+import { nativeBackup, type NativeBackupStatus } from "@/services/native-backup";
+import { assertNoUnsavedDrafts, runAutomaticBackup } from "./automatic";
 
 const button = "min-h-11 rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-40";
 const input =
@@ -29,6 +40,10 @@ function AccountBackup({ accountId }: { accountId: string }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [confirmed, setConfirmed] = useState(false);
+  const [nativeStatus, setNativeStatus] = useState<NativeBackupStatus | null>(null);
+  const [automaticPassword, setAutomaticPassword] = useState("");
+  const [automaticRepeat, setAutomaticRepeat] = useState("");
+  const [automaticBusy, setAutomaticBusy] = useState(false);
   const epoch = useRef(0),
     mounted = useRef(true);
   const qc = useQueryClient();
@@ -38,6 +53,14 @@ function AccountBackup({ accountId }: { accountId: string }) {
       if (mounted.current)
         setReady(!error && Array.isArray(data) && data.includes("vault_settings"));
     });
+    if (nativeBackup.supported()) {
+      nativeBackup
+        .status(accountId)
+        .then((status) => {
+          if (mounted.current) setNativeStatus(status);
+        })
+        .catch(() => undefined);
+    }
     const clear = () => {
       if (document.visibilityState !== "hidden") return;
       epoch.current++;
@@ -48,6 +71,9 @@ function AccountBackup({ accountId }: { accountId: string }) {
       setConfirmed(false);
       setBusy(false);
       setDeliveryBusy(false);
+      setAutomaticPassword("");
+      setAutomaticRepeat("");
+      setAutomaticBusy(false);
       setError("");
       setMessage(
         "أُغلقت المعاينة عند إخفاء التطبيق. يمكنك إعادة العملية؛ الاستعادة لا تكرر العناصر.",
@@ -61,7 +87,7 @@ function AccountBackup({ accountId }: { accountId: string }) {
       epoch.current++;
       document.removeEventListener("visibilitychange", clear);
     };
-  }, []);
+  }, [accountId]);
   const run = async (
     action: (port: ReturnType<typeof createBackupPort>, active: () => boolean) => Promise<void>,
   ) => {
@@ -78,14 +104,29 @@ function AccountBackup({ accountId }: { accountId: string }) {
       if (active()) setBusy(false);
     }
   };
-  const checkDrafts = () => {
-    const prefix = `memoflow.note-draft.v1:${encodeURIComponent(accountId)}:`;
-    for (let i = 0; i < localStorage.length; i++)
-      if (localStorage.key(i)?.startsWith(prefix))
-        throw new Error("توجد مسودات مذكرات على هذا الجهاز. افتحها وأكمل حفظها قبل تصدير النسخة.");
+  const checkDrafts = () => assertNoUnsavedDrafts(accountId);
+  const refreshNativeStatus = async () => {
+    const status = await nativeBackup.status(accountId);
+    if (mounted.current) setNativeStatus(status);
+    return status;
+  };
+  const runAutomaticAction = async (action: () => Promise<void>) => {
+    setAutomaticBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      await action();
+    } catch (reason) {
+      const reasonText = reason instanceof Error ? reason.message : String(reason);
+      if (mounted.current && !/PICKER_CANCELLED|لم يتم اختيار/.test(reasonText)) {
+        setError(backupError(reason));
+      }
+    } finally {
+      if (mounted.current) setAutomaticBusy(false);
+    }
   };
   return (
-    <section className="px-5 pb-6" aria-labelledby="backup-title">
+    <section className="px-4 pb-6 sm:px-5" aria-labelledby="backup-title">
       <h2 id="backup-title" className="mb-2 px-1 text-xs font-medium text-muted-foreground">
         النسخ الاحتياطية
       </h2>
@@ -116,6 +157,219 @@ function AccountBackup({ accountId }: { accountId: string }) {
               احتفظ بكلمة مرور النسخة في مكان آمن؛ لا يمكن استعادتها. وتحتاج الخزنة أيضًا إلى رمزها
               الأصلي بعد الاستعادة. الحد: 10 آلاف عنصر و32 ميجابايت للمرفقات مجتمعة.
             </p>
+            {nativeBackup.supported() && (
+              <div
+                className="rounded-2xl border border-primary/20 bg-primary/5 p-4"
+                aria-label="النسخ التلقائي على أندرويد"
+              >
+                <div className="flex items-center gap-3">
+                  <RefreshCw className="size-5 shrink-0 text-primary" />
+                  <div>
+                    <h4 className="text-sm font-semibold">نسخ تلقائي يومي</h4>
+                    <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
+                      ينشئ MemoFlow نسخة عند فتح التطبيق أو العودة إليه بعد مرور 24 ساعة.
+                    </p>
+                  </div>
+                </div>
+                {nativeStatus === null ? (
+                  <p className="mt-3 text-xs text-muted-foreground">جارٍ قراءة إعدادات الهاتف…</p>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    <div className="grid gap-2 text-xs sm:grid-cols-2">
+                      <div className="flex items-center gap-2 rounded-xl bg-card p-3">
+                        <HardDrive className="size-4 text-primary" />
+                        <span>الهاتف: Documents/MemoFlow</span>
+                      </div>
+                      <div className="flex items-center gap-2 rounded-xl bg-card p-3">
+                        <Cloud className="size-4 text-primary" />
+                        <span className="min-w-0 truncate">
+                          Drive:{" "}
+                          {nativeStatus.driveFolderSelected
+                            ? nativeStatus.driveFolderName || "مجلد محدد"
+                            : "غير مربوط"}
+                        </span>
+                      </div>
+                    </div>
+                    {!nativeStatus.configured ? (
+                      <div className="space-y-3">
+                        <p className="text-xs leading-6 text-muted-foreground">
+                          اختر كلمة مرور تحفظها جيدًا؛ تُخزّن مشفّرة بمفتاح Android Keystore
+                          وتُستخدم للنسخ الدورية. ستحتاجها عند الاستعادة على جهاز آخر.
+                        </p>
+                        <label className="block text-sm">
+                          كلمة مرور النسخ التلقائي
+                          <input
+                            aria-label="كلمة مرور النسخ التلقائي"
+                            type="password"
+                            autoComplete="new-password"
+                            minLength={12}
+                            maxLength={256}
+                            value={automaticPassword}
+                            disabled={automaticBusy}
+                            onChange={(event) => setAutomaticPassword(event.target.value)}
+                            className={input}
+                            placeholder="12 حرفًا على الأقل"
+                          />
+                        </label>
+                        <label className="block text-sm">
+                          تأكيد كلمة مرور النسخ التلقائي
+                          <input
+                            aria-label="تأكيد كلمة مرور النسخ التلقائي"
+                            type="password"
+                            autoComplete="new-password"
+                            maxLength={256}
+                            value={automaticRepeat}
+                            disabled={automaticBusy}
+                            onChange={(event) => setAutomaticRepeat(event.target.value)}
+                            className={input}
+                          />
+                        </label>
+                        <button
+                          className={`${button} w-full bg-primary text-primary-foreground`}
+                          disabled={
+                            automaticBusy ||
+                            automaticPassword.length < 12 ||
+                            automaticPassword !== automaticRepeat
+                          }
+                          onClick={() =>
+                            runAutomaticAction(async () => {
+                              await nativeBackup.configure(accountId, automaticPassword);
+                              setAutomaticPassword("");
+                              setAutomaticRepeat("");
+                              await refreshNativeStatus();
+                              setMessage(
+                                "تم تفعيل النسخ التلقائي المحلي. اختر مجلد Drive إذا أردت نسخة سحابية أيضًا.",
+                              );
+                            })
+                          }
+                        >
+                          تفعيل النسخ التلقائي
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between gap-3 rounded-xl bg-card p-3 text-xs">
+                          <div>
+                            <p className="font-semibold">
+                              الحالة: {nativeStatus.enabled ? "مفعّل" : "متوقف"}
+                            </p>
+                            <p className="mt-1 text-muted-foreground">
+                              {nativeStatus.lastBackupAt
+                                ? `آخر نسخة: ${new Date(nativeStatus.lastBackupAt).toLocaleString("ar-SA")}`
+                                : "لم تُنشأ نسخة تلقائية بعد"}
+                            </p>
+                            {nativeStatus.driveFolderSelected &&
+                              nativeStatus.lastBackupAt > nativeStatus.lastDriveAt && (
+                                <p className="mt-1 text-destructive">
+                                  آخر نسخة محلية لم تصل إلى Drive؛ استخدم «إنشاء نسخة الآن».
+                                </p>
+                              )}
+                          </div>
+                          <button
+                            className={`${button} bg-secondary shrink-0`}
+                            disabled={automaticBusy}
+                            onClick={() =>
+                              runAutomaticAction(async () => {
+                                await nativeBackup.setEnabled(accountId, !nativeStatus.enabled);
+                                await refreshNativeStatus();
+                              })
+                            }
+                          >
+                            {nativeStatus.enabled ? "إيقاف" : "تشغيل"}
+                          </button>
+                        </div>
+                        <button
+                          className={`${button} flex w-full items-center justify-center gap-2 bg-secondary`}
+                          disabled={automaticBusy}
+                          onClick={() =>
+                            runAutomaticAction(async () => {
+                              const selected = await nativeBackup.chooseDriveFolder(accountId);
+                              await refreshNativeStatus();
+                              setMessage(`سيُحفظ النسخ تلقائيًا في ${selected.name} وفي الهاتف.`);
+                            })
+                          }
+                        >
+                          <FolderOpen className="size-4" />
+                          {nativeStatus.driveFolderSelected
+                            ? "تغيير مجلد Google Drive"
+                            : "اختيار مجلد Google Drive"}
+                        </button>
+                        <button
+                          className={`${button} flex w-full items-center justify-center gap-2 bg-secondary`}
+                          disabled={automaticBusy || !nativeStatus.enabled}
+                          onClick={() =>
+                            runAutomaticAction(async () => {
+                              const outcome = await runAutomaticBackup(accountId, { force: true });
+                              if (outcome.state !== "saved")
+                                throw new Error("تعذر تشغيل النسخة التلقائية الآن.");
+                              await refreshNativeStatus();
+                              setMessage(
+                                outcome.result.driveSaved
+                                  ? "حُفظت نسخة جديدة على الهاتف وفي Google Drive."
+                                  : outcome.result.driveError || "حُفظت نسخة جديدة على الهاتف.",
+                              );
+                            })
+                          }
+                        >
+                          <RefreshCw className="size-4" /> إنشاء نسخة الآن
+                        </button>
+                        <details className="rounded-xl border border-border p-3">
+                          <summary className="cursor-pointer text-xs font-medium">
+                            تغيير كلمة مرور النسخ القادمة
+                          </summary>
+                          <div className="mt-3 space-y-3">
+                            <input
+                              aria-label="كلمة مرور تلقائية جديدة"
+                              type="password"
+                              autoComplete="new-password"
+                              minLength={12}
+                              maxLength={256}
+                              value={automaticPassword}
+                              disabled={automaticBusy}
+                              onChange={(event) => setAutomaticPassword(event.target.value)}
+                              className={input}
+                              placeholder="كلمة المرور الجديدة"
+                            />
+                            <input
+                              aria-label="تأكيد كلمة المرور التلقائية الجديدة"
+                              type="password"
+                              autoComplete="new-password"
+                              maxLength={256}
+                              value={automaticRepeat}
+                              disabled={automaticBusy}
+                              onChange={(event) => setAutomaticRepeat(event.target.value)}
+                              className={input}
+                              placeholder="تأكيد كلمة المرور"
+                            />
+                            <p className="text-[11px] leading-5 text-muted-foreground">
+                              النسخ القديمة تظل محتاجة إلى كلمة مرورها السابقة.
+                            </p>
+                            <button
+                              className={`${button} w-full bg-secondary`}
+                              disabled={
+                                automaticBusy ||
+                                automaticPassword.length < 12 ||
+                                automaticPassword !== automaticRepeat
+                              }
+                              onClick={() =>
+                                runAutomaticAction(async () => {
+                                  await nativeBackup.configure(accountId, automaticPassword);
+                                  setAutomaticPassword("");
+                                  setAutomaticRepeat("");
+                                  setMessage("ستستخدم النسخ القادمة كلمة المرور الجديدة.");
+                                })
+                              }
+                            >
+                              حفظ كلمة المرور الجديدة
+                            </button>
+                          </div>
+                        </details>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             <label className="block text-sm">
               كلمة مرور النسخة
               <input

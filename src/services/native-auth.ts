@@ -1,5 +1,6 @@
 import { Capacitor, registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
+import { APP_BACKEND_ORIGIN } from "@/lib/native-url";
 
 export type NativeOAuthProvider = "google" | "apple";
 
@@ -19,6 +20,7 @@ type OAuthCallback =
 
 const nativePlugin = registerPlugin<NativeAuthPlugin>("MemoFlowAuth");
 const CALLBACK_URI = "app.lovable.c357f296dbad4d33991e76d86c92e6d0://auth/callback";
+export const RECOVERY_CALLBACK_URI = "app.lovable.c357f296dbad4d33991e76d86c92e6d0://auth/recovery";
 const OAUTH_INITIATE_URL = "https://ink-stream-keeper.lovable.app/~oauth/initiate";
 const STATE_STORAGE_KEY = "memoflow:native-oauth-state";
 const STATE_MAX_AGE_MS = 15 * 60 * 1000;
@@ -30,6 +32,8 @@ export function isNativeOAuthAvailable(): boolean {
     return false;
   }
 }
+
+export const isNativeAuthAvailable = isNativeOAuthAvailable;
 
 function newState(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
@@ -71,6 +75,38 @@ export function parseNativeOAuthCallback(rawUrl: string, expectedState: string):
     throw new Error("لم تصل بيانات الجلسة من المتصفح");
   }
   return { accessToken, refreshToken, error: null };
+}
+
+export function parseNativeRecoveryCallback(rawUrl: string): OAuthCallback {
+  const url = new URL(rawUrl);
+  if (
+    url.protocol !== "app.lovable.c357f296dbad4d33991e76d86c92e6d0:" ||
+    url.hostname !== "auth" ||
+    url.pathname !== "/recovery"
+  ) {
+    throw new Error("رابط استعادة كلمة المرور غير صالح");
+  }
+  const params = callbackParams(url);
+  const providerError = params.get("error_description") || params.get("error");
+  if (providerError) return { accessToken: null, refreshToken: null, error: providerError };
+  if (params.get("type") !== "recovery") throw new Error("نوع رابط الاستعادة غير صالح");
+  const accessToken = params.get("access_token");
+  const refreshToken = params.get("refresh_token");
+  if (!accessToken || !refreshToken) throw new Error("رابط الاستعادة ناقص أو منتهي");
+  return { accessToken, refreshToken, error: null };
+}
+
+export function nativeRecoveryRedirectUrl(): string {
+  return `${APP_BACKEND_ORIGIN}/auth?native_recovery=1`;
+}
+
+export function nativeRecoveryHandoffUrl(accessToken: string, refreshToken: string): string {
+  const params = new URLSearchParams({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    type: "recovery",
+  });
+  return `${RECOVERY_CALLBACK_URI}#${params}`;
 }
 
 export async function beginNativeOAuth(provider: NativeOAuthProvider): Promise<void> {
@@ -123,6 +159,16 @@ export async function completeNativeOAuth(rawUrl: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function completeNativeRecovery(rawUrl: string): Promise<void> {
+  const callback = parseNativeRecoveryCallback(rawUrl);
+  if (callback.error !== null) throw new Error(callback.error);
+  const { error } = await supabase.auth.setSession({
+    access_token: callback.accessToken,
+    refresh_token: callback.refreshToken,
+  });
+  if (error) throw error;
+}
+
 export async function listenForNativeOAuthCallback(
   listener: (url: string) => void,
 ): Promise<() => Promise<void>> {
@@ -133,3 +179,5 @@ export async function listenForNativeOAuthCallback(
   if (launch.url) listener(launch.url);
   return () => handle.remove();
 }
+
+export const listenForNativeAuthCallback = listenForNativeOAuthCallback;

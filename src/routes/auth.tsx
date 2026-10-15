@@ -1,14 +1,20 @@
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Mail, Lock, Loader2 } from "lucide-react";
+import { ArrowRight, KeyRound, Mail, Lock, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import {
   beginNativeOAuth,
+  completeNativeRecovery,
   completeNativeOAuth,
+  isNativeAuthAvailable,
   isNativeOAuthAvailable,
-  listenForNativeOAuthCallback,
+  listenForNativeAuthCallback,
+  nativeRecoveryHandoffUrl,
+  nativeRecoveryRedirectUrl,
 } from "@/services/native-auth";
+
+type AuthMode = "signin" | "signup" | "forgot" | "reset";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -24,20 +30,54 @@ export const Route = createFileRoute("/auth")({
 });
 
 function AuthPage() {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<AuthMode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [repeatPassword, setRepeatPassword] = useState("");
   const [name, setName] = useState("");
-  const [busy, setBusy] = useState<null | "email" | "google" | "apple" | "callback">(null);
+  const [busy, setBusy] = useState<
+    null | "email" | "google" | "apple" | "callback" | "recovery" | "reset"
+  >(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [handoffUrl, setHandoffUrl] = useState<string | null>(null);
   const navigate = useNavigate();
   const router = useRouter();
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("recovery") === "1" || params.get("native_recovery") === "1") return;
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) navigate({ to: "/" });
     });
   }, [navigate]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const webRecovery = params.get("recovery") === "1";
+    const nativeHandoff = params.get("native_recovery") === "1" && !isNativeAuthAvailable();
+    if (!webRecovery && !nativeHandoff) return;
+    let active = true;
+    const receive = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!active || !data.session) return;
+      if (nativeHandoff) {
+        const url = nativeRecoveryHandoffUrl(data.session.access_token, data.session.refresh_token);
+        setHandoffUrl(url);
+        window.location.replace(url);
+      } else {
+        setMode("reset");
+      }
+    };
+    void receive();
+    const { data: auth } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") void receive();
+    });
+    return () => {
+      active = false;
+      auth.subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     if (!isNativeOAuthAvailable()) return;
@@ -49,6 +89,16 @@ function AuthPage() {
       setError(null);
       setBusy("callback");
       try {
+        if (new URL(url).pathname === "/recovery") {
+          await completeNativeRecovery(url);
+          if (active) {
+            setPassword("");
+            setRepeatPassword("");
+            setMode("reset");
+            setNotice("اكتب كلمة مرور جديدة لحسابك.");
+          }
+          return;
+        }
         await completeNativeOAuth(url);
         await router.invalidate();
         await navigate({ to: "/" });
@@ -63,7 +113,7 @@ function AuthPage() {
       }
     };
 
-    void listenForNativeOAuthCallback((url) => void receiveCallback(url))
+    void listenForNativeAuthCallback((url) => void receiveCallback(url))
       .then((remove) => {
         if (active) removeListener = remove;
         else void remove();
@@ -109,6 +159,52 @@ function AuthPage() {
     }
   };
 
+  const requestPasswordReset = async () => {
+    setError(null);
+    setNotice(null);
+    setBusy("recovery");
+    try {
+      const redirectTo = isNativeAuthAvailable()
+        ? nativeRecoveryRedirectUrl()
+        : new URL("/auth?recovery=1", window.location.origin).toString();
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+      if (error) throw error;
+      setNotice(
+        "أرسلنا رابط الاستعادة إن كان البريد مسجلًا. افتحه على هذا الهاتف للعودة إلى MemoFlow.",
+      );
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "تعذر إرسال رابط الاستعادة");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const updatePassword = async () => {
+    setError(null);
+    setNotice(null);
+    if (password.length < 8) {
+      setError("كلمة المرور الجديدة يجب ألا تقل عن 8 أحرف");
+      return;
+    }
+    if (password !== repeatPassword) {
+      setError("كلمتا المرور غير متطابقتين");
+      return;
+    }
+    setBusy("reset");
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      setPassword("");
+      setRepeatPassword("");
+      await router.invalidate();
+      await navigate({ to: "/" });
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "تعذر تحديث كلمة المرور");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const oauth = async (provider: "google" | "apple") => {
     setError(null);
     setBusy(provider);
@@ -138,9 +234,11 @@ function AuthPage() {
     <main className="min-h-dvh bg-background gradient-soft px-4 py-6 sm:px-5 sm:py-10 flex items-center justify-center">
       <div className="w-full max-w-md">
         <div className="mb-5 text-center sm:mb-8">
-          <div className="mx-auto grid size-14 place-items-center rounded-2xl gradient-primary text-2xl text-primary-foreground shadow-fab sm:size-16 sm:rounded-3xl sm:text-3xl">
-            📝
-          </div>
+          <img
+            src="/icon.svg"
+            alt=""
+            className="mx-auto size-14 rounded-2xl shadow-fab sm:size-16 sm:rounded-3xl"
+          />
           <h1 className="mt-3 text-2xl font-extrabold tracking-tight sm:mt-4 sm:text-3xl">
             MemoFlow
           </h1>
@@ -148,101 +246,215 @@ function AuthPage() {
         </div>
 
         <div className="rounded-2xl bg-card p-5 shadow-elevated sm:rounded-3xl sm:p-6">
-          <div className="mb-5 grid grid-cols-2 gap-1 rounded-xl bg-secondary p-1 text-sm font-bold">
-            <button
-              onClick={() => setMode("signin")}
-              className={`rounded-lg py-2 transition-colors ${mode === "signin" ? "bg-card text-foreground shadow-card" : "text-muted-foreground"}`}
-            >
-              تسجيل الدخول
-            </button>
-            <button
-              onClick={() => setMode("signup")}
-              className={`rounded-lg py-2 transition-colors ${mode === "signup" ? "bg-card text-foreground shadow-card" : "text-muted-foreground"}`}
-            >
-              حساب جديد
-            </button>
-          </div>
+          {handoffUrl ? (
+            <div className="py-3 text-center">
+              <Loader2 className="mx-auto size-6 animate-spin text-primary" />
+              <h2 className="mt-4 text-lg font-bold">العودة إلى تطبيق MemoFlow</h2>
+              <p className="mt-2 text-xs leading-6 text-muted-foreground">
+                إذا لم يُفتح التطبيق تلقائيًا، استخدم الزر التالي.
+              </p>
+              <a
+                href={handoffUrl}
+                className="mt-4 flex min-h-12 items-center justify-center rounded-2xl bg-primary px-4 text-sm font-bold text-primary-foreground"
+              >
+                فتح MemoFlow
+              </a>
+            </div>
+          ) : mode === "forgot" ? (
+            <div>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("signin");
+                  setError(null);
+                  setNotice(null);
+                }}
+                className="flex items-center gap-2 text-xs text-muted-foreground"
+              >
+                <ArrowRight className="size-4" /> العودة لتسجيل الدخول
+              </button>
+              <KeyRound className="mx-auto mt-4 size-8 text-primary" />
+              <h2 className="mt-3 text-center text-lg font-bold">استعادة كلمة المرور</h2>
+              <p className="mt-2 text-center text-xs leading-6 text-muted-foreground">
+                سنرسل رابطًا آمنًا إلى بريدك، ثم يعيدك إلى التطبيق لاختيار كلمة مرور جديدة.
+              </p>
+              <Field
+                label="البريد الإلكتروني"
+                icon={<Mail className="size-4 text-muted-foreground" />}
+              >
+                <input
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@example.com"
+                  className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
+                  dir="ltr"
+                />
+              </Field>
+              <AuthMessage error={error} notice={notice} callbackBusy={false} />
+              <button
+                type="button"
+                onClick={requestPasswordReset}
+                disabled={busy !== null || !email.trim()}
+                className="mt-4 flex min-h-12 w-full items-center justify-center rounded-2xl bg-primary px-4 text-sm font-bold text-primary-foreground disabled:opacity-40"
+              >
+                {busy === "recovery" ? (
+                  <Loader2 className="size-5 animate-spin" />
+                ) : (
+                  "إرسال رابط الاستعادة"
+                )}
+              </button>
+            </div>
+          ) : mode === "reset" ? (
+            <div>
+              <KeyRound className="mx-auto size-8 text-primary" />
+              <h2 className="mt-3 text-center text-lg font-bold">كلمة مرور جديدة</h2>
+              <p className="mt-2 text-center text-xs leading-6 text-muted-foreground">
+                اختر كلمة قوية لا تقل عن 8 أحرف.
+              </p>
+              <Field
+                label="كلمة المرور الجديدة"
+                icon={<Lock className="size-4 text-muted-foreground" />}
+              >
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className="w-full bg-transparent text-sm outline-none"
+                  dir="ltr"
+                />
+              </Field>
+              <Field
+                label="تأكيد كلمة المرور"
+                icon={<Lock className="size-4 text-muted-foreground" />}
+              >
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={repeatPassword}
+                  onChange={(event) => setRepeatPassword(event.target.value)}
+                  className="w-full bg-transparent text-sm outline-none"
+                  dir="ltr"
+                />
+              </Field>
+              <AuthMessage error={error} notice={notice} callbackBusy={busy === "callback"} />
+              <button
+                type="button"
+                onClick={updatePassword}
+                disabled={busy !== null || password.length < 8 || password !== repeatPassword}
+                className="mt-4 flex min-h-12 w-full items-center justify-center rounded-2xl bg-primary px-4 text-sm font-bold text-primary-foreground disabled:opacity-40"
+              >
+                {busy === "reset" ? <Loader2 className="size-5 animate-spin" /> : "حفظ كلمة المرور"}
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="mb-5 grid grid-cols-2 gap-1 rounded-xl bg-secondary p-1 text-sm font-bold">
+                <button
+                  type="button"
+                  onClick={() => setMode("signin")}
+                  className={`rounded-lg py-2 transition-colors ${mode === "signin" ? "bg-card text-foreground shadow-card" : "text-muted-foreground"}`}
+                >
+                  تسجيل الدخول
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("signup")}
+                  className={`rounded-lg py-2 transition-colors ${mode === "signup" ? "bg-card text-foreground shadow-card" : "text-muted-foreground"}`}
+                >
+                  حساب جديد
+                </button>
+              </div>
 
-          {mode === "signup" && (
-            <Field label="الاسم">
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="اسمك الكامل"
-                className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
-              />
-            </Field>
+              {mode === "signup" && (
+                <Field label="الاسم">
+                  <input
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder="اسمك الكامل"
+                    className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
+                  />
+                </Field>
+              )}
+              <Field
+                label="البريد الإلكتروني"
+                icon={<Mail className="size-4 text-muted-foreground" />}
+              >
+                <input
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@example.com"
+                  className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
+                  dir="ltr"
+                />
+              </Field>
+              <Field label="كلمة المرور" icon={<Lock className="size-4 text-muted-foreground" />}>
+                <input
+                  type="password"
+                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
+                  dir="ltr"
+                />
+              </Field>
+              <AuthMessage error={error} notice={notice} callbackBusy={busy === "callback"} />
+              <button
+                type="button"
+                onClick={onEmail}
+                disabled={busy !== null || !email || !password}
+                className="mt-4 grid min-h-12 w-full place-items-center rounded-2xl gradient-primary px-4 text-sm font-bold text-primary-foreground shadow-fab disabled:opacity-60"
+              >
+                {busy === "email" ? (
+                  <Loader2 className="size-5 animate-spin" />
+                ) : mode === "signup" ? (
+                  "إنشاء الحساب"
+                ) : (
+                  "دخول"
+                )}
+              </button>
+              {mode === "signin" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("forgot");
+                    setError(null);
+                    setNotice(null);
+                    setPassword("");
+                  }}
+                  className="mx-auto mt-3 block text-xs font-medium text-primary"
+                >
+                  نسيت كلمة المرور؟
+                </button>
+              )}
+              <div className="my-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-[11px] text-muted-foreground">
+                <span className="h-px bg-border" />
+                <span>أو</span>
+                <span className="h-px bg-border" />
+              </div>
+              <div className="grid gap-2">
+                <OAuthBtn
+                  onClick={() => oauth("google")}
+                  busy={busy === "google"}
+                  disabled={busy !== null}
+                >
+                  <GoogleIcon /> المتابعة عبر Google
+                </OAuthBtn>
+                <OAuthBtn
+                  onClick={() => oauth("apple")}
+                  busy={busy === "apple"}
+                  disabled={busy !== null}
+                >
+                  <AppleIcon /> المتابعة عبر Apple
+                </OAuthBtn>
+              </div>
+            </>
           )}
-          <Field label="البريد الإلكتروني" icon={<Mail className="size-4 text-muted-foreground" />}>
-            <input
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
-              dir="ltr"
-            />
-          </Field>
-          <Field label="كلمة المرور" icon={<Lock className="size-4 text-muted-foreground" />}>
-            <input
-              type="password"
-              autoComplete={mode === "signup" ? "new-password" : "current-password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
-              dir="ltr"
-            />
-          </Field>
-
-          {error && (
-            <p className="mt-2 rounded-lg bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive">
-              {error}
-            </p>
-          )}
-          {busy === "callback" && (
-            <p className="mt-2 rounded-lg bg-primary-soft px-3 py-2 text-xs font-semibold text-primary">
-              جارٍ إكمال تسجيل الدخول داخل التطبيق…
-            </p>
-          )}
-
-          <button
-            onClick={onEmail}
-            disabled={busy !== null || !email || !password}
-            className="mt-4 grid w-full place-items-center rounded-2xl gradient-primary py-3.5 text-sm font-bold text-primary-foreground shadow-fab disabled:opacity-60"
-          >
-            {busy === "email" ? (
-              <Loader2 className="size-5 animate-spin" />
-            ) : mode === "signup" ? (
-              "إنشاء الحساب"
-            ) : (
-              "دخول"
-            )}
-          </button>
-
-          <div className="my-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-[11px] text-muted-foreground">
-            <span className="h-px bg-border" />
-            <span>أو</span>
-            <span className="h-px bg-border" />
-          </div>
-
-          <div className="grid gap-2">
-            <OAuthBtn
-              onClick={() => oauth("google")}
-              busy={busy === "google"}
-              disabled={busy !== null}
-            >
-              <GoogleIcon /> المتابعة عبر Google
-            </OAuthBtn>
-            <OAuthBtn
-              onClick={() => oauth("apple")}
-              busy={busy === "apple"}
-              disabled={busy !== null}
-            >
-              <AppleIcon /> المتابعة عبر Apple
-            </OAuthBtn>
-          </div>
         </div>
 
         <p className="mt-5 text-center text-[11px] text-muted-foreground">
@@ -250,6 +462,36 @@ function AuthPage() {
         </p>
       </div>
     </main>
+  );
+}
+
+function AuthMessage({
+  error,
+  notice,
+  callbackBusy,
+}: {
+  error: string | null;
+  notice: string | null;
+  callbackBusy: boolean;
+}) {
+  return (
+    <>
+      {error && (
+        <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive">
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p className="mt-3 rounded-lg bg-primary-soft px-3 py-2 text-xs font-semibold text-primary">
+          {notice}
+        </p>
+      )}
+      {callbackBusy && (
+        <p className="mt-3 rounded-lg bg-primary-soft px-3 py-2 text-xs font-semibold text-primary">
+          جارٍ إكمال العملية داخل التطبيق…
+        </p>
+      )}
+    </>
   );
 }
 

@@ -7,6 +7,9 @@ const config: CapacitorConfig = {
   appId: "app.lovable.c357f296dbad4d33991e76d86c92e6d0",
   appName: "MemoFlow",
   webDir: ".output/public",
+  // Plugin calls carry PINs and encrypted backup payloads; never mirror their
+  // arguments into Android logcat, including in test/debug APKs.
+  loggingBehavior: "none",
   android: { allowMixedContent: false },
   ios: { contentInset: "always" },
   plugins: {

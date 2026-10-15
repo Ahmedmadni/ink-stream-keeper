@@ -22,6 +22,8 @@ public class MemoFlowAuthPluginTest {
     public void acceptsOnlyTheExactMemoFlowCallback() {
         assertTrue(MemoFlowAuthPlugin.isAuthCallback(
                 "app.lovable.c357f296dbad4d33991e76d86c92e6d0://auth/callback?state=abc"));
+        assertTrue(MemoFlowAuthPlugin.isAuthCallback(
+                "app.lovable.c357f296dbad4d33991e76d86c92e6d0://auth/recovery#type=recovery"));
         assertFalse(MemoFlowAuthPlugin.isAuthCallback(
                 "app.lovable.c357f296dbad4d33991e76d86c92e6d0://evil/callback?state=abc"));
         assertFalse(MemoFlowAuthPlugin.isAuthCallback(

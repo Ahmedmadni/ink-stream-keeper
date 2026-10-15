@@ -10,6 +10,7 @@ import { requestNotificationPermission } from "@/hooks/use-task-reminders";
 import { lockVault } from "@/lib/vault";
 import { toast } from "sonner";
 import { BackupPanel } from "@/features/backup/BackupPanel";
+import { AppLockSettings } from "@/components/AppLockSettings";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "MemoFlow — الإعدادات" }] }),
@@ -99,6 +100,7 @@ function SettingsPage() {
           <ChevronLeft className="size-4 text-muted-foreground" />
         </button>
       </Group>
+      <AppLockSettings />
       <BackupPanel />
       <Group title="بياناتك السابقة">
         <details className="p-4">
