@@ -58,7 +58,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           id="main"
           className="min-w-0 pb-[calc(env(safe-area-inset-bottom)+6rem)] safe-x md:pb-12"
         >
-          <div className="mx-auto flex max-w-3xl items-center justify-between px-5 pt-[max(env(safe-area-inset-top),1rem)] md:pt-8">
+          <div className="mx-auto flex max-w-3xl items-center justify-between px-4 pt-[max(env(safe-area-inset-top),0.75rem)] sm:px-5 md:pt-8">
             <Link
               to="/notes"
               className="text-sm font-semibold tracking-wide text-muted-foreground"
@@ -83,7 +83,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         aria-label="التنقل الرئيسي"
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/90 backdrop-blur-xl safe-bottom safe-x md:hidden"
       >
-        <div className="mx-auto grid max-w-lg grid-cols-3 gap-2 px-4 py-2">
+        <div className="mx-auto grid max-w-lg grid-cols-3 gap-1.5 px-3 py-1.5 sm:gap-2 sm:px-4 sm:py-2">
           {nav.map(({ to, label, icon: Icon }) => {
             const active = pathname.startsWith(to);
             return (
@@ -114,9 +114,9 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <header className="flex items-center justify-between gap-3 px-5 pb-6 pt-4">
+    <header className="flex items-center justify-between gap-3 px-4 pb-4 pt-3 sm:px-5 sm:pb-6 sm:pt-4">
       <div className="min-w-0">
-        <h1 className="text-3xl font-semibold leading-relaxed">{title}</h1>
+        <h1 className="text-[clamp(1.4rem,6vw,1.875rem)] font-semibold leading-tight">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
       </div>
       {action}

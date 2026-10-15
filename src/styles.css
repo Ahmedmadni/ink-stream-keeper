@@ -158,6 +158,11 @@
 
   html {
     font-family: var(--font-sans);
+    /* Scale the complete rem-based interface smoothly from compact Android
+       phones to larger screens, while disabling WebView text inflation. */
+    font-size: clamp(14px, 3.8vw, 16px);
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   body {
@@ -166,6 +171,7 @@
     background-attachment: fixed;
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
