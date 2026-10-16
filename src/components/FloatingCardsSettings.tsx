@@ -15,24 +15,40 @@ import {
 function useItems(): FloatingItem[] {
   const { data: tasks } = useTasks();
   const { data: notes } = useNotes();
-  const t = (tasks ?? []).filter((x) => !x.done).slice(0, 4).map((x) => ({ kind: "task" as const, title: x.title }));
-  const n = (notes ?? []).slice(0, 2).map((x) => ({ kind: "note" as const, title: x.title || "ملاحظة" }));
+  const t = (tasks ?? [])
+    .filter((x) => !x.done)
+    .slice(0, 4)
+    .map((x) => ({ kind: "task" as const, title: x.title }));
+  const n = (notes ?? [])
+    .slice(0, 2)
+    .map((x) => ({ kind: "note" as const, title: x.title || "ملاحظة" }));
   return [...t, ...n];
 }
 
 export function FloatingCardsSettings() {
   const items = useItems();
   const [preview, setPreview] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   async function startNative() {
-    let ok = await floatingPermission();
-    if (!ok) {
-      toast("فعّل «الظهور فوق التطبيقات الأخرى» لـ MemoFlow ثم ارجع واضغط مرة أخرى");
-      ok = await requestFloatingPermission();
-      if (!ok) return;
+    setBusy(true);
+    try {
+      let ok = await floatingPermission();
+      if (!ok) {
+        toast("فعّل «الظهور فوق التطبيقات الأخرى» ثم ارجع إلى MemoFlow");
+        ok = await requestFloatingPermission();
+        if (!ok) {
+          toast.info("لم يُمنح إذن البطاقة العائمة.");
+          return;
+        }
+      }
+      await showFloating(items);
+      toast.success("ظهرت البطاقة العائمة");
+    } catch {
+      toast.error("تعذر إظهار البطاقة العائمة.");
+    } finally {
+      setBusy(false);
     }
-    await showFloating(items);
-    toast.success("ظهرت البطاقة العائمة");
   }
 
   return (
@@ -42,21 +58,42 @@ export function FloatingCardsSettings() {
         <div className="flex-1">
           <p className="text-sm font-medium">بطاقات عائمة</p>
           <p className="text-xs text-muted-foreground">
-            {floatingSupported() ? "تظهر فوق التطبيقات الأخرى (يحتاج إذناً خاصاً)" : "على أندرويد تظهر فوق التطبيقات الأخرى — جرّب النموذج هنا"}
+            {floatingSupported()
+              ? "تظهر فوق التطبيقات الأخرى (يحتاج إذناً خاصاً)"
+              : "على أندرويد تظهر فوق التطبيقات الأخرى — جرّب النموذج هنا"}
           </p>
         </div>
         {floatingSupported() ? (
           <div className="flex gap-2">
-            <button onClick={startNative} className="rounded-full bg-primary px-3 py-1.5 text-xs text-primary-foreground">إظهار</button>
-            <button onClick={() => hideFloating()} className="rounded-full border border-border px-3 py-1.5 text-xs">إخفاء</button>
+            <button
+              disabled={busy}
+              onClick={startNative}
+              className="rounded-full bg-primary px-3 py-1.5 text-xs text-primary-foreground disabled:opacity-50"
+            >
+              {busy ? "جارٍ الفتح…" : "إظهار"}
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => void hideFloating().catch(() => toast.error("تعذر إخفاء البطاقة."))}
+              className="rounded-full border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+            >
+              إخفاء
+            </button>
           </div>
         ) : (
-          <button onClick={() => setPreview((v) => !v)} className="rounded-full bg-primary px-3 py-1.5 text-xs text-primary-foreground">
+          <button
+            onClick={() => setPreview((v) => !v)}
+            className="rounded-full bg-primary px-3 py-1.5 text-xs text-primary-foreground"
+          >
             {preview ? "إخفاء النموذج" : "عرض النموذج"}
           </button>
         )}
       </div>
-      {preview && createPortal(<FloatingPreview items={items} onClose={() => setPreview(false)} />, document.body)}
+      {preview &&
+        createPortal(
+          <FloatingPreview items={items} onClose={() => setPreview(false)} />,
+          document.body,
+        )}
     </>
   );
 }
@@ -89,7 +126,9 @@ function FloatingPreview({ items, onClose }: { items: FloatingItem[]; onClose: (
     >
       <div
         className="mb-2 flex cursor-grab items-center gap-2"
-        onPointerDown={(e) => (drag.current = { sx: e.clientX, sy: e.clientY, px: pos.x, py: pos.y })}
+        onPointerDown={(e) =>
+          (drag.current = { sx: e.clientX, sy: e.clientY, px: pos.x, py: pos.y })
+        }
       >
         <GripVertical className="size-4 text-muted-foreground" />
         <span className="flex-1 text-sm font-semibold">MemoFlow • تذكير</span>
@@ -100,10 +139,19 @@ function FloatingPreview({ items, onClose }: { items: FloatingItem[]; onClose: (
       <ul className="space-y-1.5 text-sm">
         {items.length === 0 && <li className="text-muted-foreground">لا توجد عناصر حالياً</li>}
         {items.map((it, i) => (
-          <li key={i} className="flex items-center gap-2 truncate">{it.kind === "task" ? <Circle className="size-3.5 shrink-0" /> : <FileText className="size-3.5 shrink-0" />}<span className="truncate">{it.title}</span></li>
+          <li key={i} className="flex items-center gap-2 truncate">
+            {it.kind === "task" ? (
+              <Circle className="size-3.5 shrink-0" />
+            ) : (
+              <FileText className="size-3.5 shrink-0" />
+            )}
+            <span className="truncate">{it.title}</span>
+          </li>
         ))}
       </ul>
-      <p className="mt-3 text-[11px] text-muted-foreground">اسحبها لأي مكان — هكذا تظهر فوق التطبيقات على أندرويد</p>
+      <p className="mt-3 text-[11px] text-muted-foreground">
+        اسحبها لأي مكان — هكذا تظهر فوق التطبيقات على أندرويد
+      </p>
     </div>
   );
 }

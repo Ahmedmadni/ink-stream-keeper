@@ -1,6 +1,12 @@
 export type UntypedRpcResult = {
   data: unknown;
-  error: { message: string; statusCode?: string } | null;
+  error: {
+    message: string;
+    code?: string;
+    details?: string;
+    hint?: string;
+    statusCode?: string;
+  } | null;
 };
 
 type UntypedRpcClient = {

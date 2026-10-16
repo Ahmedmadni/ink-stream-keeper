@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ErrorState } from "@/components/feedback";
@@ -24,6 +25,7 @@ import { BlockRenderer, BlockProvider } from "@/components/blocks";
 import { buildTaskBlocks, type TaskCtx } from "@/lib/engine/compositions";
 import { useSubItems, computeSubItemsProgress } from "@/lib/subitems";
 import { taskRollupPatch } from "@/features/tasks/task-rules";
+import { checkTaskChecklistBackend } from "@/features/tasks/backend-readiness";
 
 export const Route = createFileRoute("/_authenticated/tasks/$id")({
   head: ({ params }) => ({
@@ -42,9 +44,17 @@ function TaskDetail() {
   const toggle = useToggleTask();
   const remove = useDeleteTask();
   const { data: categories = [] } = useCategories();
-  const { data: checklist = [] } = useChecklist(id);
-  const { data: subs = [] } = useSubtasks(id);
-  const { data: subItems = [] } = useSubItems("task", id);
+  const checklistQuery = useChecklist(id);
+  const subtaskQuery = useSubtasks(id);
+  const subItemQuery = useSubItems("task", id);
+  const checklist = checklistQuery.data ?? [];
+  const subs = subtaskQuery.data ?? [];
+  const checklistBackend = useQuery({
+    queryKey: ["backend-readiness", "task-checklist-v1"],
+    queryFn: checkTaskChecklistBackend,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
   const update = useUpdateTask();
   const addCheck = useAddChecklistItem();
   const updCheck = useUpdateChecklistItem();
@@ -53,7 +63,7 @@ function TaskDetail() {
   const updSub = useUpdateSubtask();
   const delSub = useDeleteSubtask();
 
-  const roll = useMemo(() => computeSubItemsProgress(subItems), [subItems]);
+  const roll = useMemo(() => computeSubItemsProgress(subItemQuery.data ?? []), [subItemQuery.data]);
   const itemCount = roll.total || checklist.length + subs.length;
   const completedItemCount = roll.total
     ? roll.done
@@ -62,8 +72,10 @@ function TaskDetail() {
   const taskDone = task?.done;
   const taskStatus = task?.status;
   const taskRecurrence = task?.recurrence;
+  const rollupInputsReady =
+    checklistQuery.isSuccess && subtaskQuery.isSuccess && subItemQuery.isSuccess;
   useEffect(() => {
-    if (taskDone === undefined || !taskStatus || itemCount === 0) return;
+    if (!rollupInputsReady || taskDone === undefined || !taskStatus || itemCount === 0) return;
     // The database advances and resets recurring checklists atomically. A client
     // write based on the optimistic final check could otherwise mark the freshly
     // reset occurrence complete again.
@@ -78,6 +90,7 @@ function TaskDetail() {
     id,
     itemCount,
     roll.total,
+    rollupInputsReady,
     taskDone,
     taskProgress,
     taskRecurrence,
@@ -181,13 +194,40 @@ function TaskDetail() {
           </button>
         </header>
         <div className="space-y-4 px-4 py-5">
+          {checklistBackend.data === "missing" && (
+            <div
+              role="status"
+              className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs leading-6 text-foreground"
+            >
+              <p>
+                تحديث قاعدة البيانات الخاص بإكمال قوائم المهام لم يُفعّل بعد. يمكنك قراءة المهمة
+                وتعديلها، لكن المزامنة التلقائية بين الأجهزة لن تكون مضمونة حتى تطبيق التحديث.
+              </p>
+              <button
+                type="button"
+                disabled={checklistBackend.isFetching}
+                className="mt-2 min-h-10 rounded-xl bg-card px-3 font-semibold disabled:opacity-50"
+                onClick={() => {
+                  void checklistBackend.refetch();
+                }}
+              >
+                {checklistBackend.isFetching ? "جارٍ الفحص…" : "إعادة فحص التحديث"}
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-3 rounded-2xl bg-card p-4">
             <input
               type="checkbox"
               checked={task.done}
-              disabled={toggle.isPending || itemCount > 0}
+              disabled={toggle.isPending || !rollupInputsReady || itemCount > 0}
               aria-label="إنجاز المهمة"
-              title={itemCount > 0 ? "تُنجز المهمة تلقائيًا عند اكتمال جميع البنود" : undefined}
+              title={
+                !rollupInputsReady
+                  ? "جارٍ تحميل بنود المهمة"
+                  : itemCount > 0
+                    ? "تُنجز المهمة تلقائيًا عند اكتمال جميع البنود"
+                    : undefined
+              }
               className="size-6 shrink-0 accent-primary"
               onChange={(e) =>
                 toggle.mutate(
