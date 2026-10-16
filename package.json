@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
-    "build:native": "node scripts/clean-native-web.mjs && MEMOFLOW_NATIVE_BUILD=1 vite build && node scripts/prepare-native-web.mjs",
+    "build:native": "node scripts/clean-native-web.mjs && MEMOFLOW_NATIVE_BUILD=1 vite build && node scripts/prepare-native-web.mjs && node scripts/verify-block-registry-bundle.mjs",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
