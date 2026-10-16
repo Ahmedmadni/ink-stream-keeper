@@ -4,12 +4,14 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
+import androidx.activity.result.ActivityResult;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.ActivityCallback;
 import java.util.ArrayList;
 
 /** Shows note/task reminder cards above other apps (requires "Display over other apps"). */
@@ -29,12 +31,20 @@ public class MemoFlowFloatingPlugin extends Plugin {
 
     @PluginMethod
     public void requestPermission(PluginCall call) {
-        if (!granted()) {
-            Intent i = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:" + getContext().getPackageName()));
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            getContext().startActivity(i);
+        if (granted()) {
+            JSObject r = new JSObject();
+            r.put("granted", true);
+            call.resolve(r);
+            return;
         }
+
+        Intent i = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:" + getContext().getPackageName()));
+        startActivityForResult(call, i, "overlayPermissionResult");
+    }
+
+    @ActivityCallback
+    private void overlayPermissionResult(PluginCall call, ActivityResult ignored) {
         JSObject r = new JSObject();
         r.put("granted", granted());
         call.resolve(r);

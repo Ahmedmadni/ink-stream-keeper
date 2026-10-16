@@ -9,6 +9,7 @@ import android.os.IBinder;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.WindowManager;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -40,6 +41,7 @@ public class FloatingCardService extends Service {
         box.setElevation(12 * d);
 
         LinearLayout head = new LinearLayout(this);
+        head.setGravity(Gravity.CENTER_VERTICAL);
         TextView title = new TextView(this);
         title.setText("MemoFlow • تذكير");
         title.setTextColor(0xFF111111);
@@ -81,22 +83,48 @@ public class FloatingCardService extends Service {
         lp.x = (int) (16 * d);
         lp.y = (int) (120 * d);
 
-        box.setOnTouchListener(new View.OnTouchListener() {
-            int sx, sy; float tx, ty;
+        final int cardWidth = (int) (240 * d);
+        final int touchSlop = ViewConfiguration.get(this).getScaledTouchSlop();
+        title.setOnTouchListener(new View.OnTouchListener() {
+            int sx, sy;
+            float tx, ty;
+            boolean moved;
+
             @Override public boolean onTouch(View v, MotionEvent e) {
                 switch (e.getAction()) {
-                    case MotionEvent.ACTION_DOWN: sx = lp.x; sy = lp.y; tx = e.getRawX(); ty = e.getRawY(); return false;
+                    case MotionEvent.ACTION_DOWN:
+                        sx = lp.x;
+                        sy = lp.y;
+                        tx = e.getRawX();
+                        ty = e.getRawY();
+                        moved = false;
+                        return true;
                     case MotionEvent.ACTION_MOVE:
-                        lp.x = sx + (int) (e.getRawX() - tx);
-                        lp.y = sy + (int) (e.getRawY() - ty);
-                        wm.updateViewLayout(box, lp);
+                        int dx = (int) (e.getRawX() - tx);
+                        int dy = (int) (e.getRawY() - ty);
+                        if (Math.abs(dx) > touchSlop || Math.abs(dy) > touchSlop) moved = true;
+                        int maxX = Math.max(0, getResources().getDisplayMetrics().widthPixels - cardWidth);
+                        int maxY = Math.max(0, getResources().getDisplayMetrics().heightPixels - (int) (72 * d));
+                        lp.x = Math.max(0, Math.min(maxX, sx + dx));
+                        lp.y = Math.max(0, Math.min(maxY, sy + dy));
+                        try { wm.updateViewLayout(box, lp); } catch (Exception ignored) { }
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        if (!moved) v.performClick();
+                        return true;
+                    case MotionEvent.ACTION_CANCEL:
                         return true;
                 }
                 return false;
             }
         });
         card = box;
-        wm.addView(card, lp);
+        try {
+            wm.addView(card, lp);
+        } catch (SecurityException | WindowManager.BadTokenException denied) {
+            card = null;
+            stopSelf();
+        }
         return START_NOT_STICKY;
     }
 

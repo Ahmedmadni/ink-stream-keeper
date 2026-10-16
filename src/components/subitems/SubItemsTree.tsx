@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   ChevronLeft,
@@ -42,6 +42,8 @@ type Props = {
   onProgress?: (pct: number, done: number, total: number) => void;
 };
 
+const EMPTY_SUB_ITEMS: SubItem[] = [];
+
 export function SubItemsTree({
   parentType,
   parentId,
@@ -52,7 +54,8 @@ export function SubItemsTree({
   compact = false,
   onProgress,
 }: Props) {
-  const { data: rows = [], isLoading } = useSubItems(parentType, parentId);
+  const query = useSubItems(parentType, parentId);
+  const rows = query.data ?? EMPTY_SUB_ITEMS;
   const m = useSubItemMutations(parentType, parentId);
   const qc = useQueryClient();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -62,11 +65,14 @@ export function SubItemsTree({
 
   const tree = useMemo(() => buildTree(rows), [rows]);
   const roll = useMemo(() => computeSubItemsProgress(rows), [rows]);
-  const lastReported = useRef<number>(-1);
-  if (onProgress && roll.pct !== lastReported.current) {
-    lastReported.current = roll.pct;
-    queueMicrotask(() => onProgress(roll.pct, roll.done, roll.total));
-  }
+  const lastReported = useRef("");
+  useEffect(() => {
+    if (!onProgress || !query.isSuccess) return;
+    const signature = `${parentType}:${parentId}:${roll.pct}:${roll.done}:${roll.total}`;
+    if (signature === lastReported.current) return;
+    lastReported.current = signature;
+    onProgress(roll.pct, roll.done, roll.total);
+  }, [onProgress, parentId, parentType, query.isSuccess, roll.done, roll.pct, roll.total]);
 
   const siblingsOf = (parentItemId: string | null) =>
     rows
@@ -253,7 +259,8 @@ export function SubItemsTree({
           onCollapse={() =>
             setCollapsed((s) => {
               const n = new Set(s);
-              n.has(node.id) ? n.delete(node.id) : n.add(node.id);
+              if (n.has(node.id)) n.delete(node.id);
+              else n.add(node.id);
               return n;
             })
           }
@@ -304,15 +311,30 @@ export function SubItemsTree({
         </div>
       )}
 
-      {isLoading ? (
+      {query.isLoading ? (
         <p className="text-xs text-muted-foreground">جارٍ التحميل…</p>
+      ) : query.isError ? (
+        <div role="alert" className="rounded-xl border border-destructive/20 bg-destructive/5 p-3">
+          <p className="text-xs leading-6 text-destructive">
+            تعذر تحميل قائمة البنود. لم تُعتبر المهمة فارغة ولم تُغيّر نسبة إنجازها.
+          </p>
+          <button
+            type="button"
+            className="mt-2 min-h-10 rounded-xl bg-secondary px-3 text-xs font-semibold"
+            onClick={() => {
+              void query.refetch();
+            }}
+          >
+            إعادة المحاولة
+          </button>
+        </div>
       ) : tree.length === 0 ? (
         <p className="text-xs text-muted-foreground">لا توجد بنود بعد — ابدأ بإضافة بند بالأسفل.</p>
       ) : (
         <ul className="space-y-1.5">{tree.map(renderNode)}</ul>
       )}
 
-      {!readonly && (
+      {!readonly && !query.isError && (
         <form
           onSubmit={async (e) => {
             e.preventDefault();
@@ -469,7 +491,8 @@ const Row = memo(function Row(p: RowProps) {
               }
               if (e.key === "Tab" && !p.compact) {
                 e.preventDefault();
-                e.shiftKey ? p.onOutdent() : p.onIndent();
+                if (e.shiftKey) p.onOutdent();
+                else p.onIndent();
               }
             }}
             className={cn(

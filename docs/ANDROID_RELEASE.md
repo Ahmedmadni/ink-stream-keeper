@@ -74,6 +74,14 @@ or resumes and the last successful copy is at least 24 hours old.
 - This is a foreground/resume schedule, not a claim that a killed WebView can export in the
   background. The app never stores the backup password as plaintext preferences.
 
+## Floating reminder card
+
+Settings can show a draggable reminder card above other Android apps. The first action opens the
+system's per-app overlay permission screen and resumes the same request when the user returns; a
+second tap is not required. Drag the card by its title, tap the title to reopen MemoFlow, or use the
+close action to stop the overlay. This is an optional visibility feature and does not replace task
+notifications.
+
 ## Prepare a Play Store release
 
 1. Run `bun run android:sync`. This cleans stale assets, builds the native SPA,
