@@ -1,7 +1,16 @@
 import { Suspense, useEffect, useRef, useState, type ComponentType } from "react";
-import { orderedBlocks, getBlockEntry, type BlockComposition, type BlockRendererProps } from "@/lib/engine/blocks";
+import {
+  orderedBlocks,
+  getBlockEntry,
+  type BlockComposition,
+  type BlockRendererProps,
+} from "@/lib/engine/blocks";
 import { BlockChrome } from "./BlockChrome";
-import "./registry"; // ensure blocks are registered
+import { ensureBlockRegistry } from "./registry";
+
+// Keep this as an explicit function call. A side-effect-only import is removed
+// from production builds because package.json declares `sideEffects: false`.
+ensureBlockRegistry();
 
 /**
  * BlockRenderer — reads an ordered composition of blocks and renders
@@ -9,7 +18,8 @@ import "./registry"; // ensure blocks are registered
  * into view (IntersectionObserver).
  */
 export function BlockRenderer<Ctx>({
-  blocks, context,
+  blocks,
+  context,
 }: {
   blocks: BlockComposition<Ctx>;
   context: Ctx;
@@ -27,7 +37,9 @@ export function BlockRenderer<Ctx>({
           );
         }
         const title = block.title ?? entry.title;
-        const Comp = entry.component as ComponentType<BlockRendererProps<any, Ctx>>;
+        const Comp = entry.component as ComponentType<
+          BlockRendererProps<Record<string, unknown>, Ctx>
+        >;
         const isLazy = block.lazy ?? entry.defaultLazy;
         return (
           <BlockChrome key={block.id} block={block} title={title}>
@@ -53,12 +65,27 @@ function LazyMount({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const el = ref.current;
     if (!el || shown) return;
-    if (typeof IntersectionObserver === "undefined") { setShown(true); return; }
-    const io = new IntersectionObserver((entries) => {
-      for (const e of entries) if (e.isIntersecting) { setShown(true); io.disconnect(); break; }
-    }, { rootMargin: "200px" });
+    if (typeof IntersectionObserver === "undefined") {
+      setShown(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries)
+          if (e.isIntersecting) {
+            setShown(true);
+            io.disconnect();
+            break;
+          }
+      },
+      { rootMargin: "200px" },
+    );
     io.observe(el);
     return () => io.disconnect();
   }, [shown]);
-  return <div ref={ref}>{shown ? children : <div className="h-12 animate-pulse rounded-xl bg-muted/30" />}</div>;
+  return (
+    <div ref={ref}>
+      {shown ? children : <div className="h-12 animate-pulse rounded-xl bg-muted/30" />}
+    </div>
+  );
 }
