@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Layers, X, GripVertical } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Layers, X, GripVertical, Circle, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useNotes, useTasks } from "@/lib/data";
 import {
@@ -55,7 +56,7 @@ export function FloatingCardsSettings() {
           </button>
         )}
       </div>
-      {preview && <FloatingPreview items={items} onClose={() => setPreview(false)} />}
+      {preview && createPortal(<FloatingPreview items={items} onClose={() => setPreview(false)} />, document.body)}
     </>
   );
 }
@@ -99,7 +100,7 @@ function FloatingPreview({ items, onClose }: { items: FloatingItem[]; onClose: (
       <ul className="space-y-1.5 text-sm">
         {items.length === 0 && <li className="text-muted-foreground">لا توجد عناصر حالياً</li>}
         {items.map((it, i) => (
-          <li key={i} className="truncate">{it.kind === "task" ? "☐ " : "📝 "}{it.title}</li>
+          <li key={i} className="flex items-center gap-2 truncate">{it.kind === "task" ? <Circle className="size-3.5 shrink-0" /> : <FileText className="size-3.5 shrink-0" />}<span className="truncate">{it.title}</span></li>
         ))}
       </ul>
       <p className="mt-3 text-[11px] text-muted-foreground">اسحبها لأي مكان — هكذا تظهر فوق التطبيقات على أندرويد</p>
