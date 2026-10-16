@@ -13,15 +13,34 @@ import { SubItemsBlock } from "./blocks/SubItemsBlock";
 import { CalendarBlock } from "./blocks/CalendarBlock";
 import { CustomBlock } from "./blocks/CustomBlock";
 
-const TimelineBlock = lazy(() => import("./blocks/TimelineBlock").then((m) => ({ default: m.TimelineBlock })));
-const GalleryBlock = lazy(() => import("./blocks/GalleryBlock").then((m) => ({ default: m.GalleryBlock })));
-const AttachmentsBlock = lazy(() => import("./blocks/AttachmentsBlock").then((m) => ({ default: m.AttachmentsBlock })));
-const CommentsBlock = lazy(() => import("./blocks/CommentsBlock").then((m) => ({ default: m.CommentsBlock })));
-const RecentActivityBlock = lazy(() => import("./blocks/RecentActivityBlock").then((m) => ({ default: m.RecentActivityBlock })));
-const RelatedItemsBlock = lazy(() => import("./blocks/RelatedItemsBlock").then((m) => ({ default: m.RelatedItemsBlock })));
+const TimelineBlock = lazy(() =>
+  import("./blocks/TimelineBlock").then((m) => ({ default: m.TimelineBlock })),
+);
+const GalleryBlock = lazy(() =>
+  import("./blocks/GalleryBlock").then((m) => ({ default: m.GalleryBlock })),
+);
+const AttachmentsBlock = lazy(() =>
+  import("./blocks/AttachmentsBlock").then((m) => ({ default: m.AttachmentsBlock })),
+);
+const CommentsBlock = lazy(() =>
+  import("./blocks/CommentsBlock").then((m) => ({ default: m.CommentsBlock })),
+);
+const RecentActivityBlock = lazy(() =>
+  import("./blocks/RecentActivityBlock").then((m) => ({ default: m.RecentActivityBlock })),
+);
+const RelatedItemsBlock = lazy(() =>
+  import("./blocks/RelatedItemsBlock").then((m) => ({ default: m.RelatedItemsBlock })),
+);
 
 let registered = false;
-function ensureRegistered() {
+/**
+ * Register every built-in block renderer.
+ *
+ * This must be called explicitly by BlockRenderer. The project declares
+ * `sideEffects: false`, so a bare `import "./registry"` is removed from the
+ * production/native bundle and leaves the renderer map empty.
+ */
+export function ensureBlockRegistry() {
   if (registered) return;
   registered = true;
   registerBlock("header", { component: HeaderBlock });
@@ -36,13 +55,26 @@ function ensureRegistered() {
   registerBlock("sub_items", { title: "التقسيم الفرعي", component: SubItemsBlock });
   registerBlock("calendar", { title: "التقويم", component: CalendarBlock });
   registerBlock("custom", { component: CustomBlock });
-  registerBlock("timeline", { title: "المسار الزمني", component: TimelineBlock, defaultLazy: true });
+  registerBlock("timeline", {
+    title: "المسار الزمني",
+    component: TimelineBlock,
+    defaultLazy: true,
+  });
   registerBlock("gallery", { title: "المعرض", component: GalleryBlock, defaultLazy: true });
-  registerBlock("attachments", { title: "المرفقات", component: AttachmentsBlock, defaultLazy: true });
+  registerBlock("attachments", {
+    title: "المرفقات",
+    component: AttachmentsBlock,
+    defaultLazy: true,
+  });
   registerBlock("comments", { title: "التعليقات", component: CommentsBlock, defaultLazy: true });
-  registerBlock("recent_activity", { title: "النشاط الأخير", component: RecentActivityBlock, defaultLazy: true });
-  registerBlock("related_items", { title: "عناصر مرتبطة", component: RelatedItemsBlock, defaultLazy: true });
+  registerBlock("recent_activity", {
+    title: "النشاط الأخير",
+    component: RecentActivityBlock,
+    defaultLazy: true,
+  });
+  registerBlock("related_items", {
+    title: "عناصر مرتبطة",
+    component: RelatedItemsBlock,
+    defaultLazy: true,
+  });
 }
-
-ensureRegistered();
-export {};
