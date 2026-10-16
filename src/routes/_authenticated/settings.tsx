@@ -11,6 +11,7 @@ import { lockVault } from "@/lib/vault";
 import { toast } from "sonner";
 import { BackupPanel } from "@/features/backup/BackupPanel";
 import { AppLockSettings } from "@/components/AppLockSettings";
+import { FloatingCardsSettings } from "@/components/FloatingCardsSettings";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "MemoFlow — الإعدادات" }] }),
@@ -60,6 +61,7 @@ function SettingsPage() {
         </div>
       </Group>
       <Group title="الخزنة والتذكيرات">
+        <FloatingCardsSettings />
         <Link
           to="/vault"
           onClick={() => lockVault()}
