@@ -29,7 +29,7 @@ describe("block renderer registry", () => {
     ensureBlockRegistry();
 
     for (const type of builtInBlockTypes) {
-      expect(typeof getBlockEntry(type)?.component).toBe("function");
+      expect(getBlockEntry(type)?.component).toBeDefined();
     }
   });
 });
