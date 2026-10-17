@@ -1,5 +1,23 @@
 export type DatedTask = { title: string; done: boolean; due_at: string | null; priority: string };
 export type TaskFilter = "all" | "today" | "upcoming" | "done";
+export type TaskItemSummary = { done: number; total: number; progress: number };
+
+/** Current checklist rows take precedence so legacy rows are never double-counted. */
+export function summarizeTaskItems(
+  current: { taskId: string; done: boolean }[],
+  legacy: { taskId: string; done: boolean }[],
+): Record<string, TaskItemSummary> {
+  const result: Record<string, TaskItemSummary> = {};
+  const currentParents = new Set(current.map((row) => row.taskId));
+  for (const row of [...current, ...legacy.filter((item) => !currentParents.has(item.taskId))]) {
+    const summary = (result[row.taskId] ??= { done: 0, total: 0, progress: 0 });
+    summary.total += 1;
+    if (row.done) summary.done += 1;
+  }
+  for (const summary of Object.values(result))
+    summary.progress = Math.round((summary.done / summary.total) * 100);
+  return result;
+}
 
 export function localDayKey(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");

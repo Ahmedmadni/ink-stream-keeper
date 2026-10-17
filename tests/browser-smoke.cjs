@@ -305,6 +305,14 @@ const vaultEntries = [
     await page.getByText("مراجعة الحسابات", { exact: true }).waitFor();
     await page.getByRole("heading", { name: "العمل", exact: true }).waitFor();
     await page.getByText("1 من 2", { exact: true }).waitFor();
+    assert.equal(
+      await page
+        .getByRole("checkbox", {
+          name: "تكتمل شراء المستلزمات تلقائيًا بعد إنجاز جميع البنود",
+        })
+        .isDisabled(),
+      true,
+    );
     assert.equal(await page.getByText("التقسيم الهرمي", { exact: true }).count(), 0);
     await page.getByRole("searchbox", { name: "بحث في المهام" }).fill("الحسابات");
     assert.equal(await page.getByText("شراء المستلزمات", { exact: true }).count(), 0);
@@ -322,7 +330,7 @@ const vaultEntries = [
     await page.getByText("المواعيد وتفاصيل إضافية", { exact: true }).click();
     assert.ok(await page.getByLabel("موعد التذكير", { exact: true }).isVisible());
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
-    await page.getByText("قائمة التحقق الفرعية", { exact: true }).waitFor();
+    await page.getByText("بنود المهمة", { exact: true }).waitFor();
     assert.equal(await page.getByLabel("إنجاز المهمة").isDisabled(), true);
     await page.getByRole("checkbox", { name: "تبديل الإنجاز" }).last().click();
     await page

@@ -94,7 +94,7 @@ function CreateForm({
             });
             if (items.trim()) {
               try {
-                await createSubItemsFromOutline("task", task.id, items);
+                await createSubItemsFromOutline("task", task.id, items, { flat: true });
               } catch {
                 toast.error("حُفظت المهمة، لكن تعذر حفظ بعض البنود. أضفها من صفحة المهمة.");
               }
@@ -182,7 +182,7 @@ function CreateForm({
             </div>
           )}
           <label className="block text-sm text-muted-foreground" htmlFor="task-items">
-            قائمة التحقق الفرعية
+            بنود المهمة
           </label>
           <textarea
             id="task-items"

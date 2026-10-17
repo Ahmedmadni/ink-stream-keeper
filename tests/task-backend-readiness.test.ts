@@ -2,10 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { taskChecklistBackendStatus } from "../src/features/tasks/backend-readiness";
 
 describe("task checklist backend readiness", () => {
-  test("accepts the installed read-only recurrence helper", () => {
-    expect(taskChecklistBackendStatus({ data: "2026-01-01T00:00:00+00:00", error: null })).toBe(
-      "ready",
-    );
+  test("accepts the installed parent-completion guard", () => {
+    expect(taskChecklistBackendStatus({ data: true, error: null })).toBe("ready");
+  });
+
+  test("requires the guard trigger, not only a callable probe", () => {
+    expect(taskChecklistBackendStatus({ data: false, error: null })).toBe("missing");
   });
 
   test("distinguishes a missing migration from a network failure", () => {

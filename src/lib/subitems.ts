@@ -342,14 +342,14 @@ export function buildTree(rows: SubItem[]): SubItemNode[] {
   return roots;
 }
 /** تحويل نص مخطّط (Outline) إلى قائمة بنود بمستوياتها. */
-export function parseOutline(outline: string): { depth: number; title: string }[] {
+export function parseOutline(outline: string, flat = false): { depth: number; title: string }[] {
   const out: { depth: number; title: string }[] = [];
   for (const raw of outline.split("\n")) {
     if (!raw.trim()) continue;
     const indent = raw.match(/^[\t ]*/)?.[0] ?? "";
     const tabs = (indent.match(/\t/g) ?? []).length;
     const spaces = indent.replace(/\t/g, "").length;
-    const depth = Math.min(tabs + Math.floor(spaces / 2), MAX_SUBITEM_DEPTH);
+    const depth = flat ? 0 : Math.min(tabs + Math.floor(spaces / 2), MAX_SUBITEM_DEPTH);
     const title = raw
       .trim()
       .replace(/^[-*•]\s*/, "")
@@ -368,13 +368,19 @@ export async function createSubItemsFromOutline(
   parentType: SubItemParentType,
   parentId: string,
   outline: string,
-  opts: { baseDepth?: number; baseParentId?: string | null; startPosition?: number } = {},
+  opts: {
+    baseDepth?: number;
+    baseParentId?: string | null;
+    startPosition?: number;
+    /** Task checklists stay intentionally flat; other item types may use a tree. */
+    flat?: boolean;
+  } = {},
 ): Promise<number> {
   const { data: auth } = await supabase.auth.getUser();
   const uid = auth.user?.id;
   if (!uid) throw new Error("unauthenticated");
 
-  const lines = parseOutline(outline);
+  const lines = parseOutline(outline, opts.flat);
   if (!lines.length) return 0;
 
   const baseDepth = opts.baseDepth ?? 0;
@@ -383,9 +389,10 @@ export async function createSubItemsFromOutline(
   let created = 0;
 
   for (const line of lines) {
-    const depth = Math.min(line.depth + baseDepth, MAX_SUBITEM_DEPTH);
-    const parentItemId =
-      depth > baseDepth
+    const depth = opts.flat ? baseDepth : Math.min(line.depth + baseDepth, MAX_SUBITEM_DEPTH);
+    const parentItemId = opts.flat
+      ? (opts.baseParentId ?? null)
+      : depth > baseDepth
         ? (stack[depth - 1] ?? opts.baseParentId ?? null)
         : (opts.baseParentId ?? null);
     counters[depth] =

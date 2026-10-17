@@ -264,8 +264,8 @@ function TaskDetail() {
                 block.id === "sub_items"
                   ? {
                       ...block,
-                      title: "قائمة التحقق الفرعية",
-                      props: { ...block.props, title: "قائمة التحقق الفرعية" },
+                      title: "بنود المهمة",
+                      props: { ...block.props, title: "بنود المهمة" },
                     }
                   : block,
               )}

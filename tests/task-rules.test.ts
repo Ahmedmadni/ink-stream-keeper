@@ -3,6 +3,7 @@ import {
   advanceTaskDate,
   localDayKey,
   matchesTask,
+  summarizeTaskItems,
   taskCompletionPatch,
   taskRollupPatch,
 } from "../src/features/tasks/task-rules";
@@ -73,6 +74,23 @@ describe("task checklist semantics", () => {
       progress: 0,
       done: false,
       status: "in_progress",
+    });
+  });
+  test("current checklist summaries replace rather than duplicate legacy rows", () => {
+    expect(
+      summarizeTaskItems(
+        [
+          { taskId: "current", done: true },
+          { taskId: "current", done: false },
+        ],
+        [
+          { taskId: "current", done: true },
+          { taskId: "legacy", done: true },
+        ],
+      ),
+    ).toEqual({
+      current: { done: 1, total: 2, progress: 50 },
+      legacy: { done: 1, total: 1, progress: 100 },
     });
   });
   test("monthly recurrence clamps to month end and preserves local time", () => {

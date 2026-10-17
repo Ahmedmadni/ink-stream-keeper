@@ -96,6 +96,7 @@ export function SubItemsTree({
       const sibs = siblingsOf(null);
       await createSubItemsFromOutline(parentType, parentId, text, {
         startPosition: (sibs.at(-1)?.position ?? -1) + 1,
+        flat: parentType === "task",
       });
       qc.invalidateQueries({ queryKey: subItemKeys.list(parentType, parentId) });
     } finally {
