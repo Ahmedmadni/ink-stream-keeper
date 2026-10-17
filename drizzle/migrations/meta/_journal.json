@@ -15,6 +15,13 @@
       "when": 1792218850658,
       "tag": "0001_task_categories_checklist_rollup",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792266681658,
+      "tag": "0002_task_parent_completion_guard",
+      "breakpoints": true
     }
   ]
 }
