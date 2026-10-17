@@ -304,6 +304,60 @@ describe("task categories and checklist rollup in PostgreSQL", () => {
     ).toEqual({ done: false, status: "todo", progress: 0 });
   });
 
+  test("direct parent completion cannot bypass unfinished checklist items", async () => {
+    await db.query("UPDATE public.sub_items SET done=true,status='done',progress=100 WHERE id=$1", [
+      CHILD,
+    ]);
+    await db.query("UPDATE public.tasks SET done=true,status='done',progress=100 WHERE id=$1", [
+      TASK,
+    ]);
+    expect(
+      (await db.query("SELECT done,status,progress FROM public.tasks WHERE id=$1", [TASK])).rows[0],
+    ).toEqual({ done: false, status: "todo", progress: 50 });
+  });
+
+  test("tasks without checklist items remain manually completable", async () => {
+    await db.query("DELETE FROM public.sub_items WHERE parent_type='task' AND parent_id=$1", [
+      TASK,
+    ]);
+    await db.query("UPDATE public.tasks SET done=true,status='done',progress=100 WHERE id=$1", [
+      TASK,
+    ]);
+    expect(
+      (await db.query("SELECT done,status,progress FROM public.tasks WHERE id=$1", [TASK])).rows[0],
+    ).toEqual({ done: true, status: "done", progress: 100 });
+  });
+
+  test("legacy checklist rows also prevent premature parent completion", async () => {
+    await db.query("DELETE FROM public.sub_items WHERE parent_type='task' AND parent_id=$1", [
+      TASK,
+    ]);
+    await db.query(
+      "INSERT INTO public.task_checklist(user_id,task_id,text,done) VALUES ($1,$2,'قديم مكتمل',true),($1,$2,'قديم مفتوح',false)",
+      [ACCOUNT, TASK],
+    );
+    await db.query("UPDATE public.tasks SET done=true,status='done',progress=100 WHERE id=$1", [
+      TASK,
+    ]);
+    expect(
+      (await db.query("SELECT done,status,progress FROM public.tasks WHERE id=$1", [TASK])).rows[0],
+    ).toEqual({ done: false, status: "todo", progress: 50 });
+  });
+
+  test("parent-completion readiness probe verifies the installed trigger", async () => {
+    expect(
+      (
+        await db.query<{ ready: boolean }>(
+          "SELECT public.memoflow_task_completion_guard_v1() AS ready",
+        )
+      ).rows[0].ready,
+    ).toBe(true);
+    await db.exec("RESET ROLE; SET ROLE anon");
+    await expect(db.query("SELECT public.memoflow_task_completion_guard_v1()")).rejects.toThrow(
+      "permission denied",
+    );
+  });
+
   test("deleting the last checklist item leaves the task open with zero progress", async () => {
     await db.query("DELETE FROM public.sub_items WHERE parent_type='task' AND parent_id=$1", [
       TASK,

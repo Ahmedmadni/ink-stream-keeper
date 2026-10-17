@@ -42,7 +42,7 @@ function NewItemPage() {
     if (key === "task") {
       const created = await addTask.mutateAsync(taskValuesToInput(values));
       if (created?.id && outline.trim()) {
-        await createSubItemsFromOutline("task", created.id, outline);
+        await createSubItemsFromOutline("task", created.id, outline, { flat: true });
       }
       if (created?.id) router.navigate({ to: "/tasks/$id", params: { id: created.id } });
       else router.navigate({ to: "/tasks" });
@@ -62,7 +62,11 @@ function NewItemPage() {
         title={`${def.label} جديد`}
         subtitle={def.description}
         actions={
-          <button onClick={() => router.history.back()} className="grid size-10 place-items-center rounded-full bg-card shadow-card" aria-label="رجوع">
+          <button
+            onClick={() => router.history.back()}
+            className="grid size-10 place-items-center rounded-full bg-card shadow-card"
+            aria-label="رجوع"
+          >
             <ArrowRight className="size-5" />
           </button>
         }
@@ -72,26 +76,22 @@ function NewItemPage() {
           <div className="mb-4 rounded-2xl bg-card p-4 shadow-card">
             <div className="mb-2 flex items-center gap-2 text-sm font-bold">
               <ListTree className="size-4 text-primary" />
-              <span>التقسيم الهرمي (اختياري)</span>
+              <span>قائمة التحقق (اختيارية)</span>
             </div>
             <p className="mb-2 text-[11px] text-muted-foreground">
-              اكتب كل بند في سطر. استخدم مسافتين أو Tab في بداية السطر لجعله بنداً فرعياً (حتى 6 مستويات).
+              اكتب كل خطوة مطلوبة في سطر مستقل. تكتمل المهمة تلقائيًا عند إنجازها كلها.
             </p>
             <textarea
               value={outline}
               onChange={(e) => setOutline(e.target.value)}
               rows={5}
               dir="rtl"
-              placeholder={"تجهيز العرض\n  جمع البيانات\n    مراجعة الأرقام\n  تصميم الشرائح"}
+              placeholder={"جمع البيانات\nمراجعة الأرقام\nتصميم العرض\nإرسال النسخة النهائية"}
               className="w-full resize-y rounded-xl bg-secondary p-3 text-sm outline-none placeholder:text-muted-foreground/70"
             />
           </div>
         )}
-        <DynamicForm
-          schema={schema}
-          onSubmit={handleSubmit}
-          submitLabel={`حفظ ${def.label}`}
-        />
+        <DynamicForm schema={schema} onSubmit={handleSubmit} submitLabel={`حفظ ${def.label}`} />
       </div>
     </AppShell>
   );

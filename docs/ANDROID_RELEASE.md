@@ -95,8 +95,9 @@ notifications.
    notes, task checklist rollups, responsive layout on a small screen, vault
    lock/unlock, encrypted backup export/import, and the selected Drive folder
    on a physical Android device.
-5. Apply the deferred Supabase migrations before relying on task checklist
-   rollups or encrypted account backups in production.
+5. Apply every Supabase migration through
+   `20261017070000_task_parent_completion_guard.sql` before relying on task
+   checklist rollups or encrypted account backups in production.
 
 The generated package uses API 24 as its minimum and API 36 as its target. OS
 backup is disabled because the app handles sensitive vault data. Cleartext

@@ -1,4 +1,9 @@
-import { advanceTaskDate, taskCompletionPatch } from "@/features/tasks/task-rules";
+import {
+  advanceTaskDate,
+  summarizeTaskItems,
+  taskCompletionPatch,
+  type TaskItemSummary,
+} from "@/features/tasks/task-rules";
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -179,25 +184,29 @@ export function useProfile() {
   return useQuery(profileQuery);
 }
 
-export type TaskSubItemSummary = { done: number; total: number; progress: number };
+export type TaskSubItemSummary = TaskItemSummary;
 export function useTaskSubItemSummaries() {
   return useQuery({
     queryKey: keys.taskSubItemSummaries,
     queryFn: async (): Promise<Record<string, TaskSubItemSummary>> => {
-      const { data, error } = await supabase
-        .from("sub_items")
-        .select("parent_id,done")
-        .eq("parent_type", "task");
-      if (error) throw error;
-      const result: Record<string, TaskSubItemSummary> = {};
-      for (const row of (data ?? []) as { parent_id: string; done: boolean }[]) {
-        const summary = (result[row.parent_id] ??= { done: 0, total: 0, progress: 0 });
-        summary.total += 1;
-        if (row.done) summary.done += 1;
-      }
-      for (const summary of Object.values(result))
-        summary.progress = Math.round((summary.done / summary.total) * 100);
-      return result;
+      const [current, legacyChecklist, legacySubtasks] = await Promise.all([
+        supabase.from("sub_items").select("parent_id,done").eq("parent_type", "task"),
+        supabase.from("task_checklist").select("task_id,done"),
+        supabase.from("subtasks").select("task_id,done"),
+      ]);
+      if (current.error) throw current.error;
+      if (legacyChecklist.error) throw legacyChecklist.error;
+      if (legacySubtasks.error) throw legacySubtasks.error;
+      return summarizeTaskItems(
+        ((current.data ?? []) as { parent_id: string; done: boolean }[]).map((row) => ({
+          taskId: row.parent_id,
+          done: row.done,
+        })),
+        [
+          ...((legacyChecklist.data ?? []) as { task_id: string; done: boolean }[]),
+          ...((legacySubtasks.data ?? []) as { task_id: string; done: boolean }[]),
+        ].map((row) => ({ taskId: row.task_id, done: row.done })),
+      );
     },
   });
 }
@@ -511,7 +520,10 @@ export function useAddChecklistItem() {
       });
       if (error) throw error;
     },
-    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: keys.checklist(vars.taskId) }),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: keys.checklist(vars.taskId) });
+      qc.invalidateQueries({ queryKey: keys.taskSubItemSummaries });
+    },
   });
 }
 
@@ -529,7 +541,10 @@ export function useUpdateChecklistItem() {
       const { error } = await supabase.from("task_checklist").update(patch).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: keys.checklist(vars.taskId) }),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: keys.checklist(vars.taskId) });
+      qc.invalidateQueries({ queryKey: keys.taskSubItemSummaries });
+    },
   });
 }
 
@@ -540,7 +555,10 @@ export function useDeleteChecklistItem() {
       const { error } = await supabase.from("task_checklist").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: keys.checklist(vars.taskId) }),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: keys.checklist(vars.taskId) });
+      qc.invalidateQueries({ queryKey: keys.taskSubItemSummaries });
+    },
   });
 }
 
@@ -581,7 +599,10 @@ export function useAddSubtask() {
       });
       if (error) throw error;
     },
-    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: keys.subtasks(vars.taskId) }),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: keys.subtasks(vars.taskId) });
+      qc.invalidateQueries({ queryKey: keys.taskSubItemSummaries });
+    },
   });
 }
 
@@ -592,7 +613,10 @@ export function useUpdateSubtask() {
       const { error } = await supabase.from("subtasks").update(patch).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: keys.subtasks(vars.taskId) }),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: keys.subtasks(vars.taskId) });
+      qc.invalidateQueries({ queryKey: keys.taskSubItemSummaries });
+    },
   });
 }
 
@@ -603,7 +627,10 @@ export function useDeleteSubtask() {
       const { error } = await supabase.from("subtasks").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: keys.subtasks(vars.taskId) }),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: keys.subtasks(vars.taskId) });
+      qc.invalidateQueries({ queryKey: keys.taskSubItemSummaries });
+    },
   });
 }
 

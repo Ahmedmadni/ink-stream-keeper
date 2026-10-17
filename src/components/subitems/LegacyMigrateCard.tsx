@@ -4,7 +4,7 @@ import { ArrowDownUp, Loader2 } from "lucide-react";
 import { migrateLegacyTaskItems, subItemKeys } from "@/lib/subitems";
 
 /**
- * بطاقة ترحيل البنود القديمة (Checklist + Subtasks) إلى شجرة التقسيم الهرمي.
+ * بطاقة ترحيل البنود القديمة (Checklist + Subtasks) إلى نظام البنود الحالي.
  * تظهر فقط عند وجود بنود قديمة — لتجنب وجود أكثر من نظام بنود في الصفحة.
  */
 export function LegacyMigrateCard({ taskId, count }: { taskId: string; count: number }) {
@@ -17,20 +17,22 @@ export function LegacyMigrateCard({ taskId, count }: { taskId: string; count: nu
     <div className="rounded-2xl border border-warning/40 bg-warning/10 p-4">
       <p className="text-sm font-bold">لديك {count} بنداً بالنظام القديم</p>
       <p className="mt-1 text-xs text-muted-foreground">
-        انقلها إلى «التقسيم الهرمي» ليصبح لديك نظام بنود واحد فقط بحساب إنجاز موحّد.
+        انقلها إلى «بنود المهمة» ليصبح لديك نظام واحد فقط بحساب إنجاز موحّد.
       </p>
       {err && <p className="mt-2 text-xs font-semibold text-destructive">{err}</p>}
       <button
         type="button"
         disabled={busy}
         onClick={async () => {
-          setBusy(true); setErr(null);
+          setBusy(true);
+          setErr(null);
           try {
             await migrateLegacyTaskItems(taskId);
             qc.invalidateQueries({ queryKey: subItemKeys.list("task", taskId) });
             qc.invalidateQueries({ queryKey: ["task_checklist", taskId] });
             qc.invalidateQueries({ queryKey: ["subtasks", taskId] });
             qc.invalidateQueries({ queryKey: ["tasks"] });
+            qc.invalidateQueries({ queryKey: ["task-sub-item-summaries"] });
           } catch (e) {
             setErr((e as Error).message);
           } finally {

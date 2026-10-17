@@ -17,14 +17,19 @@ import { localDayKey, matchesTask, type TaskFilter } from "@/features/tasks/task
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/tasks/")({
-  head: () => ({ meta: [
-    { title: "MemoFlow — المهام" },
-    { name: "description", content: "بطاقات مهامك مع مواعيدها وأولوياتها وتقدم البنود الفرعية." },
-    { property: "og:title", content: "MemoFlow — المهام" },
-    { property: "og:description", content: "تابع مهامك وبنودها الفرعية في بطاقات مرتبة حسب التصنيف." },
-    { property: "og:type", content: "website" },
-    { name: "twitter:card", content: "summary" },
-  ] }),
+  head: () => ({
+    meta: [
+      { title: "MemoFlow — المهام" },
+      { name: "description", content: "بطاقات مهامك مع مواعيدها وأولوياتها وتقدم البنود الفرعية." },
+      { property: "og:title", content: "MemoFlow — المهام" },
+      {
+        property: "og:description",
+        content: "تابع مهامك وبنودها الفرعية في بطاقات مرتبة حسب التصنيف.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
   component: TasksPage,
 });
 
@@ -38,7 +43,8 @@ const filters: { key: TaskFilter; label: string }[] = [
 function TasksPage() {
   const query = useTasks();
   const { data: categories = [] } = useCategories();
-  const { data: summaries = {} } = useTaskSubItemSummaries();
+  const summaryQuery = useTaskSubItemSummaries();
+  const summaries = summaryQuery.data ?? {};
   const addCategory = useAddCategory();
   const [filter, setFilter] = useState<TaskFilter>("all");
   const [search, setSearch] = useState("");
@@ -211,6 +217,25 @@ function TasksPage() {
             />
           </div>
         </section>
+        {summaryQuery.isError && (
+          <div
+            role="alert"
+            className="flex items-center justify-between gap-3 rounded-2xl border border-destructive/20 bg-destructive/5 px-4 py-3"
+          >
+            <p className="text-xs leading-6 text-destructive">
+              تعذر تحميل تقدم البنود. أُوقف الإكمال اليدوي مؤقتًا لحماية حالة المهام.
+            </p>
+            <button
+              type="button"
+              className="min-h-10 shrink-0 rounded-xl bg-card px-3 text-xs font-semibold"
+              onClick={() => {
+                void summaryQuery.refetch();
+              }}
+            >
+              إعادة المحاولة
+            </button>
+          </div>
+        )}
         {query.isLoading ? (
           <LoadingState />
         ) : query.isError ? (
@@ -235,11 +260,19 @@ function TasksPage() {
                   </h2>
                   <span className="text-xs text-muted-foreground">{group.tasks.length} مهمة</span>
                 </div>
-                  <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2" aria-label={`بطاقات ${group.name}`}>
-                    {group.tasks.map((task) => (
-                      <TaskCard key={task.id} task={task} summary={summaries[task.id]} />
-                    ))}
-                  </ul>
+                <ul
+                  className="grid grid-cols-1 gap-4 sm:grid-cols-2"
+                  aria-label={`بطاقات ${group.name}`}
+                >
+                  {group.tasks.map((task) => (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      summary={summaries[task.id]}
+                      summariesReady={summaryQuery.isSuccess}
+                    />
+                  ))}
+                </ul>
               </section>
             ))}
           </div>
@@ -274,10 +307,25 @@ function CategoryButton({
   );
 }
 
-function TaskCard({ task, summary }: { task: Task; summary?: TaskSubItemSummary }) {
+function TaskCard({
+  task,
+  summary,
+  summariesReady,
+}: {
+  task: Task;
+  summary?: TaskSubItemSummary;
+  summariesReady: boolean;
+}) {
   const toggle = useToggleTask();
   const due = task.due_at ? new Date(task.due_at) : null;
   const overdue = due && !task.done && localDayKey(due) < localDayKey(new Date());
+  const autoManaged = (summary?.total ?? 0) > 0;
+  const completionUnavailable = !summariesReady || autoManaged;
+  const completionLabel = !summariesReady
+    ? `جارٍ تحميل بنود ${task.title}`
+    : autoManaged
+      ? `تكتمل ${task.title} تلقائيًا بعد إنجاز جميع البنود`
+      : `${task.done ? "إلغاء إنجاز" : "إنجاز"} ${task.title}`;
   return (
     <li className="relative flex min-h-52 items-start gap-2 rounded-2xl border border-border bg-card p-4 shadow-card transition-shadow hover:shadow-elevated">
       <Button
@@ -285,8 +333,9 @@ function TaskCard({ task, summary }: { task: Task; summary?: TaskSubItemSummary 
         size="icon"
         role="checkbox"
         aria-checked={task.done}
-        aria-label={`${task.done ? "إلغاء إنجاز" : "إنجاز"} ${task.title}`}
-        disabled={toggle.isPending}
+        aria-label={completionLabel}
+        title={autoManaged ? "تكتمل المهمة تلقائيًا عند إنجاز جميع البنود" : undefined}
+        disabled={toggle.isPending || completionUnavailable}
         onClick={() =>
           toggle.mutate(
             { id: task.id, done: !task.done, task },
@@ -312,7 +361,11 @@ function TaskCard({ task, summary }: { task: Task; summary?: TaskSubItemSummary 
           >
             {task.title}
           </p>
-          {task.description && <p className="mt-2 line-clamp-2 break-words text-sm leading-relaxed text-muted-foreground">{task.description}</p>}
+          {task.description && (
+            <p className="mt-2 line-clamp-2 break-words text-sm leading-relaxed text-muted-foreground">
+              {task.description}
+            </p>
+          )}
           <div className="mt-auto flex flex-wrap items-center gap-2 pt-4 text-xs text-muted-foreground">
             {due && (
               <span className={overdue ? "text-destructive" : ""}>
@@ -343,7 +396,13 @@ function TaskCard({ task, summary }: { task: Task; summary?: TaskSubItemSummary 
           )}
         </div>
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{task.done ? "مكتملة" : summary && summary.total > 0 ? `${summary.progress}% مكتمل` : "غير مكتملة"}</span>
+          <span>
+            {task.done
+              ? "مكتملة"
+              : summary && summary.total > 0
+                ? `${summary.progress}% مكتمل`
+                : "غير مكتملة"}
+          </span>
           <ChevronLeft className="size-4 shrink-0" />
         </div>
       </Link>
