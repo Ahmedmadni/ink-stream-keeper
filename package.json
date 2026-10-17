@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test tests",
     "test:browser": "node tests/browser-smoke.cjs && node tests/note-browser.cjs && node tests/backup-browser.cjs",
-    "android:sync": "bun run build:native && cap sync android",
+    "android:verify": "node scripts/verify-android-bundle.mjs",
+    "android:sync": "bun run build:native && cap sync android && bun run android:verify",
     "android:debug": "bun run android:sync && cd android && ./gradlew assembleDebug",
     "android:bundle": "bun run android:sync && cd android && ./gradlew bundleRelease"
   },

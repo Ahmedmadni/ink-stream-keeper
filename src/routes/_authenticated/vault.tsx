@@ -36,6 +36,7 @@ import {
   useSetupVaultPin,
   useUnlockVault,
   useUpdateVaultEntry,
+  useUpgradeVaultEncryption,
   useVaultCategories,
   useVaultEntries,
   useVaultLocked,
@@ -302,12 +303,42 @@ function UnlockScreen() {
 function VaultHome() {
   const categoryQuery = useVaultCategories();
   const entryQuery = useVaultEntries();
-  const categories = categoryQuery.data ?? [];
+  const encryptionUpgrade = useUpgradeVaultEncryption();
+  const upgradeAttempted = useRef(false);
+  const categories = useMemo(() => categoryQuery.data ?? [], [categoryQuery.data]);
   const entries = useMemo(() => entryQuery.data ?? [], [entryQuery.data]);
   const [q, setQ] = useState("");
   const [activeCat, setActiveCat] = useState<string | "all">("all");
   const [editing, setEditing] = useState<VaultEntry | null>(null);
   const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    if (
+      upgradeAttempted.current ||
+      !entryQuery.isSuccess ||
+      !categoryQuery.isSuccess ||
+      encryptionUpgrade.isPending
+    ) {
+      return;
+    }
+    const needsUpgrade =
+      entries.some((entry) => !entry.metadata_encrypted) ||
+      categories.some((category) => !category.metadata_encrypted);
+    if (!needsUpgrade) return;
+    upgradeAttempted.current = true;
+    encryptionUpgrade.mutate(
+      { entries, categories },
+      {
+        onSuccess: ({ entries: upgradedEntries, categories: upgradedCategories }) => {
+          const total = upgradedEntries + upgradedCategories;
+          if (total > 0) toast.success(`تم رفع حماية ${total} سجل قديم داخل الخزنة.`);
+        },
+        onError: () => {
+          toast.error("تعذرت ترقية تشفير بعض البيانات القديمة؛ سنعيد المحاولة لاحقًا.");
+        },
+      },
+    );
+  }, [categories, categoryQuery.isSuccess, encryptionUpgrade, entries, entryQuery.isSuccess]);
 
   const filtered = useMemo(() => {
     const text = q.trim().toLowerCase();
@@ -351,6 +382,12 @@ function VaultHome() {
       </div>
 
       <AndroidAutofillCard entries={entries} ready={!entryQuery.isLoading && !entryQuery.isError} />
+
+      {encryptionUpgrade.isPending && (
+        <p className="mx-5 mt-3 rounded-xl bg-primary-soft px-3 py-2 text-[11px] font-semibold text-primary">
+          جارٍ تشفير بيانات الحسابات القديمة بالكامل…
+        </p>
+      )}
 
       <section className="px-5 pt-5">
         <div className="flex gap-2 overflow-x-auto pb-1">

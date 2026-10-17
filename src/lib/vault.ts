@@ -4,9 +4,11 @@ import { vaultSession } from "@/features/vault/session";
 import { supabase } from "@/integrations/supabase/client";
 import {
   checkVerifier,
+  decryptVaultField,
   decryptString,
   deriveKey,
   encryptString,
+  encryptVaultField,
   makeVerifier,
   randomSaltB64,
 } from "./vault-crypto";
@@ -26,6 +28,7 @@ export type VaultCategory = {
   color: string;
   sort_order: number;
   created_at: string;
+  metadata_encrypted: boolean;
 };
 
 export type VaultEntry = {
@@ -40,7 +43,11 @@ export type VaultEntry = {
   password_ct: string;
   created_at: string;
   updated_at: string;
+  metadata_encrypted: boolean;
 };
+
+type StoredVaultCategory = Omit<VaultCategory, "metadata_encrypted">;
+type StoredVaultEntry = Omit<VaultEntry, "metadata_encrypted">;
 
 export const lockVault = vaultSession.lock;
 export function useVaultLocked(): boolean {
@@ -72,24 +79,53 @@ export const vaultSettingsQuery = queryOptions({
 export const vaultCategoriesQuery = queryOptions({
   queryKey: vaultKeys.categories,
   queryFn: async (): Promise<VaultCategory[]> => {
+    const { userId, key } = vaultSession.access();
     const { data, error } = await supabase
       .from("vault_categories")
       .select("*")
       .order("sort_order", { ascending: true });
     if (error) throw error;
-    return (data ?? []) as VaultCategory[];
+    return Promise.all(
+      ((data ?? []) as StoredVaultCategory[]).map(async (category) => {
+        if (category.user_id !== userId) throw new Error("اختلطت بيانات حساب آخر بالخزنة");
+        const name = await decryptVaultField(category.name, "category_name", key);
+        vaultSession.assertCurrent(userId, key);
+        return { ...category, name: name.value, metadata_encrypted: name.encrypted };
+      }),
+    );
   },
 });
 
 export const vaultEntriesQuery = queryOptions({
   queryKey: vaultKeys.entries,
   queryFn: async (): Promise<VaultEntry[]> => {
+    const { userId, key } = vaultSession.access();
     const { data, error } = await supabase
       .from("vault_entries")
       .select("*")
       .order("updated_at", { ascending: false });
     if (error) throw error;
-    return (data ?? []) as VaultEntry[];
+    return Promise.all(
+      ((data ?? []) as StoredVaultEntry[]).map(async (entry) => {
+        if (entry.user_id !== userId) throw new Error("اختلطت بيانات حساب آخر بالخزنة");
+        const [label, username, url, notes] = await Promise.all([
+          decryptVaultField(entry.label, "label", key),
+          decryptVaultField(entry.username, "username", key),
+          decryptVaultField(entry.url, "url", key),
+          decryptVaultField(entry.notes, "notes", key),
+        ]);
+        vaultSession.assertCurrent(userId, key);
+        return {
+          ...entry,
+          label: label.value,
+          username: username.value,
+          url: url.value,
+          notes: notes.value,
+          metadata_encrypted:
+            label.encrypted && username.encrypted && url.encrypted && notes.encrypted,
+        };
+      }),
+    );
   },
 });
 
@@ -118,6 +154,19 @@ const DEFAULT_CATEGORIES = [
   { name: "أخرى", icon: "KeyRound", color: "warning" },
 ];
 
+async function encryptEntryMetadata(
+  input: Pick<VaultEntry, "label" | "username" | "url" | "notes">,
+  key: CryptoKey,
+) {
+  const [label, username, url, notes] = await Promise.all([
+    encryptVaultField(input.label, "label", key),
+    encryptVaultField(input.username, "username", key),
+    encryptVaultField(input.url, "url", key),
+    encryptVaultField(input.notes, "notes", key),
+  ]);
+  return { label, username, url, notes };
+}
+
 // ------- mutations
 export function useSetupVaultPin() {
   const qc = useQueryClient();
@@ -139,14 +188,18 @@ export function useSetupVaultPin() {
       });
       if (error) throw error;
       // seed default categories
-      const rows = DEFAULT_CATEGORIES.map((c, i) => ({
-        user_id: userId,
-        name: c.name,
-        icon: c.icon,
-        color: c.color,
-        sort_order: i,
-      }));
-      await supabase.from("vault_categories").insert(rows);
+      const rows = await Promise.all(
+        DEFAULT_CATEGORIES.map(async (c, i) => ({
+          user_id: userId,
+          name: await encryptVaultField(c.name, "category_name", key),
+          icon: c.icon,
+          color: c.color,
+          sort_order: i,
+        })),
+      );
+      vaultSession.assertUnlockCurrent(ticket);
+      const { error: categoryError } = await supabase.from("vault_categories").insert(rows);
+      if (categoryError) throw categoryError;
       if (!vaultSession.completeUnlock(ticket, key))
         throw new Error("أُغلقت الخزنة. افتحها مجددًا.");
     },
@@ -192,15 +245,15 @@ export function useAddVaultEntry() {
       const { userId, key } = vaultSession.access();
       if ((await uid()) !== userId) throw new Error("تغير الحساب. أعد المحاولة.");
       vaultSession.assertCurrent(userId, key);
-      const enc = await encryptString(input.password, key);
+      const [enc, metadata] = await Promise.all([
+        encryptString(input.password, key),
+        encryptEntryMetadata(input, key),
+      ]);
       vaultSession.assertCurrent(userId, key);
       const { error } = await supabase.from("vault_entries").insert({
         user_id: userId,
         category_id: input.categoryId,
-        label: input.label,
-        username: input.username,
-        url: input.url,
-        notes: input.notes,
+        ...metadata,
         password_iv: enc.iv,
         password_ct: enc.ct,
       });
@@ -226,16 +279,16 @@ export function useUpdateVaultEntry() {
       const { userId, key } = vaultSession.access();
       if ((await uid()) !== userId) throw new Error("تغير الحساب. أعد المحاولة.");
       vaultSession.assertCurrent(userId, key);
-      const enc = await encryptString(input.password, key);
+      const [enc, metadata] = await Promise.all([
+        encryptString(input.password, key),
+        encryptEntryMetadata(input, key),
+      ]);
       vaultSession.assertCurrent(userId, key);
       const { error } = await supabase
         .from("vault_entries")
         .update({
           category_id: input.categoryId,
-          label: input.label,
-          username: input.username,
-          url: input.url,
-          notes: input.notes,
+          ...metadata,
           password_iv: enc.iv,
           password_ct: enc.ct,
         })
@@ -272,15 +325,71 @@ export function useAddVaultCategory() {
       const { userId, key } = vaultSession.access();
       if ((await uid()) !== userId) throw new Error("تغير الحساب. أعد المحاولة.");
       vaultSession.assertCurrent(userId, key);
+      const encryptedName = await encryptVaultField(input.name, "category_name", key);
+      vaultSession.assertCurrent(userId, key);
       const { error } = await supabase.from("vault_categories").insert({
         user_id: userId,
-        name: input.name,
+        name: encryptedName,
         icon: input.icon ?? "KeyRound",
         color: input.color ?? "primary",
       });
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: vaultKeys.categories }),
+  });
+}
+
+export function useUpgradeVaultEncryption() {
+  const qc = useQueryClient();
+  return useMutation({
+    gcTime: 0,
+    mutationKey: ["vault", "upgrade-encryption-v2"],
+    mutationFn: async ({
+      entries,
+      categories,
+    }: {
+      entries: VaultEntry[];
+      categories: VaultCategory[];
+    }) => {
+      const { userId, key } = vaultSession.access();
+      if ((await uid()) !== userId) throw new Error("تغير الحساب. أعد المحاولة.");
+      let upgradedEntries = 0;
+      let upgradedCategories = 0;
+
+      for (const category of categories) {
+        if (category.metadata_encrypted) continue;
+        vaultSession.assertCurrent(userId, key);
+        const name = await encryptVaultField(category.name, "category_name", key);
+        vaultSession.assertCurrent(userId, key);
+        const { error } = await supabase
+          .from("vault_categories")
+          .update({ name })
+          .eq("id", category.id)
+          .eq("user_id", userId);
+        if (error) throw error;
+        upgradedCategories += 1;
+      }
+
+      for (const entry of entries) {
+        if (entry.metadata_encrypted) continue;
+        vaultSession.assertCurrent(userId, key);
+        const metadata = await encryptEntryMetadata(entry, key);
+        vaultSession.assertCurrent(userId, key);
+        const { error } = await supabase
+          .from("vault_entries")
+          .update(metadata)
+          .eq("id", entry.id)
+          .eq("user_id", userId);
+        if (error) throw error;
+        upgradedEntries += 1;
+      }
+
+      return { entries: upgradedEntries, categories: upgradedCategories };
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: vaultKeys.entries });
+      qc.invalidateQueries({ queryKey: vaultKeys.categories });
+    },
   });
 }
 
