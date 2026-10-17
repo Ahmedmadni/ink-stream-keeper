@@ -61,8 +61,26 @@ requireMatch(
   /android\.permission\.BIND_AUTOFILL_SERVICE/,
   "Android AutofillService declaration is missing",
 );
+requireMatch(
+  manifest,
+  /android:enabled="@bool\/autofill_service_enabled"/,
+  "Android Autofill must be API-gated",
+);
 requireMatch(manifest, /android:path="\/callback"/, "OAuth callback intent is missing");
 requireMatch(manifest, /android:path="\/recovery"/, "Recovery callback intent is missing");
+
+const autofillDefault = await text("android/app/src/main/res/values/bools.xml");
+const autofillV26 = await text("android/app/src/main/res/values-v26/bools.xml");
+requireMatch(
+  autofillDefault,
+  /<bool name="autofill_service_enabled">false<\/bool>/,
+  "Autofill must stay disabled below API 26",
+);
+requireMatch(
+  autofillV26,
+  /<bool name="autofill_service_enabled">true<\/bool>/,
+  "Autofill must be enabled on API 26+",
+);
 
 const activity = await text(
   "android/app/src/main/java/app/lovable/c357f296dbad4d33991e76d86c92e6d0/MainActivity.java",

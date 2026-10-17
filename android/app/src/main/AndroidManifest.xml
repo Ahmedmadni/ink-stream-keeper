@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:allowBackup="false"
@@ -48,16 +49,20 @@
 
         <activity
             android:name=".autofill.MemoFlowAutofillAuthActivity"
+            android:enabled="@bool/autofill_service_enabled"
             android:excludeFromRecents="true"
             android:exported="false"
-            android:theme="@style/AppTheme.NoActionBar" />
+            android:theme="@style/AppTheme.NoActionBar"
+            tools:targetApi="o" />
 
         <service
             android:name=".autofill.MemoFlowAutofillService"
             android:description="@string/autofill_service_description"
+            android:enabled="@bool/autofill_service_enabled"
             android:exported="true"
             android:label="@string/autofill_service_label"
-            android:permission="android.permission.BIND_AUTOFILL_SERVICE">
+            android:permission="android.permission.BIND_AUTOFILL_SERVICE"
+            tools:targetApi="o">
             <intent-filter>
                 <action android:name="android.service.autofill.AutofillService" />
             </intent-filter>

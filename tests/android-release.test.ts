@@ -39,5 +39,11 @@ describe("Android release safeguards", () => {
     const pkg = JSON.parse(read("package.json")) as { scripts: Record<string, string> };
     expect(pkg.scripts["android:sync"]).toContain("android:verify");
     expect(read(".github/workflows/verify.yml")).toContain("./gradlew lintDebug --no-daemon");
+    expect(read("android/app/src/main/res/values/bools.xml")).toContain(
+      '<bool name="autofill_service_enabled">false</bool>',
+    );
+    expect(read("android/app/src/main/res/values-v26/bools.xml")).toContain(
+      '<bool name="autofill_service_enabled">true</bool>',
+    );
   });
 });

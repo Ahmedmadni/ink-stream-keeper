@@ -48,7 +48,16 @@ jobs:
           bun-version: 1.3.9
       - run: bun install --frozen-lockfile
       - run: bun run android:sync
-      - run: ./gradlew lintDebug --no-daemon
+      - name: Run Android lint
+        run: |
+          set +e
+          ./gradlew lintDebug --no-daemon
+          status=$?
+          report="app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt"
+          if [ "$status" -ne 0 ] && [ -f "$report" ]; then
+            cat "$report"
+          fi
+          exit "$status"
         working-directory: android
       - run: ./gradlew testDebugUnitTest --no-daemon
         working-directory: android
