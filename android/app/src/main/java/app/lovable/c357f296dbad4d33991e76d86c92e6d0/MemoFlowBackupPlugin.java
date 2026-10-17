@@ -181,9 +181,23 @@ public final class MemoFlowBackupPlugin extends Plugin {
             return;
         }
         Uri uri = data.getData();
-        int flags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        int grantedFlags = data.getFlags();
+        boolean canRead = (grantedFlags & Intent.FLAG_GRANT_READ_URI_PERMISSION) != 0;
+        boolean canWrite = (grantedFlags & Intent.FLAG_GRANT_WRITE_URI_PERMISSION) != 0;
         try {
-            getContext().getContentResolver().takePersistableUriPermission(uri, flags);
+            if (!canWrite) {
+                call.reject("لم يمنح مزود الملفات صلاحية الكتابة الدائمة", "PERSISTABLE_PERMISSION_MISSING");
+                return;
+            }
+            if (canRead) {
+                getContext().getContentResolver().takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            } else {
+                getContext().getContentResolver().takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            }
             String name = documentName(uri);
             preferences().edit().putString(TREE_URI, uri.toString()).putString(TREE_NAME, name).apply();
             JSObject result = new JSObject();

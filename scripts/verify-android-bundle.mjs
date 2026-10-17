@@ -53,6 +53,11 @@ const manifest = await text("android/app/src/main/AndroidManifest.xml");
 requireMatch(manifest, /android:allowBackup="false"/, "Android OS backup must stay disabled");
 requireMatch(
   manifest,
+  /android:dataExtractionRules="@xml\/data_extraction_rules"/,
+  "Android data extraction rules are missing",
+);
+requireMatch(
+  manifest,
   /android:usesCleartextTraffic="false"/,
   "Cleartext Android traffic must stay disabled",
 );
@@ -71,6 +76,7 @@ requireMatch(manifest, /android:path="\/recovery"/, "Recovery callback intent is
 
 const autofillDefault = await text("android/app/src/main/res/values/bools.xml");
 const autofillV26 = await text("android/app/src/main/res/values-v26/bools.xml");
+const extractionRules = await text("android/app/src/main/res/xml/data_extraction_rules.xml");
 requireMatch(
   autofillDefault,
   /<bool name="autofill_service_enabled">false<\/bool>/,
@@ -81,6 +87,8 @@ requireMatch(
   /<bool name="autofill_service_enabled">true<\/bool>/,
   "Autofill must be enabled on API 26+",
 );
+requireMatch(extractionRules, /<cloud-backup/, "Cloud-backup exclusions are missing");
+requireMatch(extractionRules, /<device-transfer>/, "Device-transfer exclusions are missing");
 
 const activity = await text(
   "android/app/src/main/java/app/lovable/c357f296dbad4d33991e76d86c92e6d0/MainActivity.java",

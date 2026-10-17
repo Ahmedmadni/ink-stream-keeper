@@ -45,5 +45,8 @@ describe("Android release safeguards", () => {
     expect(read("android/app/src/main/res/values-v26/bools.xml")).toContain(
       '<bool name="autofill_service_enabled">true</bool>',
     );
+    expect(read("android/app/src/main/AndroidManifest.xml")).toContain(
+      'android:dataExtractionRules="@xml/data_extraction_rules"',
+    );
   });
 });
