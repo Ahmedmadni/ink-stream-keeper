@@ -1337,9 +1337,17 @@ export type Database = {
     Functions: {
       memoflow_backup_tables_v1: { Args: never; Returns: string[] }
       memoflow_export_v1: { Args: never; Returns: Json }
+      memoflow_next_task_time: {
+        Args: { recurrence: string; value: string }
+        Returns: string
+      }
       memoflow_restore_v1: {
         Args: { expected_account: string; payload: Json }
         Returns: Json
+      }
+      memoflow_sync_task_checklist: {
+        Args: { owner_id: string; task_id: string }
+        Returns: undefined
       }
     }
     Enums: {
