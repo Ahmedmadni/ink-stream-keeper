@@ -1,5 +1,20 @@
 apply plugin: 'com.android.application'
 
+def releaseSigningValues = [
+    storeFile: System.getenv('MEMOFLOW_KEYSTORE_PATH'),
+    storePassword: System.getenv('MEMOFLOW_KEYSTORE_PASSWORD'),
+    keyAlias: System.getenv('MEMOFLOW_KEY_ALIAS'),
+    keyPassword: System.getenv('MEMOFLOW_KEY_PASSWORD'),
+]
+def releaseSigningReady = releaseSigningValues.values().every { value -> value != null && !value.trim().isEmpty() }
+def releaseTaskRequested = gradle.startParameter.taskNames.any { taskName ->
+    taskName.toLowerCase(java.util.Locale.ROOT).contains('release')
+}
+
+if (releaseTaskRequested && !releaseSigningReady) {
+    throw new GradleException('Release signing is not configured. Set MEMOFLOW_KEYSTORE_PATH, MEMOFLOW_KEYSTORE_PASSWORD, MEMOFLOW_KEY_ALIAS, and MEMOFLOW_KEY_PASSWORD.')
+}
+
 android {
     namespace = "app.lovable.c357f296dbad4d33991e76d86c92e6d0"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +22,8 @@ android {
         applicationId "app.lovable.c357f296dbad4d33991e76d86c92e6d0"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 9
-        versionName "1.2.3"
+        versionCode 10
+        versionName "1.2.4"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,9 +31,24 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (releaseSigningReady) {
+            memoflowRelease {
+                storeFile file(releaseSigningValues.storeFile)
+                storePassword releaseSigningValues.storePassword
+                keyAlias releaseSigningValues.keyAlias
+                keyPassword releaseSigningValues.keyPassword
+            }
+        }
+    }
     buildTypes {
         release {
+            if (releaseSigningReady) {
+                signingConfig signingConfigs.memoflowRelease
+            }
+            debuggable false
             minifyEnabled false
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }

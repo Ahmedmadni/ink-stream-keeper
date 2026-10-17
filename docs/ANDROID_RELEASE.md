@@ -28,7 +28,8 @@ android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
 GitHub Actions also builds the same APK and publishes it as the
-`MemoFlow-Android-Debug` workflow artifact after all web tests pass.
+`MemoFlow-Android-Debug` workflow artifact, together with its SHA-256 file,
+after all web, browser, Android lint, and native unit tests pass.
 
 ## Android Autofill
 
@@ -87,18 +88,53 @@ notifications.
 1. Run `bun run android:sync`. This cleans stale assets, builds the native SPA,
    promotes `_shell.html` to `index.html`, and copies that exact bundle into the
    Android project. Do not add a production `server.url`.
-2. Create and protect a release keystore outside Git. Never commit the keystore
-   or its passwords.
-3. Configure Android Studio's signed bundle flow and build an Android App Bundle
-   (`.aab`).
-4. Test OAuth and password-recovery callbacks, app-PIN cold start and resume,
+2. Create and protect one permanent upload/release keystore outside Git. Never
+   commit the keystore or its passwords, and never regenerate it for later
+   updates:
+
+   ```bash
+   keytool -genkeypair -v -keystore memoflow-release.jks -alias memoflow \
+     -keyalg RSA -keysize 4096 -validity 10000
+   ```
+
+3. For a local signed build, expose the four values only to the current shell,
+   then run `bun run android:bundle`:
+
+   ```bash
+   export MEMOFLOW_KEYSTORE_PATH=/absolute/private/path/memoflow-release.jks
+   export MEMOFLOW_KEYSTORE_PASSWORD='...'
+   export MEMOFLOW_KEY_ALIAS='memoflow'
+   export MEMOFLOW_KEY_PASSWORD='...'
+   bun run android:bundle
+   ```
+
+   Gradle now refuses every Release task when any signing value is missing;
+   it can no longer produce an accidentally unsigned "final" package.
+
+4. Alternatively, configure the protected GitHub environment
+   `android-release` with these secrets:
+   - `MEMOFLOW_RELEASE_KEYSTORE_BASE64`
+   - `MEMOFLOW_KEYSTORE_PASSWORD`
+   - `MEMOFLOW_KEY_ALIAS`
+   - `MEMOFLOW_KEY_PASSWORD`
+
+   Then run **Build signed MemoFlow release** manually. It runs TypeScript,
+   database/unit tests, native-bundle verification, Android lint and unit tests,
+   creates signed APK and AAB files, verifies their signatures, and publishes
+   both files with SHA-256 checksums for 30 days.
+
+5. Enroll the AAB in Google Play App Signing and retain the upload key in at
+   least two secure offline locations.
+6. Test OAuth and password-recovery callbacks, app-PIN cold start and resume,
    notes, task checklist rollups, responsive layout on a small screen, vault
    lock/unlock, encrypted backup export/import, and the selected Drive folder
    on a physical Android device.
-5. Apply every Supabase migration through
+7. Apply every Supabase migration through
    `20261017070000_task_parent_completion_guard.sql` before relying on task
    checklist rollups or encrypted account backups in production.
 
 The generated package uses API 24 as its minimum and API 36 as its target. OS
 backup is disabled because the app handles sensitive vault data. Cleartext
-traffic and mixed content are disabled.
+traffic and mixed content are disabled. Version `1.2.4` also purges cached vault
+entry/category queries whenever the vault locks, so unlocked labels and account
+metadata are not retained in React Query's 24-hour cache.

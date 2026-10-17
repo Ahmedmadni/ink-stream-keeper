@@ -1,5 +1,6 @@
 package app.lovable.c357f296dbad4d33991e76d86c92e6d0;
 
+import android.annotation.SuppressLint;
 import android.app.Service;
 import android.content.Intent;
 import android.graphics.PixelFormat;
@@ -22,6 +23,8 @@ public class FloatingCardService extends Service {
 
     @Override public IBinder onBind(Intent intent) { return null; }
 
+    // ACTION_UP calls performClick explicitly; lint cannot infer that through the drag branch.
+    @SuppressLint("ClickableViewAccessibility")
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         ArrayList<String> lines = intent != null ? intent.getStringArrayListExtra("lines") : null;
@@ -43,7 +46,7 @@ public class FloatingCardService extends Service {
         LinearLayout head = new LinearLayout(this);
         head.setGravity(Gravity.CENTER_VERTICAL);
         TextView title = new TextView(this);
-        title.setText("MemoFlow • تذكير");
+        title.setText(R.string.floating_card_title);
         title.setTextColor(0xFF111111);
         title.setTextSize(14);
         title.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
@@ -53,7 +56,7 @@ public class FloatingCardService extends Service {
             startActivity(open);
         });
         TextView close = new TextView(this);
-        close.setText("✕");
+        close.setText(R.string.floating_card_close);
         close.setTextSize(16);
         close.setTextColor(0xFF555555);
         close.setPadding((int) (8 * d), 0, 0, 0);
@@ -62,7 +65,7 @@ public class FloatingCardService extends Service {
         head.addView(close);
         box.addView(head);
 
-        if (lines.isEmpty()) lines.add("لا توجد عناصر حالياً");
+        if (lines.isEmpty()) lines.add(getString(R.string.floating_card_empty));
         for (String s : lines) {
             TextView t = new TextView(this);
             t.setText(s);

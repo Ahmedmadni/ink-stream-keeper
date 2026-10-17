@@ -1,6 +1,16 @@
 import { describe, expect, test } from "bun:test";
+import { QueryClient } from "@tanstack/react-query";
+import { purgeSensitiveVaultQueries } from "../src/features/vault/cache";
 import { VaultSession } from "../src/features/vault/session";
-import { encryptString, decryptString, deriveKey, randomSaltB64 } from "../src/lib/vault-crypto";
+import {
+  decryptString,
+  decryptVaultField,
+  deriveKey,
+  encryptString,
+  encryptVaultField,
+  isEncryptedVaultField,
+  randomSaltB64,
+} from "../src/lib/vault-crypto";
 
 const makeKey = () =>
   crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
@@ -63,6 +73,17 @@ describe("vault session isolation", () => {
   });
 });
 
+test("locking can purge decrypted vault data without discarding settings", () => {
+  const queryClient = new QueryClient();
+  queryClient.setQueryData(["vault", "settings"], { configured: true });
+  queryClient.setQueryData(["vault", "entries"], [{ label: "decrypted" }]);
+  queryClient.setQueryData(["vault", "categories"], [{ name: "decrypted" }]);
+  purgeSensitiveVaultQueries(queryClient);
+  expect(queryClient.getQueryData(["vault", "entries"])).toBeUndefined();
+  expect(queryClient.getQueryData(["vault", "categories"])).toBeUndefined();
+  expect(queryClient.getQueryData(["vault", "settings"])).toEqual({ configured: true });
+});
+
 test("legacy encrypted passwords remain readable; corrupted ciphertext is rejected", async () => {
   const key = await deriveKey("123456", randomSaltB64());
   const encrypted = await encryptString("synthetic-secret", key);
@@ -72,4 +93,30 @@ test("legacy encrypted passwords remain readable; corrupted ciphertext is reject
   await expect(
     decryptString(encrypted.iv, btoa(String.fromCharCode(...bytes)), key),
   ).rejects.toThrow();
+});
+
+describe("vault metadata encryption v2", () => {
+  test("encrypts every human-readable field and preserves legacy plaintext for migration", async () => {
+    const key = await makeKey();
+    const encrypted = await encryptVaultField("ahmed@example.com", "username", key);
+    expect(isEncryptedVaultField(encrypted)).toBe(true);
+    expect(await decryptVaultField(encrypted, "username", key)).toEqual({
+      value: "ahmed@example.com",
+      encrypted: true,
+    });
+    expect(await decryptVaultField("legacy label", "label", key)).toEqual({
+      value: "legacy label",
+      encrypted: false,
+    });
+  });
+
+  test("binds ciphertext to its field and rejects tampering", async () => {
+    const key = await makeKey();
+    const encrypted = await encryptVaultField("secret note", "notes", key);
+    await expect(decryptVaultField(encrypted, "url", key)).rejects.toThrow();
+    const last = encrypted.at(-1) === "A" ? "B" : "A";
+    await expect(
+      decryptVaultField(`${encrypted.slice(0, -1)}${last}`, "notes", key),
+    ).rejects.toThrow();
+  });
 });

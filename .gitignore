@@ -16,6 +16,11 @@ dist-ssr
 .nitro
 *.local
 
+# Android signing material must never enter Git.
+*.jks
+*.keystore
+keystore.properties
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars

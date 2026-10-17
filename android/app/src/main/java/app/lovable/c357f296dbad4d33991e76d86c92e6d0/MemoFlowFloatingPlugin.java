@@ -2,7 +2,6 @@ package app.lovable.c357f296dbad4d33991e76d86c92e6d0;
 
 import android.content.Intent;
 import android.net.Uri;
-import android.os.Build;
 import android.provider.Settings;
 import androidx.activity.result.ActivityResult;
 import com.getcapacitor.JSArray;
@@ -19,7 +18,7 @@ import java.util.ArrayList;
 public class MemoFlowFloatingPlugin extends Plugin {
 
     private boolean granted() {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(getContext());
+        return Settings.canDrawOverlays(getContext());
     }
 
     @PluginMethod

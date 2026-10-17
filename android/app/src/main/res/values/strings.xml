@@ -6,4 +6,7 @@
     <string name="custom_url_scheme">app.lovable.c357f296dbad4d33991e76d86c92e6d0</string>
     <string name="autofill_service_label">MemoFlow — الملء التلقائي</string>
     <string name="autofill_service_description">ملء وحفظ بيانات الدخول في خزنة MemoFlow المشفرة بعد موافقتك.</string>
+    <string name="floating_card_title">MemoFlow • تذكير</string>
+    <string name="floating_card_close">✕</string>
+    <string name="floating_card_empty">لا توجد عناصر حاليًا</string>
 </resources>

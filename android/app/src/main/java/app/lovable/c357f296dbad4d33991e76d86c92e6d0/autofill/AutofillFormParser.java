@@ -7,9 +7,12 @@ import android.view.ViewStructure;
 import android.view.autofill.AutofillId;
 import android.view.autofill.AutofillValue;
 
+import androidx.annotation.RequiresApi;
+
 import java.util.List;
 import java.util.Locale;
 
+@RequiresApi(26)
 final class AutofillFormParser {
     static final class ParsedForm {
         final String packageName;

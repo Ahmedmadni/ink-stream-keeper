@@ -48,12 +48,28 @@ jobs:
           bun-version: 1.3.9
       - run: bun install --frozen-lockfile
       - run: bun run android:sync
+      - name: Run Android lint
+        run: |
+          set +e
+          ./gradlew lintDebug --no-daemon
+          status=$?
+          report="app/build/intermediates/lint_intermediate_text_report/debug/lintReportDebug/lint-results-debug.txt"
+          if [ "$status" -ne 0 ] && [ -f "$report" ]; then
+            cat "$report"
+          fi
+          exit "$status"
+        working-directory: android
       - run: ./gradlew testDebugUnitTest --no-daemon
         working-directory: android
       - run: ./gradlew assembleDebug --no-daemon
         working-directory: android
+      - name: Write APK checksum
+        run: sha256sum app-debug.apk > app-debug.apk.sha256
+        working-directory: android/app/build/outputs/apk/debug
       - uses: actions/upload-artifact@v4
         with:
           name: MemoFlow-Android-Debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/apk/debug/app-debug.apk.sha256
           if-no-files-found: error
