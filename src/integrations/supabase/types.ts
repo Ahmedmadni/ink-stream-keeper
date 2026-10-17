@@ -1349,6 +1349,7 @@ export type Database = {
         Args: { owner_id: string; task_id: string }
         Returns: undefined
       }
+      memoflow_task_completion_guard_v1: { Args: never; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
