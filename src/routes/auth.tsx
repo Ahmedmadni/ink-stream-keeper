@@ -5,16 +5,36 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import {
   beginNativeOAuth,
-  completeNativeRecovery,
-  completeNativeOAuth,
+  consumeNativeAuthError,
   isNativeAuthAvailable,
   isNativeOAuthAvailable,
-  listenForNativeAuthCallback,
+  nativeEmailConfirmationRedirectUrl,
   nativeRecoveryHandoffUrl,
   nativeRecoveryRedirectUrl,
 } from "@/services/native-auth";
 
 type AuthMode = "signin" | "signup" | "forgot" | "reset";
+
+function readableAuthError(reason: unknown): string {
+  const message = reason instanceof Error ? reason.message : "حدث خطأ غير متوقع";
+  const normalized = message.toLowerCase();
+  if (normalized.includes("invalid login credentials")) {
+    return "البريد الإلكتروني أو كلمة المرور غير صحيحة";
+  }
+  if (normalized.includes("email not confirmed")) {
+    return "يجب تأكيد البريد الإلكتروني أولًا، ثم محاولة تسجيل الدخول مجددًا";
+  }
+  if (normalized.includes("user already registered")) {
+    return "هذا البريد مسجل بالفعل؛ استخدم تسجيل الدخول أو استعادة كلمة المرور";
+  }
+  if (normalized.includes("password should be at least")) {
+    return "كلمة المرور يجب ألا تقل عن 8 أحرف";
+  }
+  if (normalized.includes("email rate limit exceeded")) {
+    return "تم إرسال محاولات كثيرة إلى هذا البريد؛ انتظر قليلًا ثم حاول مجددًا";
+  }
+  return message;
+}
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -35,14 +55,19 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
   const [name, setName] = useState("");
-  const [busy, setBusy] = useState<
-    null | "email" | "google" | "apple" | "callback" | "recovery" | "reset"
-  >(null);
+  const [busy, setBusy] = useState<null | "email" | "google" | "apple" | "recovery" | "reset">(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [handoffUrl, setHandoffUrl] = useState<string | null>(null);
   const navigate = useNavigate();
   const router = useRouter();
+
+  useEffect(() => {
+    const callbackError = consumeNativeAuthError();
+    if (callbackError) setError(callbackError);
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -79,81 +104,46 @@ function AuthPage() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!isNativeOAuthAvailable()) return;
-    let active = true;
-    let removeListener: (() => Promise<void>) | undefined;
-
-    const receiveCallback = async (url: string) => {
-      if (!active) return;
-      setError(null);
-      setBusy("callback");
-      try {
-        if (new URL(url).pathname === "/recovery") {
-          await completeNativeRecovery(url);
-          if (active) {
-            setPassword("");
-            setRepeatPassword("");
-            setMode("reset");
-            setNotice("اكتب كلمة مرور جديدة لحسابك.");
-          }
-          return;
-        }
-        await completeNativeOAuth(url);
-        await router.invalidate();
-        await navigate({ to: "/" });
-      } catch (callbackError) {
-        if (active) {
-          setError(
-            callbackError instanceof Error ? callbackError.message : "تعذّر إكمال تسجيل الدخول",
-          );
-        }
-      } finally {
-        if (active) setBusy(null);
-      }
-    };
-
-    void listenForNativeAuthCallback((url) => void receiveCallback(url))
-      .then((remove) => {
-        if (active) removeListener = remove;
-        else void remove();
-      })
-      .catch((listenerError) => {
-        if (active) {
-          setError(
-            listenerError instanceof Error ? listenerError.message : "تعذّر تجهيز تسجيل الدخول",
-          );
-        }
-      });
-
-    return () => {
-      active = false;
-      void removeListener?.();
-    };
-  }, [navigate, router]);
-
   const onEmail = async () => {
     setError(null);
+    setNotice(null);
     setBusy("email");
     try {
+      const normalizedEmail = email.trim();
+      if (!normalizedEmail) throw new Error("أدخل البريد الإلكتروني");
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email,
+        if (password.length < 8) throw new Error("كلمة المرور يجب ألا تقل عن 8 أحرف");
+        const { data, error } = await supabase.auth.signUp({
+          email: normalizedEmail,
           password,
           options: {
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: isNativeAuthAvailable()
+              ? nativeEmailConfirmationRedirectUrl()
+              : window.location.origin,
             data: { name },
           },
         });
         if (error) throw error;
+        if (!data.session) {
+          setPassword("");
+          setMode("signin");
+          setNotice(
+            "تم إنشاء الحساب. افتح رسالة التأكيد في بريدك، ثم ارجع إلى MemoFlow وسجّل الدخول.",
+          );
+          return;
+        }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        });
         if (error) throw error;
+        if (!data.session) throw new Error("لم تُنشأ جلسة تسجيل الدخول؛ حاول مرة أخرى");
       }
       await router.invalidate();
-      navigate({ to: "/" });
+      await navigate({ to: "/" });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "حدث خطأ غير متوقع");
+      setError(readableAuthError(e));
     } finally {
       setBusy(null);
     }
@@ -164,16 +154,18 @@ function AuthPage() {
     setNotice(null);
     setBusy("recovery");
     try {
+      const normalizedEmail = email.trim();
+      if (!normalizedEmail) throw new Error("أدخل البريد الإلكتروني");
       const redirectTo = isNativeAuthAvailable()
         ? nativeRecoveryRedirectUrl()
         : new URL("/auth?recovery=1", window.location.origin).toString();
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+      const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, { redirectTo });
       if (error) throw error;
       setNotice(
         "أرسلنا رابط الاستعادة إن كان البريد مسجلًا. افتحه على هذا الهاتف للعودة إلى MemoFlow.",
       );
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "تعذر إرسال رابط الاستعادة");
+      setError(readableAuthError(reason));
     } finally {
       setBusy(null);
     }
@@ -224,7 +216,7 @@ function AuthPage() {
       await router.invalidate();
       navigate({ to: "/" });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "تعذّر تسجيل الدخول");
+      setError(readableAuthError(e));
     } finally {
       setBusy(null);
     }
@@ -292,7 +284,7 @@ function AuthPage() {
                   dir="ltr"
                 />
               </Field>
-              <AuthMessage error={error} notice={notice} callbackBusy={false} />
+              <AuthMessage error={error} notice={notice} />
               <button
                 type="button"
                 onClick={requestPasswordReset}
@@ -339,7 +331,7 @@ function AuthPage() {
                   dir="ltr"
                 />
               </Field>
-              <AuthMessage error={error} notice={notice} callbackBusy={busy === "callback"} />
+              <AuthMessage error={error} notice={notice} />
               <button
                 type="button"
                 onClick={updatePassword}
@@ -403,7 +395,7 @@ function AuthPage() {
                   dir="ltr"
                 />
               </Field>
-              <AuthMessage error={error} notice={notice} callbackBusy={busy === "callback"} />
+              <AuthMessage error={error} notice={notice} />
               <button
                 type="button"
                 onClick={onEmail}
@@ -465,15 +457,7 @@ function AuthPage() {
   );
 }
 
-function AuthMessage({
-  error,
-  notice,
-  callbackBusy,
-}: {
-  error: string | null;
-  notice: string | null;
-  callbackBusy: boolean;
-}) {
+function AuthMessage({ error, notice }: { error: string | null; notice: string | null }) {
   return (
     <>
       {error && (
@@ -484,11 +468,6 @@ function AuthMessage({
       {notice && (
         <p className="mt-3 rounded-lg bg-primary-soft px-3 py-2 text-xs font-semibold text-primary">
           {notice}
-        </p>
-      )}
-      {callbackBusy && (
-        <p className="mt-3 rounded-lg bg-primary-soft px-3 py-2 text-xs font-semibold text-primary">
-          جارٍ إكمال العملية داخل التطبيق…
         </p>
       )}
     </>
