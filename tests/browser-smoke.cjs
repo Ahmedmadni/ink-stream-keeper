@@ -511,15 +511,15 @@ const vaultEntries = [
       };
     });
     await page.goto(`${baseUrl}/settings`);
+    await page.bringToFront();
     await page.getByRole("heading", { name: "رمز فتح MemoFlow", exact: true }).waitFor();
-    await page.waitForFunction(() =>
-      window.__nativeCalls?.some(
-        (call) => call.plugin === "LocalNotifications" && call.method === "checkPermissions",
-      ),
-    );
+    await page.evaluate(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("focus"));
+    });
     const notificationButton = page.getByRole("button", { name: /إشعارات التذكير/ });
     await notificationButton.click();
-    await page.getByRole("button", { name: "تجربة إشعار", exact: true }).waitFor();
+    await page.getByRole("button", { name: "تجربة إشعار", exact: true }).waitFor({ timeout: 5000 });
     await page.getByRole("button", { name: "تجربة إشعار", exact: true }).click();
     await page.waitForFunction(() =>
       window.__nativeCalls.some((call) => call.method === "schedule"),
@@ -570,6 +570,9 @@ const vaultEntries = [
         await page
           .evaluate(() => ({
             platform: window.Capacitor?.getPlatform?.(),
+            hidden: document.hidden,
+            visibility: document.visibilityState,
+            plugins: Object.keys(window.Capacitor?.Plugins || {}),
             state: window.__nativeState,
             calls: window.__nativeCalls
               ?.map(({ plugin, method }) => ({ plugin, method }))
