@@ -192,7 +192,7 @@ const vaultEntries = [
   let logs = "";
   server.stdout.on("data", (chunk) => (logs += chunk));
   server.stderr.on("data", (chunk) => (logs += chunk));
-  let browser;
+  let browser, page;
   try {
     const deadline = Date.now() + 30000;
     while (true) {
@@ -278,7 +278,7 @@ const vaultEntries = [
       }
       return route.abort();
     });
-    const page = await context.newPage();
+    page = await context.newPage();
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto("http://127.0.0.1:4173/notes");
@@ -511,6 +511,11 @@ const vaultEntries = [
       };
     });
     await page.goto(`${baseUrl}/settings`);
+    await page.waitForFunction(() =>
+      window.__nativeCalls?.some(
+        (call) => call.plugin === "LocalNotifications" && call.method === "checkPermissions",
+      ),
+    );
     const notificationButton = page.getByRole("button", { name: /إشعارات التذكير/ });
     await notificationButton.click();
     await page.getByRole("button", { name: "تجربة إشعار", exact: true }).waitFor();
@@ -554,6 +559,28 @@ const vaultEntries = [
     console.log(
       "PASS: mocked browser flows — four-tab navigation, readable phone sizes at 320–430px, bundled font, RTL dates, task priority/completion order, creation, simplified settings, and vault security; no page errors.",
     );
+  } catch (error) {
+    if (page) {
+      await page
+        .screenshot({ path: artifacts + "/browser-failure.png", fullPage: true })
+        .catch(() => {});
+      console.error(
+        "Browser state",
+        await page
+          .evaluate(() => ({
+            platform: window.Capacitor?.getPlatform?.(),
+            state: window.__nativeState,
+            calls: window.__nativeCalls
+              ?.map(({ plugin, method }) => ({ plugin, method }))
+              .slice(-20),
+            messages: [...document.querySelectorAll("[data-sonner-toast]")].map(
+              (node) => node.textContent,
+            ),
+          }))
+          .catch(() => ({})),
+      );
+    }
+    throw error;
   } finally {
     await browser?.close();
     server.kill("SIGTERM");

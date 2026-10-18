@@ -34,6 +34,7 @@ jobs:
         with:
           name: MemoFlow-UI-Checks
           path: .qa-results/*.png
+          include-hidden-files: true
           if-no-files-found: ignore
 
   android-debug:
