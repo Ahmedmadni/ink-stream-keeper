@@ -10,9 +10,7 @@ def releaseSigningReady = releaseSigningValues.values().every { value -> value !
 def releaseTaskRequested = gradle.startParameter.taskNames.any { taskName ->
     taskName.toLowerCase(java.util.Locale.ROOT).contains('release')
 }
-def unsignedCiReleaseAllowed = System.getenv('CI') == 'true' && project.findProperty('memoflowUnsignedCi') == 'true'
-
-if (releaseTaskRequested && !releaseSigningReady && !unsignedCiReleaseAllowed) {
+if (releaseTaskRequested && !releaseSigningReady) {
     throw new GradleException('Release signing is not configured. Set MEMOFLOW_KEYSTORE_PATH, MEMOFLOW_KEYSTORE_PASSWORD, MEMOFLOW_KEY_ALIAS, and MEMOFLOW_KEY_PASSWORD.')
 }
 
