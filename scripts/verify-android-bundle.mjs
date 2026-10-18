@@ -22,6 +22,9 @@ if (capacitorConfig.server?.url) {
 if (capacitorConfig.appName !== "MemoFlow") {
   throw new Error("Unexpected Android app name");
 }
+if (capacitorConfig.appId !== "com.ahmedmadni.memoflow") {
+  throw new Error("Unexpected Android package identity");
+}
 
 await readFile(resolve(publicAssets, "index.html"));
 const assetNames = await readdir(resolve(publicAssets, "assets"));
@@ -90,9 +93,10 @@ requireMatch(
 requireMatch(extractionRules, /<cloud-backup/, "Cloud-backup exclusions are missing");
 requireMatch(extractionRules, /<device-transfer>/, "Device-transfer exclusions are missing");
 
-const activity = await text(
-  "android/app/src/main/java/app/lovable/c357f296dbad4d33991e76d86c92e6d0/MainActivity.java",
-);
+const activity = await text("android/app/src/main/java/com/ahmedmadni/memoflow/MainActivity.java");
+if (!activity.includes("package com.ahmedmadni.memoflow;")) {
+  throw new Error("MainActivity does not use the permanent MemoFlow package identity");
+}
 for (const marker of [
   "WebView.setWebContentsDebuggingEnabled(false)",
   "WindowManager.LayoutParams.FLAG_SECURE",
