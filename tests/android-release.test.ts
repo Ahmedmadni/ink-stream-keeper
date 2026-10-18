@@ -16,8 +16,10 @@ describe("Android release safeguards", () => {
     ]) {
       expect(gradle).toContain(`System.getenv('${name}')`);
     }
-    expect(gradle).toContain("versionCode 10");
-    expect(gradle).toContain('versionName "1.2.4"');
+    expect(gradle).toContain('namespace = "com.ahmedmadni.memoflow"');
+    expect(gradle).toContain('applicationId "com.ahmedmadni.memoflow"');
+    expect(gradle).toContain("versionCode 11");
+    expect(gradle).toContain('versionName "1.2.5"');
     expect(gradle).toContain("throw new GradleException");
     expect(gradle).not.toMatch(/storePassword\s+['"][^$]/);
     expect(gradle).not.toMatch(/keyPassword\s+['"][^$]/);
@@ -33,6 +35,16 @@ describe("Android release safeguards", () => {
     expect(workflow).toContain("secrets.MEMOFLOW_RELEASE_KEYSTORE_BASE64");
     expect(workflow).toContain("assembleRelease bundleRelease");
     expect(workflow).toContain("jarsigner -verify -strict");
+  });
+
+  test("uses the permanent branded package identity", () => {
+    expect(read("capacitor.config.ts")).toContain('appId: "com.ahmedmadni.memoflow"');
+    expect(read("android/app/src/main/res/values/strings.xml")).toContain(
+      '<string name="package_name">com.ahmedmadni.memoflow</string>',
+    );
+    expect(read("android/app/src/main/res/xml/autofill_service.xml")).toContain(
+      'android:settingsActivity="com.ahmedmadni.memoflow.MainActivity"',
+    );
   });
 
   test("runs native-bundle verification and Android lint in CI", () => {
