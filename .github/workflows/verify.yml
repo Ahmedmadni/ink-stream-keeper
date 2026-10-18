@@ -63,6 +63,26 @@ jobs:
         working-directory: android
       - run: ./gradlew assembleDebug --no-daemon
         working-directory: android
+      - name: Build unsigned release candidates for external signing
+        run: ./gradlew assembleRelease bundleRelease -PmemoflowUnsignedCi=true --no-daemon
+        working-directory: android
+      - name: Collect Android signing verifier
+        run: |
+          APKSIGNER_PATH="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$APKSIGNER_PATH"
+          mkdir -p android-signing-tools/lib
+          cp "$APKSIGNER_PATH" android-signing-tools/apksigner
+          cp "$(dirname "$APKSIGNER_PATH")/lib/apksigner.jar" android-signing-tools/lib/apksigner.jar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MemoFlow-Unsigned-Release-Candidate
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/bundle/release/*.aab
+            android-signing-tools/apksigner
+            android-signing-tools/lib/apksigner.jar
+          if-no-files-found: error
+          retention-days: 1
       - name: Write APK checksum
         run: sha256sum app-debug.apk > app-debug.apk.sha256
         working-directory: android/app/build/outputs/apk/debug
