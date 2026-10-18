@@ -19,6 +19,16 @@ export default defineConfig({
     ...(isNativeBuild ? { spa: { enabled: true } } : {}),
   },
   vite: {
+    // Native-only imports are first reached after a permission action. Prebundle
+    // them in dev so the dependency optimizer cannot reload that pending screen.
+    optimizeDeps: {
+      include: [
+        "@capacitor/core",
+        "@capacitor/local-notifications",
+        "@capacitor/filesystem",
+        "@capacitor/share",
+      ],
+    },
     plugins: [
       VitePWA({
         registerType: "autoUpdate",
