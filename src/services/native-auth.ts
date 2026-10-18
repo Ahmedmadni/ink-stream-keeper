@@ -19,10 +19,13 @@ type OAuthCallback =
   | { accessToken: null; refreshToken: null; error: string };
 
 const nativePlugin = registerPlugin<NativeAuthPlugin>("MemoFlowAuth");
-const CALLBACK_URI = "app.lovable.c357f296dbad4d33991e76d86c92e6d0://auth/callback";
+// Lovable Cloud OAuth only allows its mobile callback URI. A project-specific
+// custom scheme is rejected by the broker before the provider login begins.
+export const OAUTH_CALLBACK_URI = "lovable://oauth-callback";
 export const RECOVERY_CALLBACK_URI = "app.lovable.c357f296dbad4d33991e76d86c92e6d0://auth/recovery";
 const OAUTH_INITIATE_URL = "https://ink-stream-keeper.lovable.app/~oauth/initiate";
 const STATE_STORAGE_KEY = "memoflow:native-oauth-state";
+const ERROR_STORAGE_KEY = "memoflow:native-auth-error";
 const STATE_MAX_AGE_MS = 15 * 60 * 1000;
 
 export function isNativeOAuthAvailable(): boolean {
@@ -34,6 +37,17 @@ export function isNativeOAuthAvailable(): boolean {
 }
 
 export const isNativeAuthAvailable = isNativeOAuthAvailable;
+
+export function rememberNativeAuthError(reason: unknown): void {
+  const message = reason instanceof Error ? reason.message : "تعذّر إكمال تسجيل الدخول";
+  sessionStorage.setItem(ERROR_STORAGE_KEY, message);
+}
+
+export function consumeNativeAuthError(): string | null {
+  const message = sessionStorage.getItem(ERROR_STORAGE_KEY);
+  if (message) sessionStorage.removeItem(ERROR_STORAGE_KEY);
+  return message;
+}
 
 function newState(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
@@ -51,11 +65,15 @@ function callbackParams(url: URL): URLSearchParams {
 
 export function parseNativeOAuthCallback(rawUrl: string, expectedState: string): OAuthCallback {
   const url = new URL(rawUrl);
-  if (
-    url.protocol !== "app.lovable.c357f296dbad4d33991e76d86c92e6d0:" ||
-    url.hostname !== "auth" ||
-    url.pathname !== "/callback"
-  ) {
+  const supportedMobileCallback =
+    url.protocol === "lovable:" &&
+    url.hostname === "oauth-callback" &&
+    (url.pathname === "" || url.pathname === "/");
+  const legacyCallback =
+    url.protocol === "app.lovable.c357f296dbad4d33991e76d86c92e6d0:" &&
+    url.hostname === "auth" &&
+    url.pathname === "/callback";
+  if (!supportedMobileCallback && !legacyCallback) {
     throw new Error("رابط الرجوع إلى MemoFlow غير صالح");
   }
 
@@ -100,6 +118,10 @@ export function nativeRecoveryRedirectUrl(): string {
   return `${APP_BACKEND_ORIGIN}/auth?native_recovery=1`;
 }
 
+export function nativeEmailConfirmationRedirectUrl(): string {
+  return `${APP_BACKEND_ORIGIN}/auth`;
+}
+
 export function nativeRecoveryHandoffUrl(accessToken: string, refreshToken: string): string {
   const params = new URLSearchParams({
     access_token: accessToken,
@@ -115,7 +137,7 @@ export async function beginNativeOAuth(provider: NativeOAuthProvider): Promise<v
 
   const url = new URL(OAUTH_INITIATE_URL);
   url.searchParams.set("provider", provider);
-  url.searchParams.set("redirect_uri", CALLBACK_URI);
+  url.searchParams.set("redirect_uri", OAUTH_CALLBACK_URI);
   url.searchParams.set("state", state);
 
   try {

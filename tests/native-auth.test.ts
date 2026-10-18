@@ -1,13 +1,18 @@
 import { describe, expect, test } from "bun:test";
 import {
   nativeRecoveryHandoffUrl,
+  OAUTH_CALLBACK_URI,
   parseNativeOAuthCallback,
   parseNativeRecoveryCallback,
 } from "../src/services/native-auth";
 
-const callback = "app.lovable.c357f296dbad4d33991e76d86c92e6d0://auth/callback";
+const callback = "lovable://oauth-callback";
 
 describe("native OAuth callback", () => {
+  test("uses the mobile callback URI accepted by the OAuth broker", () => {
+    expect(OAUTH_CALLBACK_URI).toBe(callback);
+  });
+
   test("accepts matching state and tokens from query parameters", () => {
     expect(
       parseNativeOAuthCallback(
@@ -21,6 +26,15 @@ describe("native OAuth callback", () => {
     expect(
       parseNativeOAuthCallback(
         `${callback}#state=safe&access_token=access&refresh_token=refresh`,
+        "safe",
+      ),
+    ).toEqual({ accessToken: "access", refreshToken: "refresh", error: null });
+  });
+
+  test("keeps accepting an in-flight callback from the previous Android build", () => {
+    expect(
+      parseNativeOAuthCallback(
+        "app.lovable.c357f296dbad4d33991e76d86c92e6d0://auth/callback#state=safe&access_token=access&refresh_token=refresh",
         "safe",
       ),
     ).toEqual({ accessToken: "access", refreshToken: "refresh", error: null });

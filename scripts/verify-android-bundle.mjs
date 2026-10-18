@@ -74,7 +74,12 @@ requireMatch(
   /android:enabled="@bool\/autofill_service_enabled"/,
   "Android Autofill must be API-gated",
 );
-requireMatch(manifest, /android:path="\/callback"/, "OAuth callback intent is missing");
+requireMatch(
+  manifest,
+  /android:host="oauth-callback"[\s\S]*android:scheme="lovable"/,
+  "Supported Lovable mobile OAuth callback intent is missing",
+);
+requireMatch(manifest, /android:path="\/callback"/, "Legacy OAuth callback intent is missing");
 requireMatch(manifest, /android:path="\/recovery"/, "Recovery callback intent is missing");
 
 const autofillDefault = await text("android/app/src/main/res/values/bools.xml");
