@@ -1,4 +1,5 @@
 import { isNative } from "./platform";
+import { registerPlugin } from "@capacitor/core";
 
 export type FloatingItem = { kind: "note" | "task"; title: string };
 
@@ -13,7 +14,6 @@ let plugin: FloatingPlugin | null = null;
 async function get(): Promise<FloatingPlugin | null> {
   if (!isNative()) return null;
   if (!plugin) {
-    const { registerPlugin } = await import("@capacitor/core");
     plugin = registerPlugin<FloatingPlugin>("MemoFlowFloating");
   }
   return plugin;

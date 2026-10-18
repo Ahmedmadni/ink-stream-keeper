@@ -1,5 +1,6 @@
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { isNative } from "@/services/platform";
+import type { LocalNotificationsPlugin } from "@capacitor/local-notifications";
 
 type ReminderTask = {
   id: string;
@@ -17,9 +18,14 @@ function numId(s: string): number {
   return (Math.abs(h) % 1_999_999_999) + 1;
 }
 
-async function plugin() {
-  const m = await import("@capacitor/local-notifications");
-  return m.LocalNotifications;
+let notificationPlugin: LocalNotificationsPlugin | null = null;
+async function plugin(): Promise<LocalNotificationsPlugin> {
+  if (!isNative()) throw new Error("التذكيرات الأصلية متاحة داخل التطبيق فقط");
+  // The package's JS entry only registers this native bridge. Register lazily
+  // through the already loaded core instead of fetching another JS chunk while
+  // an Android permission request is pending.
+  notificationPlugin ??= registerPlugin<LocalNotificationsPlugin>("LocalNotifications");
+  return notificationPlugin;
 }
 
 export async function nativeReminderStatus() {
