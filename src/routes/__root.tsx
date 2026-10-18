@@ -21,6 +21,7 @@ import { useOnlineStatus } from "@/hooks/use-online-status";
 import { PanelProvider } from "@/hooks/use-panel";
 import { AppLockGate } from "@/components/AppLockGate";
 import { AutoBackupAgent } from "@/features/backup/AutoBackupAgent";
+import { NativeAuthCoordinator } from "@/components/NativeAuthCoordinator";
 
 function NotFoundComponent() {
   return (
@@ -186,6 +187,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <NativeAuthCoordinator />
       <AppLockGate>
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <VaultSecurity />
