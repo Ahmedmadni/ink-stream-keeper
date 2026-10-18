@@ -13,8 +13,10 @@ import java.net.URI;
 
 @CapacitorPlugin(name = "MemoFlowAuth")
 public final class MemoFlowAuthPlugin extends Plugin {
-    private static final String APP_SCHEME = "app.lovable.c357f296dbad4d33991e76d86c92e6d0";
-    private static final String APP_CALLBACK_HOST = "auth";
+    private static final String OAUTH_CALLBACK_SCHEME = "lovable";
+    private static final String OAUTH_CALLBACK_HOST = "oauth-callback";
+    private static final String LEGACY_APP_SCHEME = "app.lovable.c357f296dbad4d33991e76d86c92e6d0";
+    private static final String LEGACY_CALLBACK_HOST = "auth";
     private static final String APP_CALLBACK_PATH = "/callback";
     private static final String APP_RECOVERY_PATH = "/recovery";
     private static final String OAUTH_HOST = "ink-stream-keeper.lovable.app";
@@ -74,9 +76,14 @@ public final class MemoFlowAuthPlugin extends Plugin {
     static boolean isAuthCallback(String rawUrl) {
         try {
             URI url = new URI(rawUrl);
-            return APP_SCHEME.equals(url.getScheme())
-                    && APP_CALLBACK_HOST.equals(url.getHost())
-                    && (APP_CALLBACK_PATH.equals(url.getPath()) || APP_RECOVERY_PATH.equals(url.getPath()));
+            String path = url.getPath();
+            boolean oauthCallback = OAUTH_CALLBACK_SCHEME.equals(url.getScheme())
+                    && OAUTH_CALLBACK_HOST.equals(url.getHost())
+                    && (path == null || path.isEmpty() || "/".equals(path));
+            boolean legacyCallback = LEGACY_APP_SCHEME.equals(url.getScheme())
+                    && LEGACY_CALLBACK_HOST.equals(url.getHost())
+                    && (APP_CALLBACK_PATH.equals(path) || APP_RECOVERY_PATH.equals(path));
+            return oauthCallback || legacyCallback;
         } catch (Exception ignored) {
             return false;
         }
