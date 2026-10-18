@@ -135,6 +135,6 @@ notifications.
 
 The generated package uses API 24 as its minimum and API 36 as its target. OS
 backup is disabled because the app handles sensitive vault data. Cleartext
-traffic and mixed content are disabled. Version `1.2.4` also purges cached vault
+traffic and mixed content are disabled. Version `1.2.5` also purges cached vault
 entry/category queries whenever the vault locks, so unlocked labels and account
 metadata are not retained in React Query's 24-hour cache.
