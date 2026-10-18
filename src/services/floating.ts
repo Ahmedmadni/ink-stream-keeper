@@ -11,6 +11,7 @@ type FloatingPlugin = {
 };
 
 let plugin: FloatingPlugin | null = null;
+// Keep the proxy getter synchronous: a Capacitor proxy is also thenable.
 function get(): FloatingPlugin | null {
   if (!isNative()) return null;
   if (!plugin) {

@@ -451,6 +451,7 @@ const vaultEntries = [
     await page.evaluate(() => {
       delete document.hidden;
     });
+    assert.deepEqual(errors, []);
     // Exercise the installed-Android UI using a deterministic Capacitor bridge.
     // System permission screens themselves still require a real-device check.
     await context.addInitScript(() => {
@@ -556,7 +557,14 @@ const vaultEntries = [
       0,
     );
     await page.screenshot({ path: artifacts + "/settings-android-mobile.png", fullPage: true });
-    assert.deepEqual(errors, []);
+    // This fixture changes a web SSR page into Android on the client. React's
+    // expected SSR mismatch is absent from the real Android build (local SPA).
+    assert.deepEqual(
+      errors.filter(
+        (message) => !message.startsWith("Hydration failed because the server rendered HTML"),
+      ),
+      [],
+    );
     console.log(
       "PASS: mocked browser flows — four-tab navigation, readable phone sizes at 320–430px, bundled font, RTL dates, task priority/completion order, creation, simplified settings, and vault security; no page errors.",
     );

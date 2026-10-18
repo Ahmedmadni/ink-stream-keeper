@@ -92,6 +92,9 @@ so the action continues after returning from system Settings even if the app loc
 It also rechecks notification permissions and reschedules task reminders on resume, opens MemoFlow's
 notification settings when permission was previously denied, and provides an explicit test-notification
 button. Exact alarm access is requested only by the user; without it reminders use inexact scheduling.
+Both permission adapters now use synchronous getters for Capacitor proxies. Returning a proxy from
+an async function made Promise resolution call its synthetic `then` method and left permission
+requests hanging before any Android API was reached.
 
 ## Simple settings and manual backups (1.2.7)
 
