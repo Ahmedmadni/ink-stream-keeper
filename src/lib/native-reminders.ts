@@ -19,17 +19,16 @@ function numId(s: string): number {
 }
 
 let notificationPlugin: LocalNotificationsPlugin | null = null;
-async function plugin(): Promise<LocalNotificationsPlugin> {
+function plugin(): LocalNotificationsPlugin {
   if (!isNative()) throw new Error("التذكيرات الأصلية متاحة داخل التطبيق فقط");
-  // The package's JS entry only registers this native bridge. Register lazily
-  // through the already loaded core instead of fetching another JS chunk while
-  // an Android permission request is pending.
+  // Capacitor proxies expose every property, including `then`. Never return one
+  // from an async getter or await it: Promise assimilation would hang forever.
   notificationPlugin ??= registerPlugin<LocalNotificationsPlugin>("LocalNotifications");
   return notificationPlugin;
 }
 
 export async function nativeReminderStatus() {
-  const LN = await plugin();
+  const LN = plugin();
   const permission = await LN.checkPermissions();
   const enabled = await LN.areEnabled();
   const exact =
@@ -49,7 +48,7 @@ export async function openNativeNotificationSettings() {
 
 export async function requestNativePermission(): Promise<boolean> {
   if (!isNative()) return false;
-  const LN = await plugin();
+  const LN = plugin();
   const cur = await nativeReminderStatus();
   if (cur.granted) return true;
   if (cur.permission === "denied" || cur.permission === "granted") {
@@ -62,14 +61,12 @@ export async function requestNativePermission(): Promise<boolean> {
 }
 
 export async function requestExactReminders() {
-  await (await plugin()).changeExactNotificationSetting();
+  await plugin().changeExactNotificationSetting();
   window.dispatchEvent(new Event(REMINDER_PERMISSION_EVENT));
 }
 
 export async function testNativeReminder() {
-  await (
-    await plugin()
-  ).schedule({
+  await plugin().schedule({
     notifications: [
       {
         id: 2_000_000_001,
@@ -88,7 +85,7 @@ export function syncNativeReminders(tasks: ReminderTask[]): Promise<void> {
   syncQueue = syncQueue
     .catch(() => undefined)
     .then(async () => {
-      const LN = await plugin();
+      const LN = plugin();
       const status = await nativeReminderStatus();
       if (!status.granted) return;
       const pending = await LN.getPending();

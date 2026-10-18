@@ -11,7 +11,7 @@ type FloatingPlugin = {
 };
 
 let plugin: FloatingPlugin | null = null;
-async function get(): Promise<FloatingPlugin | null> {
+function get(): FloatingPlugin | null {
   if (!isNative()) return null;
   if (!plugin) {
     plugin = registerPlugin<FloatingPlugin>("MemoFlowFloating");
@@ -23,17 +23,17 @@ export function floatingSupported() {
   return isNative();
 }
 export async function floatingPermission() {
-  return (await (await get())?.checkPermission())?.granted ?? false;
+  return (await get()?.checkPermission())?.granted ?? false;
 }
 export async function floatingStatus() {
-  return (await (await get())?.checkPermission()) ?? { granted: false, running: false };
+  return (await get()?.checkPermission()) ?? { granted: false, running: false };
 }
 export async function requestFloatingPermission() {
-  return (await (await get())?.requestPermission())?.granted ?? false;
+  return (await get()?.requestPermission())?.granted ?? false;
 }
 export async function showFloating(items: FloatingItem[]) {
-  await (await get())?.show({ items });
+  await get()?.show({ items });
 }
 export async function hideFloating() {
-  await (await get())?.hide();
+  await get()?.hide();
 }
