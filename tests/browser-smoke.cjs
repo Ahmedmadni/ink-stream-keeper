@@ -511,11 +511,19 @@ const vaultEntries = [
       };
     });
     await page.goto(`${baseUrl}/settings`);
-    await page.waitForFunction(() =>
-      window.__nativeCalls?.some(
-        (call) => call.plugin === "LocalNotifications" && call.method === "checkPermissions",
-      ),
-    );
+    await page.getByRole("heading", { name: "رمز فتح MemoFlow", exact: true }).waitFor();
+    const bridgeStatus = await page.evaluate(async () => {
+      try {
+        return {
+          status: await (await import("/src/lib/native-reminders.ts")).nativeReminderStatus(),
+          hidden: document.hidden,
+        };
+      } catch (error) {
+        return { error: String(error), hidden: document.hidden };
+      }
+    });
+    console.log("Native notification bridge", bridgeStatus);
+    assert.equal(bridgeStatus.error, undefined);
     const notificationButton = page.getByRole("button", { name: /إشعارات التذكير/ });
     await notificationButton.click();
     await page.getByRole("button", { name: "تجربة إشعار", exact: true }).waitFor();
