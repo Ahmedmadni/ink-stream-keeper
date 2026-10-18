@@ -51,6 +51,10 @@ MemoFlow's encrypted export file.
 
 ## App lock and password recovery
 
+- Google and Apple sign-in return through the OAuth broker's supported Android callback
+  `lovable://oauth-callback`. MemoFlow validates the original random `state` before accepting the
+  returned tokens. The callback coordinator stays mounted above the app-lock screen so opening the
+  browser cannot detach it.
 - After the first successful sign-in, Android requires a six-digit MemoFlow PIN before rendering
   account content. The PIN verifier is salted and stretched locally; the raw PIN is never stored.
 - Leaving the app locks the session, and `FLAG_SECURE` prevents screenshots and recent-app
@@ -137,4 +141,5 @@ The generated package uses API 24 as its minimum and API 36 as its target. OS
 backup is disabled because the app handles sensitive vault data. Cleartext
 traffic and mixed content are disabled. Version `1.2.5` also purges cached vault
 entry/category queries whenever the vault locks, so unlocked labels and account
-metadata are not retained in React Query's 24-hour cache.
+metadata are not retained in React Query's 24-hour cache. Version `1.2.6` fixes the Android OAuth
+redirect and email-confirmation behavior.
