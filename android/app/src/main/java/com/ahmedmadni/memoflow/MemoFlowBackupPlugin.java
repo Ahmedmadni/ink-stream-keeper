@@ -256,6 +256,53 @@ public final class MemoFlowBackupPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void saveLocalFile(PluginCall call) {
+        if (!requireUnlocked(call)) return;
+        String contents = call.getString("contents");
+        if (contents == null || contents.getBytes(StandardCharsets.UTF_8).length > MAX_BACKUP_BYTES) {
+            call.reject("ملف النسخة مفقود أو أكبر من الحد المدعوم");
+            return;
+        }
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/octet-stream");
+        intent.putExtra(Intent.EXTRA_TITLE, safeBackupName(call.getString("filename", "MemoFlow-backup.memoflow")));
+        try {
+            startActivityForResult(call, intent, "localFileResult");
+        } catch (Exception error) {
+            call.reject("تعذر فتح مكان الحفظ. يمكنك مشاركة النسخة إلى تطبيق الملفات.", error);
+        }
+    }
+
+    @ActivityCallback
+    private void localFileResult(PluginCall call, ActivityResult activityResult) {
+        if (call == null) return;
+        Intent data = activityResult.getData();
+        if (activityResult.getResultCode() != Activity.RESULT_OK || data == null || data.getData() == null) {
+            JSObject result = new JSObject();
+            result.put("cancelled", true);
+            call.resolve(result);
+            return;
+        }
+        Uri uri = data.getData();
+        byte[] bytes = call.getString("contents", "").getBytes(StandardCharsets.UTF_8);
+        getBridge().execute(() -> {
+            try (OutputStream stream = getContext().getContentResolver().openOutputStream(uri, "w")) {
+                if (stream == null) throw new java.io.IOException("File unavailable");
+                stream.write(bytes);
+                JSObject result = new JSObject();
+                result.put("cancelled", false);
+                result.put("uri", uri.toString());
+                call.resolve(result);
+            } catch (Exception error) {
+                call.reject("تعذر حفظ النسخة في المكان المحدد", error);
+            } finally {
+                java.util.Arrays.fill(bytes, (byte) 0);
+            }
+        });
+    }
+
+    @PluginMethod
     public void clearConfiguration(PluginCall call) {
         clearConfigurationInternal();
         call.resolve();

@@ -20,6 +20,8 @@
   --radius-4xl: calc(var(--radius) + 16px);
   --font-sans: "IBM Plex Sans Arabic", system-ui, sans-serif;
   --font-display: "IBM Plex Sans Arabic", system-ui, sans-serif;
+  --text-xs: 0.8125rem;
+  --text-sm: 0.9375rem;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -63,7 +65,7 @@
 
 :root {
   --radius: 1rem;
-  --background: #ffffff;
+  --background: #f5f6f8;
   --foreground: oklch(0.15 0 0);
   --card: #ffffff;
   --card-foreground: oklch(0.15 0 0);
@@ -158,23 +160,11 @@
 
   html {
     font-family: var(--font-sans);
-    /* Larger screens keep the design baseline; compact phones use a genuinely
-       fluid rem scale. Android WebView text zoom is pinned to 100% natively. */
+    /* Keep type, icons, spacing and touch targets readable on every phone.
+       Adapt layout to small screens instead of shrinking the whole interface. */
     font-size: 16px;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
-  }
-
-  @media (max-width: 479px) {
-    html {
-      font-size: clamp(12.5px, 3.5vw, 14.5px);
-    }
-  }
-
-  @media (min-width: 480px) and (max-width: 767px) {
-    html {
-      font-size: 15px;
-    }
   }
 
   body {

@@ -326,7 +326,18 @@ export function nodeProgress(
 
 /** Build the visible tree order (depth-first) from a flat list. */
 export type SubItemNode = SubItem & { children: SubItemNode[] };
-export function buildTree(rows: SubItem[]): SubItemNode[] {
+export function compareChecklistItems(a: SubItem, b: SubItem): number {
+  const priority: Record<string, number> = { high: 0, med: 1, medium: 1, low: 2 };
+  return (
+    Number(a.done) - Number(b.done) ||
+    (priority[a.priority] ?? 1) - (priority[b.priority] ?? 1) ||
+    a.position - b.position ||
+    a.created_at.localeCompare(b.created_at) ||
+    a.id.localeCompare(b.id)
+  );
+}
+
+export function buildTree(rows: SubItem[], prioritize = false): SubItemNode[] {
   const map = new Map<string, SubItemNode>();
   rows.forEach((r) => map.set(r.id, { ...r, children: [] }));
   const roots: SubItemNode[] = [];
@@ -335,7 +346,11 @@ export function buildTree(rows: SubItem[]): SubItemNode[] {
     else roots.push(n);
   });
   const sortRec = (list: SubItemNode[]) => {
-    list.sort((a, b) => a.position - b.position || a.created_at.localeCompare(b.created_at));
+    list.sort(
+      prioritize
+        ? compareChecklistItems
+        : (a, b) => a.position - b.position || a.created_at.localeCompare(b.created_at),
+    );
     list.forEach((n) => sortRec(n.children));
   };
   sortRec(roots);

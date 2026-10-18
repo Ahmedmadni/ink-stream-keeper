@@ -6,6 +6,7 @@ import {
   summarizeTaskItems,
   taskCompletionPatch,
   taskRollupPatch,
+  formatTaskDateTime,
 } from "../src/features/tasks/task-rules";
 
 const task = {
@@ -15,6 +16,12 @@ const task = {
   priority: "med",
 };
 describe("task checklist semantics", () => {
+  test("Arabic dates spell out the month and keep day before month before year", () => {
+    const text = formatTaskDateTime("2026-10-18T18:30");
+    expect(text).toContain("18 أكتوبر 2026");
+    expect(formatTaskDateTime("")).toBe("اختيار التاريخ والوقت");
+    expect(formatTaskDateTime("invalid")).toBe("اختيار التاريخ والوقت");
+  });
   test("undated tasks belong in open tasks, not today/upcoming", () => {
     expect(matchesTask(task, "all", "")).toBe(true);
     expect(matchesTask(task, "today", "")).toBe(false);

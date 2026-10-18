@@ -1,9 +1,18 @@
-import { createElement, Fragment } from "react";
-import { Calendar, CheckCircle2, Clock, Flag, ListChecks, Tag as TagIcon, TrendingUp } from "lucide-react";
+import { createElement, Fragment, type ChangeEvent } from "react";
+import {
+  Calendar,
+  CheckCircle2,
+  Clock,
+  Flag,
+  ListChecks,
+  Tag as TagIcon,
+  TrendingUp,
+} from "lucide-react";
 import { defineBlock, type BlockComposition } from "@/lib/engine/blocks";
 import type { StatEntry } from "@/components/items/StatisticsCard";
 import type { PropertyRow } from "@/components/blocks/blocks/PropertiesBlock";
 import { LegacyMigrateCard } from "@/components/subitems/LegacyMigrateCard";
+import { DateTimeField } from "@/components/DateTimeField";
 
 export type TaskCtx = {
   task: {
@@ -46,7 +55,10 @@ export type TaskBuildOpts = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  todo: "للقيام به", in_progress: "قيد التنفيذ", blocked: "موقوفة", done: "مكتملة",
+  todo: "للقيام به",
+  in_progress: "قيد التنفيذ",
+  blocked: "موقوفة",
+  done: "مكتملة",
 };
 const PRIO_LABEL: Record<string, string> = { low: "منخفضة", med: "متوسطة", high: "عالية" };
 
@@ -66,101 +78,199 @@ export function buildTaskBlocks(ctx: TaskCtx, opts: TaskBuildOpts = {}): BlockCo
   const total = ctx.subSummary?.total ?? legacyTotal;
   const done = ctx.subSummary?.done ?? legacyDone;
   const stats: StatEntry[] = [
-    { key: "prog", label: "الإنجاز", value: `${task.progress ?? 0}%`, icon: TrendingUp, tone: "primary" },
+    {
+      key: "prog",
+      label: "الإنجاز",
+      value: `${task.progress ?? 0}%`,
+      icon: TrendingUp,
+      tone: "primary",
+    },
     { key: "chk", label: "البنود", value: `${done}/${total}`, icon: ListChecks, tone: "accent" },
-    { key: "st", label: "الحالة", value: STATUS_LABEL[task.status ?? "todo"] ?? "—", icon: CheckCircle2, tone: task.done ? "success" : "muted" },
+    {
+      key: "st",
+      label: "الحالة",
+      value: STATUS_LABEL[task.status ?? "todo"] ?? "—",
+      icon: CheckCircle2,
+      tone: task.done ? "success" : "muted",
+    },
   ];
 
   const inputCls = "w-full bg-transparent text-sm font-bold outline-none";
-  const dateInputCls = "w-full bg-transparent text-xs font-bold outline-none";
   const upd = (patch: Record<string, unknown>) => m?.updateTask(patch);
 
   const propRows: PropertyRow[] = [
     {
-      key: "status", label: "الحالة", icon: Flag,
+      key: "status",
+      label: "الحالة",
+      icon: Flag,
       value: STATUS_LABEL[task.status ?? "todo"] ?? "—",
-      editor: readonly ? undefined : createElement("select", {
-        value: task.status ?? "todo", className: inputCls,
-        onChange: (e: any) => upd({ status: e.target.value, done: e.target.value === "done" }),
-      }, Object.entries(STATUS_LABEL).map(([k, v]) => createElement("option", { key: k, value: k }, v))),
+      editor: readonly
+        ? undefined
+        : createElement(
+            "select",
+            {
+              value: task.status ?? "todo",
+              className: inputCls,
+              onChange: (e: ChangeEvent<HTMLSelectElement>) =>
+                upd({ status: e.target.value, done: e.target.value === "done" }),
+            },
+            Object.entries(STATUS_LABEL).map(([k, v]) =>
+              createElement("option", { key: k, value: k }, v),
+            ),
+          ),
     },
     {
-      key: "priority", label: "الأولوية", icon: Flag,
+      key: "priority",
+      label: "الأولوية",
+      icon: Flag,
       value: PRIO_LABEL[task.priority ?? "med"] ?? "—",
-      editor: readonly ? undefined : createElement("select", {
-        value: task.priority ?? "med", className: inputCls,
-        onChange: (e: any) => upd({ priority: e.target.value }),
-      }, Object.entries(PRIO_LABEL).map(([k, v]) => createElement("option", { key: k, value: k }, v))),
+      editor: readonly
+        ? undefined
+        : createElement(
+            "select",
+            {
+              value: task.priority ?? "med",
+              className: inputCls,
+              onChange: (e: ChangeEvent<HTMLSelectElement>) => upd({ priority: e.target.value }),
+            },
+            Object.entries(PRIO_LABEL).map(([k, v]) =>
+              createElement("option", { key: k, value: k }, v),
+            ),
+          ),
     },
     {
-      key: "start", label: "تاريخ البداية", icon: Calendar,
+      key: "start",
+      label: "تاريخ البداية",
+      icon: Calendar,
       value: task.start_at ? new Date(task.start_at).toLocaleString("ar-EG") : "—",
-      editor: readonly ? undefined : createElement("input", {
-        type: "datetime-local", value: toLocalInput(task.start_at), className: dateInputCls,
-        onChange: (e: any) => upd({ start_at: e.target.value ? new Date(e.target.value).toISOString() : null }),
-      }),
+      editor: readonly
+        ? undefined
+        : createElement(DateTimeField, {
+            value: toLocalInput(task.start_at),
+            label: "تاريخ البداية",
+            onChange: (value: string) =>
+              upd({ start_at: value ? new Date(value).toISOString() : null }),
+          }),
     },
     {
-      key: "due", label: "تاريخ النهاية", icon: Clock,
+      key: "due",
+      label: "تاريخ النهاية",
+      icon: Clock,
       value: task.due_at ? new Date(task.due_at).toLocaleString("ar-EG") : "—",
-      editor: readonly ? undefined : createElement("input", {
-        type: "datetime-local", value: toLocalInput(task.due_at), className: dateInputCls,
-        onChange: (e: any) => upd({ due_at: e.target.value ? new Date(e.target.value).toISOString() : null }),
-      }),
+      editor: readonly
+        ? undefined
+        : createElement(DateTimeField, {
+            value: toLocalInput(task.due_at),
+            label: "تاريخ النهاية",
+            onChange: (value: string) =>
+              upd({ due_at: value ? new Date(value).toISOString() : null }),
+          }),
     },
     {
-      key: "reminder", label: "موعد التذكير", icon: Clock,
+      key: "reminder",
+      label: "موعد التذكير",
+      icon: Clock,
       value: task.reminder_at ? new Date(task.reminder_at).toLocaleString("ar-EG") : "—",
-      editor: readonly ? undefined : createElement("input", {
-        type: "datetime-local", value: toLocalInput(task.reminder_at), className: dateInputCls,
-        "aria-label": "موعد التذكير",
-        onChange: (e: React.ChangeEvent<HTMLInputElement>) => upd({ reminder_at: e.target.value ? new Date(e.target.value).toISOString() : null }),
-      }),
+      editor: readonly
+        ? undefined
+        : createElement(DateTimeField, {
+            value: toLocalInput(task.reminder_at),
+            label: "موعد التذكير",
+            onChange: (value: string) =>
+              upd({ reminder_at: value ? new Date(value).toISOString() : null }),
+          }),
     },
-    ...(opts.categories && opts.categories.length ? [{
-      key: "category", label: "التصنيف", icon: TagIcon,
-      value: opts.categories.find((c) => c.id === task.category_id)?.name ?? "—",
-      editor: readonly ? undefined : createElement("select", {
-        value: task.category_id ?? "", className: inputCls,
-        onChange: (e: any) => upd({ category_id: e.target.value || null }),
-      }, [
-        createElement("option", { key: "__none", value: "" }, "— بدون —"),
-        ...opts.categories.map((c) => createElement("option", { key: c.id, value: c.id }, c.name)),
-      ]),
-    } as PropertyRow] : []),
+    ...(opts.categories && opts.categories.length
+      ? [
+          {
+            key: "category",
+            label: "التصنيف",
+            icon: TagIcon,
+            value: opts.categories.find((c) => c.id === task.category_id)?.name ?? "—",
+            editor: readonly
+              ? undefined
+              : createElement(
+                  "select",
+                  {
+                    value: task.category_id ?? "",
+                    className: inputCls,
+                    onChange: (e: ChangeEvent<HTMLSelectElement>) =>
+                      upd({ category_id: e.target.value || null }),
+                  },
+                  [
+                    createElement("option", { key: "__none", value: "" }, "— بدون —"),
+                    ...opts.categories.map((c) =>
+                      createElement("option", { key: c.id, value: c.id }, c.name),
+                    ),
+                  ],
+                ),
+          } as PropertyRow,
+        ]
+      : []),
     {
-      key: "recurrence", label: "التكرار", icon: Clock,
-      value: ({ none: "بدون", daily: "يومي", weekly: "أسبوعي", monthly: "شهري" } as Record<string,string>)[task.recurrence ?? "none"] ?? "—",
-      editor: readonly ? undefined : createElement("select", {
-        value: task.recurrence ?? "none", className: inputCls,
-        onChange: (e: any) => upd({ recurrence: e.target.value }),
-      }, [
-        createElement("option", { key: "none", value: "none" }, "بدون"),
-        createElement("option", { key: "daily", value: "daily" }, "يومي"),
-        createElement("option", { key: "weekly", value: "weekly" }, "أسبوعي"),
-        createElement("option", { key: "monthly", value: "monthly" }, "شهري"),
-      ]),
+      key: "recurrence",
+      label: "التكرار",
+      icon: Clock,
+      value:
+        (
+          { none: "بدون", daily: "يومي", weekly: "أسبوعي", monthly: "شهري" } as Record<
+            string,
+            string
+          >
+        )[task.recurrence ?? "none"] ?? "—",
+      editor: readonly
+        ? undefined
+        : createElement(
+            "select",
+            {
+              value: task.recurrence ?? "none",
+              className: inputCls,
+              onChange: (e: ChangeEvent<HTMLSelectElement>) => upd({ recurrence: e.target.value }),
+            },
+            [
+              createElement("option", { key: "none", value: "none" }, "بدون"),
+              createElement("option", { key: "daily", value: "daily" }, "يومي"),
+              createElement("option", { key: "weekly", value: "weekly" }, "أسبوعي"),
+              createElement("option", { key: "monthly", value: "monthly" }, "شهري"),
+            ],
+          ),
     },
   ];
 
-  const addRemove = <T,>(list: T[], value: T) => Array.from(new Set([...(list as any[]), value])) as T[];
+  const addRemove = <T>(list: T[], value: T) => Array.from(new Set([...list, value]));
 
   return [
     defineBlock<{ type: "task"; title: string; badges: string[] }, TaskCtx>({
-      id: "header", type: "header", priority: 0,
+      id: "header",
+      type: "header",
+      priority: 0,
       layout: { bare: true },
       props: {
-        type: "task", title: task.title,
-        badges: [PRIO_LABEL[task.priority ?? "med"] ?? "", STATUS_LABEL[task.status ?? "todo"] ?? ""].filter(Boolean),
-      } as any,
+        type: "task",
+        title: task.title,
+        badges: [
+          PRIO_LABEL[task.priority ?? "med"] ?? "",
+          STATUS_LABEL[task.status ?? "todo"] ?? "",
+        ].filter(Boolean),
+      },
     }),
-    defineBlock({ id: "stats", type: "statistics", priority: 10, props: { entries: stats, columns: 3 } }),
     defineBlock({
-      id: "progress", type: "progress", priority: 20,
+      id: "stats",
+      type: "statistics",
+      priority: 10,
+      props: { entries: stats, columns: 3 },
+    }),
+    defineBlock({
+      id: "progress",
+      type: "progress",
+      priority: 20,
       props: { value: task.progress ?? 0, hint: total ? `${done} من ${total} بنداً` : undefined },
     }),
     defineBlock({
-      id: "description", type: "rich_text", priority: 30, title: "الوصف",
+      id: "description",
+      type: "rich_text",
+      priority: 30,
+      title: "الوصف",
       props: {
         text: task.description ?? "",
         placeholder: "أضف وصفاً للمهمة...",
@@ -168,7 +278,10 @@ export function buildTaskBlocks(ctx: TaskCtx, opts: TaskBuildOpts = {}): BlockCo
       },
     }),
     defineBlock({
-      id: "notes", type: "rich_text", priority: 35, title: "ملاحظات",
+      id: "notes",
+      type: "rich_text",
+      priority: 35,
+      title: "ملاحظات",
       props: {
         text: task.notes ?? "",
         placeholder: "ملاحظات إضافية...",
@@ -176,36 +289,56 @@ export function buildTaskBlocks(ctx: TaskCtx, opts: TaskBuildOpts = {}): BlockCo
       },
     }),
     defineBlock({
-      id: "properties", type: "properties", priority: 40,
+      id: "properties",
+      type: "properties",
+      priority: 40,
       props: { items: propRows, columns: 2 },
     }),
     // نظام بنود واحد فقط: التقسيم الهرمي. البنود القديمة تُعرض كبطاقة ترحيل لمرة واحدة.
-    ...(!readonly && legacyTotal > 0 ? [defineBlock({
-      id: "legacy_migrate", type: "custom", priority: 45,
-      layout: { bare: true, span: 4 },
-      props: {
-        render: () => createElement(LegacyMigrateCard, { taskId: task.id, count: legacyTotal }),
-      },
-    })] : []),
+    ...(!readonly && legacyTotal > 0
+      ? [
+          defineBlock({
+            id: "legacy_migrate",
+            type: "custom",
+            priority: 45,
+            layout: { bare: true, span: 4 },
+            props: {
+              render: () =>
+                createElement(LegacyMigrateCard, { taskId: task.id, count: legacyTotal }),
+            },
+          }),
+        ]
+      : []),
     defineBlock({
-      id: "sub_items", type: "sub_items", priority: 50, title: "التقسيم الهرمي",
+      id: "sub_items",
+      type: "sub_items",
+      priority: 50,
+      title: "التقسيم الهرمي",
       layout: { span: 4 },
       props: { parentType: "task", parentId: task.id, readonly, allowConvertToTask: false },
     }),
     defineBlock({
-      id: "tags", type: "tags", priority: 60,
+      id: "tags",
+      type: "tags",
+      priority: 60,
       props: {
         tags: task.tags ?? [],
         onAdd: readonly ? undefined : (t: string) => upd({ tags: addRemove(task.tags ?? [], t) }),
-        onRemove: readonly ? undefined : (t: string) => upd({ tags: (task.tags ?? []).filter((x) => x !== t) }),
+        onRemove: readonly
+          ? undefined
+          : (t: string) => upd({ tags: (task.tags ?? []).filter((x) => x !== t) }),
       },
     }),
     defineBlock({
-      id: "links", type: "links", priority: 65,
+      id: "links",
+      type: "links",
+      priority: 65,
       props: {
         links: task.links ?? [],
         onAdd: readonly ? undefined : (l: string) => upd({ links: addRemove(task.links ?? [], l) }),
-        onRemove: readonly ? undefined : (l: string) => upd({ links: (task.links ?? []).filter((x) => x !== l) }),
+        onRemove: readonly
+          ? undefined
+          : (l: string) => upd({ links: (task.links ?? []).filter((x) => x !== l) }),
       },
     }),
   ];

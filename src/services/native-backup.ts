@@ -19,6 +19,10 @@ export type NativeBackupSaveResult = {
 };
 
 type NativeBackupPlugin = {
+  saveLocalFile(options: {
+    contents: string;
+    filename: string;
+  }): Promise<{ cancelled: boolean; uri?: string }>;
   getStatus(options: { accountId: string }): Promise<NativeBackupStatus>;
   configure(options: { accountId: string; password: string }): Promise<void>;
   setEnabled(options: { accountId: string; enabled: boolean }): Promise<void>;
@@ -51,6 +55,9 @@ export function automaticBackupName(date = new Date()): string {
 
 export const nativeBackup = {
   supported: isNative,
+  async saveLocalFile(contents: string, filename: string) {
+    return nativePlugin.saveLocalFile({ contents, filename });
+  },
   async status(accountId: string): Promise<NativeBackupStatus> {
     if (!isNative()) {
       return {

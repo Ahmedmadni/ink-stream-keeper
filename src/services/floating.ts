@@ -1,19 +1,20 @@
 import { isNative } from "./platform";
+import { registerPlugin } from "@capacitor/core";
 
 export type FloatingItem = { kind: "note" | "task"; title: string };
 
 type FloatingPlugin = {
-  checkPermission(): Promise<{ granted: boolean }>;
+  checkPermission(): Promise<{ granted: boolean; running: boolean }>;
   requestPermission(): Promise<{ granted: boolean }>;
   show(o: { items: FloatingItem[] }): Promise<void>;
   hide(): Promise<void>;
 };
 
 let plugin: FloatingPlugin | null = null;
-async function get(): Promise<FloatingPlugin | null> {
+// Keep the proxy getter synchronous: a Capacitor proxy is also thenable.
+function get(): FloatingPlugin | null {
   if (!isNative()) return null;
   if (!plugin) {
-    const { registerPlugin } = await import("@capacitor/core");
     plugin = registerPlugin<FloatingPlugin>("MemoFlowFloating");
   }
   return plugin;
@@ -23,14 +24,17 @@ export function floatingSupported() {
   return isNative();
 }
 export async function floatingPermission() {
-  return (await (await get())?.checkPermission())?.granted ?? false;
+  return (await get()?.checkPermission())?.granted ?? false;
+}
+export async function floatingStatus() {
+  return (await get()?.checkPermission()) ?? { granted: false, running: false };
 }
 export async function requestFloatingPermission() {
-  return (await (await get())?.requestPermission())?.granted ?? false;
+  return (await get()?.requestPermission())?.granted ?? false;
 }
 export async function showFloating(items: FloatingItem[]) {
-  await (await get())?.show({ items });
+  await get()?.show({ items });
 }
 export async function hideFloating() {
-  await (await get())?.hide();
+  await get()?.hide();
 }

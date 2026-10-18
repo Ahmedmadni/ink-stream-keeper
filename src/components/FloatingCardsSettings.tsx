@@ -1,157 +1,100 @@
-import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { Layers, X, GripVertical, Circle, FileText } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Layers, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useNotes, useTasks } from "@/lib/data";
 import {
   floatingSupported,
-  floatingPermission,
-  requestFloatingPermission,
+  floatingStatus,
   showFloating,
   hideFloating,
   type FloatingItem,
 } from "@/services/floating";
 
-function useItems(): FloatingItem[] {
+export function FloatingCardsSettings() {
   const { data: tasks } = useTasks();
   const { data: notes } = useNotes();
-  const t = (tasks ?? [])
-    .filter((x) => !x.done)
-    .slice(0, 4)
-    .map((x) => ({ kind: "task" as const, title: x.title }));
-  const n = (notes ?? [])
-    .slice(0, 2)
-    .map((x) => ({ kind: "note" as const, title: x.title || "ملاحظة" }));
-  return [...t, ...n];
-}
-
-export function FloatingCardsSettings() {
-  const items = useItems();
-  const [preview, setPreview] = useState(false);
+  const [status, setStatus] = useState({ granted: false, running: false });
   const [busy, setBusy] = useState(false);
-
-  async function startNative() {
+  useEffect(() => {
+    if (!floatingSupported()) return;
+    let active = true;
+    const refresh = () => {
+      if (document.hidden) return;
+      void floatingStatus()
+        .then((value) => {
+          if (active) setStatus(value);
+        })
+        .catch(() => undefined);
+    };
+    refresh();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      active = false;
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
+  if (!floatingSupported()) return null;
+  const toggle = async () => {
     setBusy(true);
     try {
-      let ok = await floatingPermission();
-      if (!ok) {
-        toast("فعّل «الظهور فوق التطبيقات الأخرى» ثم ارجع إلى MemoFlow");
-        ok = await requestFloatingPermission();
-        if (!ok) {
-          toast.info("لم يُمنح إذن البطاقة العائمة.");
-          return;
-        }
+      if (status.running) await hideFloating();
+      else {
+        if (!status.granted)
+          toast.info("اختر MemoFlow وفعّل «الظهور فوق التطبيقات الأخرى»، ثم ارجع للتطبيق.");
+        const items: FloatingItem[] = [
+          ...(tasks ?? [])
+            .filter((task) => !task.done)
+            .slice(0, 4)
+            .map((task) => ({ kind: "task" as const, title: task.title })),
+          ...(notes ?? [])
+            .slice(0, 2)
+            .map((note) => ({ kind: "note" as const, title: note.title || "مذكرة" })),
+        ];
+        await showFloating(items);
       }
-      await showFloating(items);
-      toast.success("ظهرت البطاقة العائمة");
-    } catch {
-      toast.error("تعذر إظهار البطاقة العائمة.");
+      setStatus(await floatingStatus());
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "تعذر إظهار البطاقة العائمة؛ راجع إذن الظهور فوق التطبيقات.",
+      );
     } finally {
       setBusy(false);
     }
-  }
-
+  };
   return (
-    <>
-      <div className="flex min-h-16 items-center gap-3 p-4">
-        <Layers className="size-5" />
-        <div className="flex-1">
-          <p className="text-sm font-medium">بطاقات عائمة</p>
-          <p className="text-xs text-muted-foreground">
-            {floatingSupported()
-              ? "تظهر فوق التطبيقات الأخرى (يحتاج إذناً خاصاً)"
-              : "على أندرويد تظهر فوق التطبيقات الأخرى — جرّب النموذج هنا"}
+    <div className="p-4">
+      <div className="flex items-start gap-3">
+        <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary-soft text-primary">
+          <Layers className="size-6" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-base font-semibold">البطاقة العائمة</h3>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            {status.running
+              ? "ظاهرة فوق التطبيقات الأخرى"
+              : "اعرض أهم المهام أثناء استخدام تطبيقات أخرى."}
           </p>
         </div>
-        {floatingSupported() ? (
-          <div className="flex gap-2">
-            <button
-              disabled={busy}
-              onClick={startNative}
-              className="rounded-full bg-primary px-3 py-1.5 text-xs text-primary-foreground disabled:opacity-50"
-            >
-              {busy ? "جارٍ الفتح…" : "إظهار"}
-            </button>
-            <button
-              disabled={busy}
-              onClick={() => void hideFloating().catch(() => toast.error("تعذر إخفاء البطاقة."))}
-              className="rounded-full border border-border px-3 py-1.5 text-xs disabled:opacity-50"
-            >
-              إخفاء
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setPreview((v) => !v)}
-            className="rounded-full bg-primary px-3 py-1.5 text-xs text-primary-foreground"
-          >
-            {preview ? "إخفاء النموذج" : "عرض النموذج"}
-          </button>
-        )}
       </div>
-      {preview &&
-        createPortal(
-          <FloatingPreview items={items} onClose={() => setPreview(false)} />,
-          document.body,
-        )}
-    </>
-  );
-}
-
-function FloatingPreview({ items, onClose }: { items: FloatingItem[]; onClose: () => void }) {
-  const [pos, setPos] = useState({ x: 24, y: 120 });
-  const drag = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
-
-  useEffect(() => {
-    const move = (e: PointerEvent) => {
-      const d = drag.current;
-      if (d) setPos({ x: d.px + (e.clientX - d.sx), y: d.py + (e.clientY - d.sy) });
-    };
-    const up = () => (drag.current = null);
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    return () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    };
-  }, []);
-
-  return (
-    <div
-      dir="rtl"
-      style={{ left: pos.x, top: pos.y }}
-      className="glass-strong fixed z-[100] w-64 touch-none select-none rounded-3xl p-4 shadow-2xl"
-      role="dialog"
-      aria-label="نموذج البطاقة العائمة"
-    >
-      <div
-        className="mb-2 flex cursor-grab items-center gap-2"
-        onPointerDown={(e) =>
-          (drag.current = { sx: e.clientX, sy: e.clientY, px: pos.x, py: pos.y })
-        }
+      <button
+        type="button"
+        disabled={busy}
+        onClick={toggle}
+        className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-secondary px-4 text-sm font-semibold disabled:opacity-50"
       >
-        <GripVertical className="size-4 text-muted-foreground" />
-        <span className="flex-1 text-sm font-semibold">MemoFlow • تذكير</span>
-        <button onClick={onClose} aria-label="إغلاق" onPointerDown={(e) => e.stopPropagation()}>
-          <X className="size-4" />
-        </button>
-      </div>
-      <ul className="space-y-1.5 text-sm">
-        {items.length === 0 && <li className="text-muted-foreground">لا توجد عناصر حالياً</li>}
-        {items.map((it, i) => (
-          <li key={i} className="flex items-center gap-2 truncate">
-            {it.kind === "task" ? (
-              <Circle className="size-3.5 shrink-0" />
-            ) : (
-              <FileText className="size-3.5 shrink-0" />
-            )}
-            <span className="truncate">{it.title}</span>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-3 text-[11px] text-muted-foreground">
-        اسحبها لأي مكان — هكذا تظهر فوق التطبيقات على أندرويد
-      </p>
+        {busy && <Loader2 className="size-5 animate-spin" />}
+        {busy
+          ? "جارٍ فتح إعدادات الهاتف…"
+          : status.running
+            ? "إخفاء البطاقة"
+            : status.granted
+              ? "إظهار البطاقة"
+              : "السماح وإظهار البطاقة"}
+      </button>
     </div>
   );
 }

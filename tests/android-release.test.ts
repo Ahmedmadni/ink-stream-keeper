@@ -18,8 +18,8 @@ describe("Android release safeguards", () => {
     }
     expect(gradle).toContain('namespace = "com.ahmedmadni.memoflow"');
     expect(gradle).toContain('applicationId "com.ahmedmadni.memoflow"');
-    expect(gradle).toContain("versionCode 12");
-    expect(gradle).toContain('versionName "1.2.6"');
+    expect(gradle).toContain("versionCode 13");
+    expect(gradle).toContain('versionName "1.2.7"');
     expect(gradle).toContain("throw new GradleException");
     expect(gradle).not.toMatch(/storePassword\s+['"][^$]/);
     expect(gradle).not.toMatch(/keyPassword\s+['"][^$]/);
