@@ -4,6 +4,10 @@ import { readFileSync } from "node:fs";
 import config from "../capacitor.config";
 
 describe("Android bundled app configuration", () => {
+  test("uses the permanent MemoFlow package identity", () => {
+    expect(config.appId).toBe("com.ahmedmadni.memoflow");
+  });
+
   test("loads the UI bundled in the APK", () => {
     expect(config.webDir).toBe(".output/public");
     expect(config.server?.url).toBeUndefined();
@@ -25,7 +29,7 @@ describe("Android bundled app configuration", () => {
 describe("Android security and recovery wiring", () => {
   const mainActivity = readFileSync(
     new URL(
-      "../android/app/src/main/java/app/lovable/c357f296dbad4d33991e76d86c92e6d0/MainActivity.java",
+      "../android/app/src/main/java/com/ahmedmadni/memoflow/MainActivity.java",
       import.meta.url,
     ),
     "utf8",
@@ -36,6 +40,7 @@ describe("Android security and recovery wiring", () => {
   );
 
   test("registers app lock and automatic backup plugins", () => {
+    expect(mainActivity).toContain("package com.ahmedmadni.memoflow;");
     expect(mainActivity).toContain("registerPlugin(MemoFlowAppLockPlugin.class)");
     expect(mainActivity).toContain("registerPlugin(MemoFlowBackupPlugin.class)");
     expect(mainActivity).toContain("FLAG_SECURE");

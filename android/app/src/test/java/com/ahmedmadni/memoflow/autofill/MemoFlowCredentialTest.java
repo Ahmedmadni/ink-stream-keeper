@@ -1,4 +1,4 @@
-package app.lovable.c357f296dbad4d33991e76d86c92e6d0.autofill;
+package com.ahmedmadni.memoflow.autofill;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;

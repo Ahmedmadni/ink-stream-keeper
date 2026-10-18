@@ -1,4 +1,4 @@
-package app.lovable.c357f296dbad4d33991e76d86c92e6d0;
+package com.ahmedmadni.memoflow;
 
 import android.content.Context;
 import android.content.SharedPreferences;
