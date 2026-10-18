@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Cloud,
+  DatabaseBackup,
   Download,
-  FileLock2,
-  FolderOpen,
   HardDrive,
+  Loader2,
   RefreshCw,
-  Share2,
   Upload,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -14,55 +13,69 @@ import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { lockVault } from "@/lib/vault";
 import { files } from "@/services/files";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { callUntypedRpc } from "./rpc";
 import { backupError, createBackupPort } from "./supabase-port";
 import { exportBackup, previewBackup, restoreBackup } from "./service";
 import { MAX_FILE_BYTES, type Backup } from "./format";
 import { nativeBackup, type NativeBackupStatus } from "@/services/native-backup";
-import { assertNoUnsavedDrafts, runAutomaticBackup } from "./automatic";
+import { assertNoUnsavedDrafts } from "./automatic";
 
-const button = "min-h-11 rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-40";
+const button =
+  "flex min-h-12 items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold disabled:opacity-40";
 const input =
-  "mt-2 min-h-11 w-full min-w-0 rounded-xl border border-border bg-background px-3 text-sm";
+  "mt-2 min-h-12 w-full min-w-0 rounded-xl border border-border bg-background px-3 text-base";
+type Mode = "choose" | "export" | "restore" | null;
+type Destination = "local" | "drive";
+
 export function BackupPanel() {
   const { user } = useAuth();
   return user ? <AccountBackup key={user.id} accountId={user.id} /> : null;
 }
+
 function AccountBackup({ accountId }: { accountId: string }) {
   const [ready, setReady] = useState<boolean | null>(null);
+  const [mode, setMode] = useState<Mode>(null);
+  const [destination, setDestination] = useState<Destination>("local");
   const [password, setPassword] = useState("");
   const [repeat, setRepeat] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [download, setDownload] = useState<File | null>(null);
   const [preview, setPreview] = useState<Backup | null>(null);
   const [busy, setBusy] = useState(false);
-  const [deliveryBusy, setDeliveryBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const [nativeStatus, setNativeStatus] = useState<NativeBackupStatus | null>(null);
-  const [automaticPassword, setAutomaticPassword] = useState("");
-  const [automaticRepeat, setAutomaticRepeat] = useState("");
-  const [automaticBusy, setAutomaticBusy] = useState(false);
-  const epoch = useRef(0),
-    mounted = useRef(true);
+  const epoch = useRef(0);
+  const mounted = useRef(true);
   const qc = useQueryClient();
+
   useEffect(() => {
     mounted.current = true;
-    callUntypedRpc(supabase, "memoflow_backup_tables_v1").then(({ data, error }) => {
-      if (mounted.current)
-        setReady(!error && Array.isArray(data) && data.includes("vault_settings"));
-    });
-    if (nativeBackup.supported()) {
-      nativeBackup
+    void callUntypedRpc(supabase, "memoflow_backup_tables_v1")
+      .then(({ data, error }) => {
+        if (mounted.current)
+          setReady(!error && Array.isArray(data) && data.includes("vault_settings"));
+      })
+      .catch(() => {
+        if (mounted.current) setReady(false);
+      });
+    if (nativeBackup.supported())
+      void nativeBackup
         .status(accountId)
         .then((status) => {
           if (mounted.current) setNativeStatus(status);
         })
         .catch(() => undefined);
-    }
     const clear = () => {
-      if (document.visibilityState !== "hidden") return;
+      if (!document.hidden) return;
       epoch.current++;
       setPassword("");
       setRepeat("");
@@ -70,24 +83,31 @@ function AccountBackup({ accountId }: { accountId: string }) {
       setDownload(null);
       setConfirmed(false);
       setBusy(false);
-      setDeliveryBusy(false);
-      setAutomaticPassword("");
-      setAutomaticRepeat("");
-      setAutomaticBusy(false);
       setError("");
-      setMessage(
-        "أُغلقت المعاينة عند إخفاء التطبيق. يمكنك إعادة العملية؛ الاستعادة لا تكرر العناصر.",
-      );
     };
     document.addEventListener("visibilitychange", clear);
     return () => {
       mounted.current = false;
-      // This is an operation generation counter, not a DOM ref. Invalidate the latest value.
+      // Invalidates an operation generation; this ref does not point to a DOM node.
       // eslint-disable-next-line react-hooks/exhaustive-deps
       epoch.current++;
       document.removeEventListener("visibilitychange", clear);
     };
   }, [accountId]);
+
+  const reset = (next: Mode) => {
+    epoch.current++;
+    setMode(next);
+    setPassword("");
+    setRepeat("");
+    setFile(null);
+    setPreview(null);
+    setDownload(null);
+    setConfirmed(false);
+    setError("");
+    setMessage("");
+    setBusy(false);
+  };
   const run = async (
     action: (port: ReturnType<typeof createBackupPort>, active: () => boolean) => Promise<void>,
   ) => {
@@ -98,526 +118,465 @@ function AccountBackup({ accountId }: { accountId: string }) {
     setMessage("");
     try {
       await action(createBackupPort(accountId, active), active);
-    } catch (e) {
-      if (active()) setError(backupError(e));
+    } catch (reason) {
+      if (active()) setError(backupError(reason));
     } finally {
       if (active()) setBusy(false);
     }
   };
-  const checkDrafts = () => assertNoUnsavedDrafts(accountId);
-  const refreshNativeStatus = async () => {
-    const status = await nativeBackup.status(accountId);
-    if (mounted.current) setNativeStatus(status);
-    return status;
-  };
-  const runAutomaticAction = async (action: () => Promise<void>) => {
-    setAutomaticBusy(true);
-    setError("");
-    setMessage("");
-    try {
-      await action();
-    } catch (reason) {
-      const reasonText = reason instanceof Error ? reason.message : String(reason);
-      if (mounted.current && !/PICKER_CANCELLED|لم يتم اختيار/.test(reasonText)) {
-        setError(backupError(reason));
-      }
-    } finally {
-      if (mounted.current) setAutomaticBusy(false);
+  const deliver = async (backup: File, target: Destination, active: () => boolean) => {
+    if (target === "local") {
+      const result = await files.save(backup, backup.name);
+      if (active())
+        setMessage(
+          result.mode === "cancelled"
+            ? "أُلغي الحفظ؛ يمكنك المحاولة مجددًا."
+            : result.mode === "native"
+              ? "حُفظت النسخة في المكان الذي اخترته على الهاتف."
+              : "تم تنزيل النسخة؛ ستجدها في مجلد التنزيلات.",
+        );
+    } else {
+      const result = await files.share(backup, backup.name, "حفظ نسخة MemoFlow في Google Drive");
+      if (!active()) return;
+      if (result === "unavailable")
+        throw new Error(
+          "المشاركة غير متاحة هنا. احفظ النسخة على الهاتف ثم ارفعها إلى Google Drive.",
+        );
+      setMessage(
+        result === "cancelled"
+          ? "أُلغيت المشاركة؛ يمكنك المحاولة مجددًا."
+          : "تمت مشاركة النسخة. أكمل الحفظ في Google Drive من النافذة التي فتحتها.",
+      );
     }
   };
+  const create = () =>
+    run(async (port, active) => {
+      assertNoUnsavedDrafts(accountId);
+      setPreview(null);
+      setDownload(null);
+      const contents = await exportBackup(port, accountId, password);
+      assertNoUnsavedDrafts(accountId);
+      if (!active()) return;
+      const stamp = new Date()
+        .toISOString()
+        .replace(/\.\d{3}Z$/, "")
+        .replace("T", "-")
+        .replaceAll(":", "");
+      const backup = new File([contents], `MemoFlow-${stamp}.memoflow`, {
+        type: "application/octet-stream",
+      });
+      setDownload(backup);
+      setPassword("");
+      setRepeat("");
+      // Native sharing does not require browser transient activation. On the web,
+      // keep a fresh user gesture for the share sheet after encryption finishes.
+      if (destination === "local" || nativeBackup.supported())
+        await deliver(backup, destination, active);
+      else setMessage("النسخة جاهزة. اضغط مشاركة إلى Google Drive ثم اختر Drive.");
+    });
+
   return (
     <section className="px-4 pb-6 sm:px-5" aria-labelledby="backup-title">
-      <h2 id="backup-title" className="mb-2 px-1 text-xs font-medium text-muted-foreground">
-        النسخ الاحتياطية
+      <h2 id="backup-title" className="mb-2 px-1 text-sm font-semibold text-muted-foreground">
+        بياناتك ونسخها الاحتياطية
       </h2>
-      <div className="rounded-2xl bg-card p-4">
-        <div className="flex items-center gap-3">
-          <FileLock2 className="size-5 shrink-0 text-primary" />
-          <h3 className="text-sm font-semibold">نسخة مشفّرة من بياناتك</h3>
-        </div>
-        <p className="mt-3 text-xs leading-6 text-muted-foreground">
-          تشمل البيانات المحفوظة في حسابك: المذكرات والمهام والخزنة والأقسام السابقة ومرفقاتها
-          المرفوعة. لا تشمل الملفات المرتبطة بمواقع خارجية أو المسودات غير المحفوظة على الأجهزة
-          الأخرى.
-        </p>
-        {ready === null && (
-          <p role="status" className="mt-3 text-sm">
-            جارٍ التحقق من توفر النسخ الاحتياطي…
-          </p>
-        )}
-        {ready === false && (
-          <p role="status" className="mt-3 text-sm text-muted-foreground">
-            النسخ الاحتياطي غير متاح حاليًا. يلزم تفعيل تحديث قاعدة البيانات أو إعادة المحاولة بعد
-            عودة الاتصال.
-          </p>
-        )}
-        {ready === true && (
-          <div className="mt-4 space-y-5">
-            <p className="text-xs leading-6 text-muted-foreground">
-              احتفظ بكلمة مرور النسخة في مكان آمن؛ لا يمكن استعادتها. وتحتاج الخزنة أيضًا إلى رمزها
-              الأصلي بعد الاستعادة. الحد: 10 آلاف عنصر و32 ميجابايت للمرفقات مجتمعة.
+      <div className="overflow-hidden rounded-3xl border border-border/60 bg-card shadow-card">
+        <div className="p-4">
+          <div className="flex items-center gap-3">
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary-soft">
+              <DatabaseBackup className="size-6 text-primary" />
+            </span>
+            <div>
+              <h3 className="text-base font-semibold">النسخ الاحتياطي</h3>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                مذكراتك ومهامك وخزنتك في ملف مشفّر.
+              </p>
+            </div>
+          </div>
+          {ready === null && (
+            <p role="status" className="mt-3 text-sm text-muted-foreground">
+              جارٍ التحقق من توفر النسخ الاحتياطي…
             </p>
-            {nativeBackup.supported() && (
-              <div
-                className="rounded-2xl border border-primary/20 bg-primary/5 p-4"
-                aria-label="النسخ التلقائي على أندرويد"
-              >
-                <div className="flex items-center gap-3">
-                  <RefreshCw className="size-5 shrink-0 text-primary" />
-                  <div>
-                    <h4 className="text-sm font-semibold">نسخ تلقائي يومي</h4>
-                    <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
-                      ينشئ MemoFlow نسخة عند فتح التطبيق أو العودة إليه بعد مرور 24 ساعة.
-                    </p>
-                  </div>
-                </div>
-                {nativeStatus === null ? (
-                  <p className="mt-3 text-xs text-muted-foreground">جارٍ قراءة إعدادات الهاتف…</p>
-                ) : (
-                  <div className="mt-4 space-y-3">
-                    <div className="grid gap-2 text-xs sm:grid-cols-2">
-                      <div className="flex items-center gap-2 rounded-xl bg-card p-3">
-                        <HardDrive className="size-4 text-primary" />
-                        <span>الهاتف: Documents/MemoFlow</span>
-                      </div>
-                      <div className="flex items-center gap-2 rounded-xl bg-card p-3">
-                        <Cloud className="size-4 text-primary" />
-                        <span className="min-w-0 truncate">
-                          Drive:{" "}
-                          {nativeStatus.driveFolderSelected
-                            ? nativeStatus.driveFolderName || "مجلد محدد"
-                            : "غير مربوط"}
-                        </span>
-                      </div>
-                    </div>
-                    {!nativeStatus.configured ? (
-                      <div className="space-y-3">
-                        <p className="text-xs leading-6 text-muted-foreground">
-                          اختر كلمة مرور تحفظها جيدًا؛ تُخزّن مشفّرة بمفتاح Android Keystore
-                          وتُستخدم للنسخ الدورية. ستحتاجها عند الاستعادة على جهاز آخر.
-                        </p>
-                        <label className="block text-sm">
-                          كلمة مرور النسخ التلقائي
-                          <input
-                            aria-label="كلمة مرور النسخ التلقائي"
-                            type="password"
-                            autoComplete="new-password"
-                            minLength={12}
-                            maxLength={256}
-                            value={automaticPassword}
-                            disabled={automaticBusy}
-                            onChange={(event) => setAutomaticPassword(event.target.value)}
-                            className={input}
-                            placeholder="12 حرفًا على الأقل"
-                          />
-                        </label>
-                        <label className="block text-sm">
-                          تأكيد كلمة مرور النسخ التلقائي
-                          <input
-                            aria-label="تأكيد كلمة مرور النسخ التلقائي"
-                            type="password"
-                            autoComplete="new-password"
-                            maxLength={256}
-                            value={automaticRepeat}
-                            disabled={automaticBusy}
-                            onChange={(event) => setAutomaticRepeat(event.target.value)}
-                            className={input}
-                          />
-                        </label>
-                        <button
-                          className={`${button} w-full bg-primary text-primary-foreground`}
-                          disabled={
-                            automaticBusy ||
-                            automaticPassword.length < 12 ||
-                            automaticPassword !== automaticRepeat
-                          }
-                          onClick={() =>
-                            runAutomaticAction(async () => {
-                              await nativeBackup.configure(accountId, automaticPassword);
-                              setAutomaticPassword("");
-                              setAutomaticRepeat("");
-                              await refreshNativeStatus();
-                              setMessage(
-                                "تم تفعيل النسخ التلقائي المحلي. اختر مجلد Drive إذا أردت نسخة سحابية أيضًا.",
-                              );
-                            })
-                          }
-                        >
-                          تفعيل النسخ التلقائي
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex items-center justify-between gap-3 rounded-xl bg-card p-3 text-xs">
-                          <div>
-                            <p className="font-semibold">
-                              الحالة: {nativeStatus.enabled ? "مفعّل" : "متوقف"}
-                            </p>
-                            <p className="mt-1 text-muted-foreground">
-                              {nativeStatus.lastBackupAt
-                                ? `آخر نسخة: ${new Date(nativeStatus.lastBackupAt).toLocaleString("ar-SA")}`
-                                : "لم تُنشأ نسخة تلقائية بعد"}
-                            </p>
-                            {nativeStatus.driveFolderSelected &&
-                              nativeStatus.lastBackupAt > nativeStatus.lastDriveAt && (
-                                <p className="mt-1 text-destructive">
-                                  آخر نسخة محلية لم تصل إلى Drive؛ استخدم «إنشاء نسخة الآن».
-                                </p>
-                              )}
-                          </div>
-                          <button
-                            className={`${button} bg-secondary shrink-0`}
-                            disabled={automaticBusy}
-                            onClick={() =>
-                              runAutomaticAction(async () => {
-                                await nativeBackup.setEnabled(accountId, !nativeStatus.enabled);
-                                await refreshNativeStatus();
-                              })
-                            }
-                          >
-                            {nativeStatus.enabled ? "إيقاف" : "تشغيل"}
-                          </button>
-                        </div>
-                        <button
-                          className={`${button} flex w-full items-center justify-center gap-2 bg-secondary`}
-                          disabled={automaticBusy}
-                          onClick={() =>
-                            runAutomaticAction(async () => {
-                              const selected = await nativeBackup.chooseDriveFolder(accountId);
-                              await refreshNativeStatus();
-                              setMessage(`سيُحفظ النسخ تلقائيًا في ${selected.name} وفي الهاتف.`);
-                            })
-                          }
-                        >
-                          <FolderOpen className="size-4" />
-                          {nativeStatus.driveFolderSelected
-                            ? "تغيير مجلد Google Drive"
-                            : "اختيار مجلد Google Drive"}
-                        </button>
-                        <button
-                          className={`${button} flex w-full items-center justify-center gap-2 bg-secondary`}
-                          disabled={automaticBusy || !nativeStatus.enabled}
-                          onClick={() =>
-                            runAutomaticAction(async () => {
-                              const outcome = await runAutomaticBackup(accountId, { force: true });
-                              if (outcome.state !== "saved")
-                                throw new Error("تعذر تشغيل النسخة التلقائية الآن.");
-                              await refreshNativeStatus();
-                              setMessage(
-                                outcome.result.driveSaved
-                                  ? "حُفظت نسخة جديدة على الهاتف وفي Google Drive."
-                                  : outcome.result.driveError || "حُفظت نسخة جديدة على الهاتف.",
-                              );
-                            })
-                          }
-                        >
-                          <RefreshCw className="size-4" /> إنشاء نسخة الآن
-                        </button>
-                        <details className="rounded-xl border border-border p-3">
-                          <summary className="cursor-pointer text-xs font-medium">
-                            تغيير كلمة مرور النسخ القادمة
-                          </summary>
-                          <div className="mt-3 space-y-3">
-                            <input
-                              aria-label="كلمة مرور تلقائية جديدة"
-                              type="password"
-                              autoComplete="new-password"
-                              minLength={12}
-                              maxLength={256}
-                              value={automaticPassword}
-                              disabled={automaticBusy}
-                              onChange={(event) => setAutomaticPassword(event.target.value)}
-                              className={input}
-                              placeholder="كلمة المرور الجديدة"
-                            />
-                            <input
-                              aria-label="تأكيد كلمة المرور التلقائية الجديدة"
-                              type="password"
-                              autoComplete="new-password"
-                              maxLength={256}
-                              value={automaticRepeat}
-                              disabled={automaticBusy}
-                              onChange={(event) => setAutomaticRepeat(event.target.value)}
-                              className={input}
-                              placeholder="تأكيد كلمة المرور"
-                            />
-                            <p className="text-[11px] leading-5 text-muted-foreground">
-                              النسخ القديمة تظل محتاجة إلى كلمة مرورها السابقة.
-                            </p>
-                            <button
-                              className={`${button} w-full bg-secondary`}
-                              disabled={
-                                automaticBusy ||
-                                automaticPassword.length < 12 ||
-                                automaticPassword !== automaticRepeat
-                              }
-                              onClick={() =>
-                                runAutomaticAction(async () => {
-                                  await nativeBackup.configure(accountId, automaticPassword);
-                                  setAutomaticPassword("");
-                                  setAutomaticRepeat("");
-                                  setMessage("ستستخدم النسخ القادمة كلمة المرور الجديدة.");
-                                })
-                              }
-                            >
-                              حفظ كلمة المرور الجديدة
-                            </button>
-                          </div>
-                        </details>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-            <label className="block text-sm">
-              كلمة مرور النسخة
-              <input
-                aria-label="كلمة مرور النسخة"
-                type="password"
-                autoComplete="new-password"
-                minLength={12}
-                maxLength={256}
-                value={password}
-                disabled={busy}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setPreview(null);
-                  setConfirmed(false);
-                }}
-                className={input}
-                placeholder="12 حرفًا على الأقل"
-              />
-            </label>
-            <details className="rounded-xl border border-border p-3">
-              <summary className="cursor-pointer text-sm font-medium">إنشاء نسخة جديدة</summary>
-              <label className="mt-3 block text-sm">
-                تأكيد كلمة مرور النسخة
-                <input
-                  aria-label="تأكيد كلمة مرور النسخة"
-                  type="password"
-                  autoComplete="new-password"
-                  maxLength={256}
-                  value={repeat}
-                  disabled={busy}
-                  onChange={(e) => setRepeat(e.target.value)}
-                  className={input}
-                />
-              </label>
+          )}
+          {ready === false && (
+            <p role="status" className="mt-3 text-sm text-muted-foreground">
+              النسخ الاحتياطي غير متاح حاليًا. تحقق من الاتصال ثم أعد فتح الإعدادات.
+            </p>
+          )}
+          {ready === true && (
+            <div className="mt-4 grid gap-2">
               <button
-                className={`${button} mt-3 w-full bg-primary text-primary-foreground`}
-                disabled={busy || password.length < 12 || password !== repeat}
-                onClick={() =>
-                  run(async (port, active) => {
-                    checkDrafts();
-                    setDownload(null);
-                    setPreview(null);
-                    const text = await exportBackup(port, accountId, password);
-                    checkDrafts();
-                    if (!active()) return;
-                    const stamp = new Date()
-                      .toISOString()
-                      .replace(/\.\d{3}Z$/, "")
-                      .replace("T", "-")
-                      .replaceAll(":", "");
-                    setDownload(
-                      new File([text], `MemoFlow-${stamp}.memoflow`, {
-                        type: "application/octet-stream",
-                      }),
-                    );
-                    setPassword("");
-                    setRepeat("");
-                    setMessage("الملف المشفّر جاهز. نزّله واحتفظ به في المكان الذي تختاره.");
-                  })
-                }
+                onClick={() => reset("choose")}
+                className={`${button} bg-primary text-primary-foreground`}
               >
-                تجهيز النسخة المشفّرة
+                <Download className="size-5" />
+                نسخ احتياطي
               </button>
-            </details>
-            {download && (
-              <div className="space-y-2 rounded-xl bg-secondary/50 p-3">
-                <button
-                  className={`${button} bg-secondary flex w-full items-center justify-center gap-2`}
-                  disabled={deliveryBusy}
-                  onClick={async () => {
-                    setDeliveryBusy(true);
-                    setError("");
-                    try {
-                      const result = await files.save(download, download.name);
-                      setMessage(
-                        result.mode === "native"
-                          ? `حُفظ الملف على الجهاز داخل ${result.path}.`
-                          : "تم طلب تنزيل الملف. تحقق من مجلد التنزيلات.",
-                      );
-                    } catch {
-                      setError(
-                        "تعذر حفظ الملف على الجهاز. استخدم المشاركة أو أعد المحاولة بعد تحديث التطبيق.",
-                      );
-                    } finally {
-                      setDeliveryBusy(false);
-                    }
-                  }}
-                >
-                  <Download className="size-4" />
-                  حفظ على الجهاز
-                </button>
-                {files.canShare(download, download.name) && (
-                  <button
-                    className={`${button} bg-secondary flex w-full items-center justify-center gap-2`}
-                    disabled={deliveryBusy}
-                    onClick={async () => {
-                      setDeliveryBusy(true);
-                      setError("");
-                      try {
-                        const result = await files.share(download, download.name);
-                        if (result === "shared")
-                          setMessage("تم تسليم الملف إلى التطبيق الذي اخترته.");
-                        if (result === "unavailable")
-                          setError("المشاركة غير متاحة على هذا الجهاز. استخدم الحفظ على الجهاز.");
-                      } catch {
-                        setError("تعذرت مشاركة الملف. احفظه على الجهاز ثم ارفعه إلى Drive يدويًا.");
-                      } finally {
-                        setDeliveryBusy(false);
-                      }
-                    }}
-                  >
-                    <Share2 className="size-4" />
-                    مشاركة أو حفظ في Google Drive
-                  </button>
-                )}
-                <p className="text-xs leading-6 text-muted-foreground">
-                  على أندرويد يمكنك حفظ نسخة داخل مجلد Documents، أو اختيار Google Drive من نافذة
-                  المشاركة. وللاستعادة اختر الملف من الجهاز أو من Drive في منتقي الملفات أدناه.
+              <button onClick={() => reset("restore")} className={`${button} bg-secondary`}>
+                <Upload className="size-5" />
+                استعادة نسخة
+              </button>
+            </div>
+          )}
+        </div>
+        {ready && nativeBackup.supported() && (
+          <details className="border-t border-border p-4">
+            <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium">
+              نسخ تلقائي محلي · اختياري
+            </summary>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              نسخة يومية عند فتح التطبيق، مع الاحتفاظ بآخر 7 نسخ على الهاتف.
+            </p>
+            {nativeStatus?.configured ? (
+              <div className="mt-3 space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  {nativeStatus.lastBackupAt
+                    ? `آخر نسخة: ${new Date(nativeStatus.lastBackupAt).toLocaleString("ar-EG-u-ca-gregory-nu-latn", { day: "numeric", month: "long", year: "numeric" })}`
+                    : "لم تُنشأ نسخة تلقائية بعد."}
                 </p>
+                <button
+                  disabled={busy}
+                  className={`${button} w-full bg-secondary`}
+                  onClick={() =>
+                    run(async (_, active) => {
+                      await nativeBackup.setEnabled(accountId, !nativeStatus.enabled);
+                      const status = await nativeBackup.status(accountId);
+                      if (active()) setNativeStatus(status);
+                    })
+                  }
+                >
+                  {nativeStatus.enabled ? "إيقاف النسخ التلقائي" : "تشغيل النسخ التلقائي"}
+                </button>
               </div>
+            ) : (
+              <form
+                className="mt-3 space-y-3"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void run(async (_, active) => {
+                    await nativeBackup.configure(accountId, password);
+                    const status = await nativeBackup.status(accountId);
+                    if (active()) {
+                      setNativeStatus(status);
+                      setPassword("");
+                      setRepeat("");
+                      setMessage("تم تفعيل النسخ التلقائي المحلي.");
+                    }
+                  });
+                }}
+              >
+                <PasswordFields
+                  password={password}
+                  repeat={repeat}
+                  setPassword={setPassword}
+                  setRepeat={setRepeat}
+                  busy={busy}
+                />
+                <button
+                  type="submit"
+                  className={`${button} w-full bg-secondary`}
+                  disabled={busy || password.length < 12 || password !== repeat}
+                >
+                  <RefreshCw className="size-5" />
+                  تفعيل النسخ التلقائي
+                </button>
+              </form>
             )}
-            <div className="border-t border-border pt-4">
+          </details>
+        )}
+        {mode === null && <Feedback busy={busy} error={error} message={message} />}
+      </div>
+
+      <Dialog
+        open={mode !== null}
+        onOpenChange={(open) => {
+          if (!open) reset(null);
+        }}
+      >
+        <DialogContent
+          dir="rtl"
+          className="max-h-[85dvh] w-[92vw] overflow-y-auto rounded-3xl bg-card p-5 sm:p-6 [&>button]:left-3 [&>button]:right-auto [&>button]:grid [&>button]:size-11 [&>button]:place-items-center"
+        >
+          <DialogHeader className="pe-10 text-start sm:text-start">
+            <DialogTitle className="text-xl">
+              {mode === "restore" ? "استعادة نسخة" : "نسخ احتياطي"}
+            </DialogTitle>
+            <DialogDescription className="pt-2 leading-6">
+              {mode === "choose"
+                ? "أين تريد الاحتفاظ بالنسخة؟"
+                : mode === "restore"
+                  ? "اختر الملف من الهاتف أو Google Drive وأدخل كلمة مروره."
+                  : destination === "local"
+                    ? "حفظ نسخة مشفّرة على الهاتف."
+                    : "مشاركة النسخة إلى Google Drive للاحتفاظ بها."}
+            </DialogDescription>
+          </DialogHeader>
+          {mode === "choose" && (
+            <div className="grid gap-3">
+              <button
+                className={`${button} justify-start border border-border bg-secondary`}
+                onClick={() => {
+                  setDestination("local");
+                  setMode("export");
+                }}
+              >
+                <HardDrive className="size-6" />
+                <span>حفظ على الهاتف</span>
+              </button>
+              <button
+                className={`${button} justify-start border border-border bg-secondary`}
+                onClick={() => {
+                  setDestination("drive");
+                  setMode("export");
+                }}
+              >
+                <Cloud className="size-6" />
+                <span>Google Drive</span>
+              </button>
+              <p className="text-sm leading-6 text-muted-foreground">
+                عند اختيار Google Drive تفتح نافذة المشاركة؛ اختر Drive وأكمل الحفظ.
+              </p>
+            </div>
+          )}
+          {mode === "export" && !download && (
+            <form
+              className="space-y-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void create();
+              }}
+            >
+              <PasswordFields
+                password={password}
+                repeat={repeat}
+                setPassword={setPassword}
+                setRepeat={setRepeat}
+                busy={busy}
+              />
+              <p className="text-sm leading-6 text-muted-foreground">
+                احتفظ بكلمة المرور؛ ستحتاجها عند استعادة النسخة.
+              </p>
+              <button
+                type="submit"
+                disabled={busy || password.length < 12 || password !== repeat}
+                className={`${button} w-full bg-primary text-primary-foreground`}
+              >
+                {busy ? (
+                  <Loader2 className="size-5 animate-spin" />
+                ) : destination === "local" ? (
+                  <HardDrive className="size-5" />
+                ) : (
+                  <Cloud className="size-5" />
+                )}
+                إنشاء وحفظ النسخة
+              </button>
+            </form>
+          )}
+          {mode === "export" && download && (
+            <div className="space-y-3">
+              <p className="text-sm font-medium">النسخة المشفّرة جاهزة.</p>
+              <button
+                disabled={busy}
+                className={`${button} w-full bg-primary text-primary-foreground`}
+                onClick={() => run(async (_, active) => deliver(download, destination, active))}
+              >
+                {destination === "local" ? "حفظ على الهاتف" : "مشاركة إلى Google Drive"}
+              </button>
+              <button
+                disabled={busy}
+                className={`${button} w-full bg-secondary`}
+                onClick={() => reset("choose")}
+              >
+                إنشاء نسخة أخرى
+              </button>
+            </div>
+          )}
+          {mode === "restore" && !preview && (
+            <form
+              className="space-y-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void run(async (port, active) => {
+                  setConfirmed(false);
+                  setPreview(null);
+                  if (!file || file.size > MAX_FILE_BYTES)
+                    throw new Error("اختر ملفًا لا يزيد عن 70 ميجابايت.");
+                  await port.assertAccount();
+                  const data = await previewBackup(await file.text(), password, accountId);
+                  await port.assertAccount();
+                  if (active()) {
+                    setPreview(data);
+                    setPassword("");
+                  }
+                });
+              }}
+            >
               <label className="block text-sm font-medium">
-                استعادة من ملف
+                ملف النسخة الاحتياطية
                 <input
                   aria-label="ملف النسخة الاحتياطية"
                   type="file"
                   accept=".memoflow,application/octet-stream,application/json"
                   disabled={busy}
-                  className="peer sr-only"
-                  onChange={(e) => {
-                    setFile(e.target.files?.[0] ?? null);
-                    setPreview(null);
-                    setConfirmed(false);
+                  className="mt-2 block min-h-12 w-full min-w-0 rounded-xl border border-border p-2 text-sm file:me-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-2"
+                  onChange={(event) => {
+                    setFile(event.target.files?.[0] ?? null);
                     setError("");
                   }}
                 />
-                <span className="mt-3 flex min-h-11 cursor-pointer items-center gap-3 rounded-xl bg-secondary px-3 py-2 text-xs peer-focus-visible:ring-2 peer-focus-visible:ring-ring">
-                  <span className="shrink-0">اختيار ملف</span>
-                  <span className="min-w-0 truncate text-muted-foreground">
-                    {file?.name || "لم يُختر ملف بعد"}
-                  </span>
-                </span>
+              </label>
+              <label className="block text-sm font-medium">
+                كلمة مرور النسخة
+                <input
+                  aria-label="كلمة مرور النسخة"
+                  type="password"
+                  autoComplete="off"
+                  maxLength={256}
+                  value={password}
+                  disabled={busy}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className={input}
+                />
               </label>
               <button
-                className={`${button} bg-secondary mt-3 flex w-full items-center justify-center gap-2`}
+                type="submit"
                 disabled={busy || !file || password.length < 12}
+                className={`${button} w-full bg-primary text-primary-foreground`}
+              >
+                <Upload className="size-5" />
+                فحص الملف ومعاينته
+              </button>
+            </form>
+          )}
+          {mode === "restore" && preview && (
+            <div aria-label="معاينة النسخة" className="space-y-4">
+              <p className="text-base font-semibold">
+                نسخة{" "}
+                {new Date(preview.createdAt).toLocaleDateString("ar-EG-u-ca-gregory-nu-latn", {
+                  dateStyle: "medium",
+                })}
+              </p>
+              <dl className="grid grid-cols-2 gap-2">
+                {[
+                  ["المذكرات", preview.tables.notes.length],
+                  ["المهام", preview.tables.tasks.length],
+                  ["حسابات الخزنة", preview.tables.vault_entries.length],
+                  ["المرفقات", preview.files.length],
+                ].map(([label, count]) => (
+                  <div key={label} className="rounded-2xl bg-secondary p-3">
+                    <dt className="text-sm text-muted-foreground">{label}</dt>
+                    <dd className="mt-1 text-xl font-semibold">{count}</dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="text-sm leading-6 text-muted-foreground">
+                تُضاف العناصر المفقودة، وتبقى بياناتك الحالية وتعديلاتها محفوظة. الاستعادة تحتاج
+                اتصالًا بالإنترنت ورمز الخزنة الأصلي لفتحها.
+              </p>
+              <label className="flex min-h-12 items-start gap-3 text-sm leading-6">
+                <input
+                  type="checkbox"
+                  className="mt-1 size-5 shrink-0 accent-primary"
+                  checked={confirmed}
+                  disabled={busy}
+                  onChange={(event) => setConfirmed(event.target.checked)}
+                />
+                أوافق على إضافة العناصر المفقودة إلى حسابي الحالي
+              </label>
+              <button
+                disabled={busy || !confirmed}
+                className={`${button} w-full bg-primary text-primary-foreground`}
                 onClick={() =>
                   run(async (port, active) => {
+                    lockVault();
+                    const result = await restoreBackup(port, preview);
+                    if (!active()) return;
+                    await qc.invalidateQueries();
                     setPreview(null);
                     setConfirmed(false);
-                    setDownload(null);
-                    if (!file || file.size > MAX_FILE_BYTES)
-                      throw new Error("اختر ملفًا لا يزيد عن 70 ميجابايت.");
-                    await port.assertAccount();
-                    const data = await previewBackup(await file.text(), password, accountId);
-                    await port.assertAccount();
-                    if (active()) {
-                      setPreview(data);
-                      setPassword("");
-                      setRepeat("");
-                    }
+                    setFile(null);
+                    setMessage(
+                      `اكتملت الاستعادة: أُضيف ${result.inserted} عنصرًا، واحتُفظ بـ ${result.skipped} عنصرًا موجودًا.`,
+                    );
                   })
                 }
               >
-                <Upload className="size-4" />
-                فحص الملف ومعاينته
+                استعادة العناصر المفقودة
               </button>
             </div>
-            {preview && (
-              <div
-                className="rounded-xl border border-primary/25 bg-primary/5 p-4"
-                aria-label="معاينة النسخة"
-              >
-                <p className="text-sm font-semibold">
-                  نسخة{" "}
-                  {new Date(preview.createdAt).toLocaleDateString("ar-SA", { dateStyle: "medium" })}
-                </p>
-                <dl className="my-3 grid grid-cols-2 gap-2 text-xs">
-                  {[
-                    ["المذكرات", preview.tables.notes.length],
-                    ["المهام", preview.tables.tasks.length],
-                    ["حسابات الخزنة", preview.tables.vault_entries.length],
-                    ["المرفقات", preview.files.length],
-                    [
-                      "جميع السجلات",
-                      Object.values(preview.tables).reduce((n, rows) => n + rows.length, 0),
-                    ],
-                  ].map(([label, count]) => (
-                    <div className="rounded-lg bg-card p-3" key={label}>
-                      <dt className="text-muted-foreground">{label}</dt>
-                      <dd className="mt-1 text-lg font-semibold">{count}</dd>
-                    </div>
-                  ))}
-                </dl>
-                <p className="text-xs leading-6">
-                  تُضاف العناصر المفقودة فقط. العناصر الموجودة وتعديلاتها تبقى كما هي؛ لن تُستبدل
-                  بنسخة أقدم. الاستعادة تحتاج اتصالًا بالإنترنت.
-                </p>
-                <label className="mt-3 flex items-start gap-2 text-xs leading-6">
-                  <input
-                    type="checkbox"
-                    className="mt-1 size-4 shrink-0"
-                    checked={confirmed}
-                    disabled={busy}
-                    onChange={(e) => setConfirmed(e.target.checked)}
-                  />
-                  أوافق على إضافة العناصر المفقودة إلى حسابي الحالي
-                </label>
-                <button
-                  className={`${button} mt-3 w-full bg-primary text-primary-foreground`}
-                  disabled={busy || !confirmed}
-                  onClick={() =>
-                    run(async (port, active) => {
-                      lockVault();
-                      const result = await restoreBackup(port, preview);
-                      if (!active()) return;
-                      await qc.invalidateQueries();
-                      setPreview(null);
-                      setConfirmed(false);
-                      setMessage(
-                        `اكتملت الاستعادة: أُضيف ${result.inserted} عنصرًا، واحتُفظ بـ ${result.skipped} عنصرًا موجودًا.`,
-                      );
-                    })
-                  }
-                >
-                  استعادة العناصر المفقودة
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-        {busy && (
-          <p role="status" className="mt-4 text-sm">
-            جارٍ التحقق والمعالجة… أبقِ التطبيق مفتوحًا.
-          </p>
-        )}
-        {error && (
-          <p role="alert" className="mt-4 text-sm leading-6 text-destructive">
-            {error}
-          </p>
-        )}
-        {message && (
-          <p role="status" className="mt-4 text-sm leading-6 text-muted-foreground">
-            {message}
-          </p>
-        )}
-      </div>
+          )}
+          <Feedback busy={busy} error={error} message={message} />
+        </DialogContent>
+      </Dialog>
     </section>
+  );
+}
+
+function PasswordFields({
+  password,
+  repeat,
+  setPassword,
+  setRepeat,
+  busy,
+}: {
+  password: string;
+  repeat: string;
+  setPassword: (value: string) => void;
+  setRepeat: (value: string) => void;
+  busy: boolean;
+}) {
+  return (
+    <div className="space-y-3">
+      <label className="block text-sm font-medium">
+        كلمة مرور النسخة
+        <input
+          aria-label="كلمة مرور النسخة"
+          type="password"
+          autoComplete="new-password"
+          minLength={12}
+          maxLength={256}
+          value={password}
+          disabled={busy}
+          onChange={(event) => setPassword(event.target.value)}
+          className={input}
+          placeholder="12 حرفًا على الأقل"
+        />
+      </label>
+      <label className="block text-sm font-medium">
+        تأكيد كلمة مرور النسخة
+        <input
+          aria-label="تأكيد كلمة مرور النسخة"
+          type="password"
+          autoComplete="new-password"
+          maxLength={256}
+          value={repeat}
+          disabled={busy}
+          onChange={(event) => setRepeat(event.target.value)}
+          className={input}
+        />
+      </label>
+    </div>
+  );
+}
+
+function Feedback({ busy, error, message }: { busy: boolean; error: string; message: string }) {
+  return (
+    <div className="empty:hidden">
+      {busy && (
+        <p role="status" className="p-3 text-sm leading-6 text-muted-foreground">
+          جارٍ تجهيز النسخة… أبقِ التطبيق مفتوحًا.
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="p-3 text-sm leading-6 text-destructive">
+          {error}
+        </p>
+      )}
+      {message && (
+        <p role="status" className="p-3 text-sm leading-6 text-muted-foreground">
+          {message}
+        </p>
+      )}
+    </div>
   );
 }

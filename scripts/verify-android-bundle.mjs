@@ -48,6 +48,8 @@ for (const marker of [
   "MemoFlowAppLock",
   "MemoFlowBackup",
   "MemoFlowAutofill",
+  "MemoFlowDeviceSettings",
+  "MemoFlowFloating",
 ]) {
   if (!javascript.includes(marker)) throw new Error(`Native bundle is missing ${marker}`);
 }
@@ -106,9 +108,12 @@ for (const marker of [
   "WebView.setWebContentsDebuggingEnabled(false)",
   "WindowManager.LayoutParams.FLAG_SECURE",
   "setTextZoom(100)",
+  "registerPlugin(MemoFlowDeviceSettingsPlugin.class)",
 ]) {
   if (!activity.includes(marker)) throw new Error(`MainActivity is missing ${marker}`);
 }
+
+await text("android/app/src/main/res/drawable/ic_stat_icon.xml");
 
 console.log(
   `Verified Android bundle: local SPA, ${fontNames.length} fonts, auth callbacks, vault security, backups, and Autofill.`,

@@ -2,7 +2,11 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useTasks, type Task } from "@/lib/data";
 import { isNative } from "@/services/platform";
-import { requestNativePermission, syncNativeReminders } from "@/lib/native-reminders";
+import {
+  REMINDER_PERMISSION_EVENT,
+  requestNativePermission,
+  syncNativeReminders,
+} from "@/lib/native-reminders";
 
 const FIRED_KEY = "memoflow.firedReminders";
 
@@ -12,10 +16,16 @@ function loadFired(): Set<string> {
     if (!raw) return new Set();
     const arr = JSON.parse(raw) as string[];
     return new Set(arr);
-  } catch { return new Set(); }
+  } catch {
+    return new Set();
+  }
 }
 function saveFired(set: Set<string>) {
-  try { localStorage.setItem(FIRED_KEY, JSON.stringify([...set].slice(-500))); } catch {}
+  try {
+    localStorage.setItem(FIRED_KEY, JSON.stringify([...set].slice(-500)));
+  } catch {
+    /* Private browsing may disable local storage. */
+  }
 }
 
 function fireReminder(task: Task) {
@@ -30,12 +40,14 @@ function fireReminder(task: Task) {
         icon: "/icon.svg",
         tag: `task-${task.id}`,
       });
-    } catch {}
+    } catch {
+      /* The in-app reminder remains visible if the browser blocks notifications. */
+    }
   }
 }
 
 export function useTaskReminders() {
-  const { data: tasks = [] } = useTasks();
+  const { data: tasks } = useTasks();
   const timersRef = useRef<number[]>([]);
   const firedRef = useRef<Set<string>>(loadFired());
 
@@ -43,11 +55,24 @@ export function useTaskReminders() {
     // clear existing timers
     timersRef.current.forEach((id) => clearTimeout(id));
     timersRef.current = [];
+    if (!tasks) return;
 
     if (isNative()) {
-      // OS-level scheduling: fires even when the app is closed.
-      syncNativeReminders(tasks);
-      return;
+      const sync = () => {
+        if (!document.hidden)
+          void syncNativeReminders(tasks).catch(() =>
+            toast.error("تعذر جدولة التذكيرات. راجع أذونات الإشعارات في الإعدادات."),
+          );
+      };
+      sync();
+      document.addEventListener("visibilitychange", sync);
+      window.addEventListener("focus", sync);
+      window.addEventListener(REMINDER_PERMISSION_EVENT, sync);
+      return () => {
+        document.removeEventListener("visibilitychange", sync);
+        window.removeEventListener("focus", sync);
+        window.removeEventListener(REMINDER_PERMISSION_EVENT, sync);
+      };
     }
 
     const now = Date.now();

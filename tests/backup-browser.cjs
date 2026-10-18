@@ -175,19 +175,27 @@ const snapshot = { version: 1, accountId: user.id, createdAt: note.created_at, t
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto(`${baseUrl}/settings`);
     await page.getByText("النسخ الاحتياطي غير متاح حاليًا.", { exact: false }).waitFor();
-    assert.equal(await page.getByRole("button", { name: "تجهيز النسخة المشفّرة" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "نسخ احتياطي", exact: true }).count(), 0);
     backendReady = true;
     await page.reload();
-    // Password fields have no implicit textbox role.
+    await page.getByRole("button", { name: "نسخ احتياطي", exact: true }).waitFor();
+    assert.equal(await page.getByLabel("كلمة مرور النسخة", { exact: true }).count(), 0);
+    await page.getByRole("button", { name: "نسخ احتياطي", exact: true }).click();
+    await page.getByRole("button", { name: "Google Drive", exact: true }).waitFor();
+    await page.screenshot({
+      path: resolve(artifacts, "backup-choices-mobile.png"),
+      fullPage: true,
+    });
+    await page.getByRole("button", { name: "Google Drive", exact: true }).click();
+    await page.getByText("مشاركة النسخة إلى Google Drive للاحتفاظ بها.", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+    await page.getByRole("button", { name: "نسخ احتياطي", exact: true }).click();
+    await page.getByRole("button", { name: "حفظ على الهاتف", exact: true }).click();
     const pass = page.getByLabel("كلمة مرور النسخة", { exact: true });
     await pass.waitFor();
-    await page.getByText("إنشاء نسخة جديدة", { exact: true }).click();
     await pass.fill("strong backup phrase 2026");
     await page.getByLabel("تأكيد كلمة مرور النسخة", { exact: true }).fill("different password");
-    assert.equal(
-      await page.getByRole("button", { name: "تجهيز النسخة المشفّرة" }).isDisabled(),
-      true,
-    );
+    assert.equal(await page.getByRole("button", { name: "إنشاء وحفظ النسخة" }).isDisabled(), true);
     await page
       .getByLabel("تأكيد كلمة مرور النسخة", { exact: true })
       .fill("strong backup phrase 2026");
@@ -195,27 +203,30 @@ const snapshot = { version: 1, accountId: user.id, createdAt: note.created_at, t
       (id) => localStorage.setItem(`memoflow.note-draft.v1:${id}:unsaved`, "{}"),
       user.id,
     );
-    await page.getByRole("button", { name: "تجهيز النسخة المشفّرة" }).click();
+    await page.getByRole("button", { name: "إنشاء وحفظ النسخة" }).click();
     await page.getByRole("alert").filter({ hasText: "توجد مسودات" }).waitFor();
     assert.equal(calls.length, 0);
     await page.evaluate(
       (id) => localStorage.removeItem(`memoflow.note-draft.v1:${id}:unsaved`),
       user.id,
     );
-    await page.getByRole("button", { name: "تجهيز النسخة المشفّرة" }).click();
-    const dlButton = page.getByRole("button", { name: "حفظ على الجهاز", exact: true });
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByRole("button", { name: "إنشاء وحفظ النسخة" }).click(),
+    ]);
+    const dlButton = page.getByRole("button", { name: "حفظ على الهاتف", exact: true });
     await dlButton.waitFor();
-    await page.getByText("اختيار Google Drive من نافذة", { exact: false }).waitFor();
     await dlButton.scrollIntoViewIfNeeded();
     await page.screenshot({
       path: resolve(artifacts, "backup-delivery-mobile.png"),
       fullPage: true,
     });
-    assert.equal(await pass.inputValue(), "");
-    const [download] = await Promise.all([page.waitForEvent("download"), dlButton.click()]);
+    assert.equal(await pass.count(), 0);
     const encrypted = readFileSync(await download.path(), "utf8");
     assert.equal(JSON.parse(encrypted).format, "memoflow-encrypted-backup");
     assert(!encrypted.includes("مذكرة"));
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+    await page.getByRole("button", { name: "استعادة نسخة", exact: true }).click();
     const upload = page.getByLabel("ملف النسخة الاحتياطية");
     await upload.setInputFiles({
       name: "test.memoflow",
@@ -231,7 +242,7 @@ const snapshot = { version: 1, accountId: user.id, createdAt: note.created_at, t
     await page.getByLabel("معاينة النسخة", { exact: true }).waitFor();
     const restore = page.getByRole("button", { name: "استعادة العناصر المفقودة", exact: true });
     assert.equal(await restore.isDisabled(), true);
-    assert.equal(await pass.inputValue(), "");
+    assert.equal(await pass.count(), 0);
     await page.getByLabel("أوافق على إضافة العناصر المفقودة إلى حسابي الحالي").check();
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),
@@ -263,11 +274,15 @@ const snapshot = { version: 1, accountId: user.id, createdAt: note.created_at, t
     await page.getByRole("alert").filter({ hasText: "الملف تالف" }).waitFor();
     assert.equal(calls.filter((c) => c === "restore").length, 2);
     // A delayed export must not reveal a downloadable file after account identity changes.
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+    await page.getByRole("button", { name: "نسخ احتياطي", exact: true }).click();
+    await page.getByRole("button", { name: "حفظ على الهاتف", exact: true }).click();
+    await pass.fill("strong backup phrase 2026");
     await page
       .getByLabel("تأكيد كلمة مرور النسخة", { exact: true })
       .fill("strong backup phrase 2026");
     slowExport = true;
-    await page.getByRole("button", { name: "تجهيز النسخة المشفّرة" }).click();
+    await page.getByRole("button", { name: "إنشاء وحفظ النسخة" }).click();
     while (!releaseExport) await page.waitForTimeout(20);
     activeUser = { ...user, id: "22222222-2222-4222-8222-222222222222" };
     releaseExport();

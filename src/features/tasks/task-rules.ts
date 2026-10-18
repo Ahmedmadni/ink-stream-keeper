@@ -2,6 +2,19 @@ export type DatedTask = { title: string; done: boolean; due_at: string | null; p
 export type TaskFilter = "all" | "today" | "upcoming" | "done";
 export type TaskItemSummary = { done: number; total: number; progress: number };
 
+export function formatTaskDateTime(value: string): string {
+  if (!value) return "اختيار التاريخ والوقت";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "اختيار التاريخ والوقت";
+  return new Intl.DateTimeFormat("ar-EG-u-ca-gregory-nu-latn", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
 /** Current checklist rows take precedence so legacy rows are never double-counted. */
 export function summarizeTaskItems(
   current: { taskId: string; done: boolean }[],

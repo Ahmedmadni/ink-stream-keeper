@@ -29,8 +29,8 @@ export function PropertiesBlock({ block }: BlockRendererProps<PropertiesBlockPro
         const Icon = p.icon;
         return (
           <div key={p.key} className="min-w-0 rounded-xl bg-muted/40 p-3">
-            <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground">
-              {Icon ? <Icon className="size-3.5" /> : null}
+            <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              {Icon ? <Icon className="size-4" /> : null}
               <span>{p.label}</span>
             </div>
             <div className="text-sm font-bold">

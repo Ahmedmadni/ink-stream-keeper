@@ -10,6 +10,7 @@ const nav = [
   { to: "/notes", label: "المذكرات", icon: NotebookText },
   { to: "/tasks", label: "المهام", icon: CheckSquare },
   { to: "/vault", label: "الخزنة", icon: ShieldCheck },
+  { to: "/settings", label: "الإعدادات", icon: Settings },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -46,13 +47,6 @@ export function AppShell({ children }: { children: ReactNode }) {
               );
             })}
           </nav>
-          <Link
-            to="/settings"
-            className="mt-auto flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-muted-foreground hover:bg-secondary"
-          >
-            <Settings className="size-5" />
-            الإعدادات
-          </Link>
         </aside>
         <main
           id="main"
@@ -83,7 +77,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         aria-label="التنقل الرئيسي"
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/90 backdrop-blur-xl safe-bottom safe-x md:hidden"
       >
-        <div className="mx-auto grid max-w-lg grid-cols-3 gap-1.5 px-3 py-1.5 sm:gap-2 sm:px-4 sm:py-2">
+        <div className="mx-auto grid max-w-lg grid-cols-4 gap-1 px-2 py-2 sm:gap-2 sm:px-4">
           {nav.map(({ to, label, icon: Icon }) => {
             const active = pathname.startsWith(to);
             return (
@@ -93,7 +87,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 aria-current={active ? "page" : undefined}
                 className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-xs font-medium transition-colors ${active ? "bg-primary-soft text-primary" : "text-muted-foreground"}`}
               >
-                <Icon className="size-5" strokeWidth={active ? 2.25 : 1.75} />
+                <Icon className="size-6" strokeWidth={active ? 2.25 : 1.75} />
                 <span>{label}</span>
               </Link>
             );

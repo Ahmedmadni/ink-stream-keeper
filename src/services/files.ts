@@ -1,11 +1,11 @@
 import { isNative } from "./platform";
 
-const BACKUP_FOLDER = "MemoFlow";
 const SHARE_FOLDER = "memoflow-share";
 const DEFAULT_NAME = "MemoFlow-backup.memoflow";
 
 export type FileSaveResult =
   | { mode: "native"; path: string; uri: string }
+  | { mode: "cancelled"; path: string; uri: null }
   | { mode: "browser"; path: string; uri: null };
 
 export type FileShareResult = "shared" | "cancelled" | "unavailable";
@@ -74,20 +74,11 @@ export const files: FilesService = {
       return { mode: "browser", path: name, uri: null };
     }
 
-    const { Directory, Filesystem } = await import("@capacitor/filesystem");
-    const permission = await Filesystem.checkPermissions();
-    if (permission.publicStorage !== "granted") {
-      const requested = await Filesystem.requestPermissions();
-      if (requested.publicStorage !== "granted") throw new Error("FILE_PERMISSION_DENIED");
-    }
-    const path = `${BACKUP_FOLDER}/${name}`;
-    const result = await Filesystem.writeFile({
-      path,
-      data: await blobToBase64(blob),
-      directory: Directory.Documents,
-      recursive: true,
-    });
-    return { mode: "native", path: `Documents/${path}`, uri: result.uri };
+    const { nativeBackup } = await import("./native-backup");
+    const result = await nativeBackup.saveLocalFile(await blob.text(), name);
+    if (result.cancelled) return { mode: "cancelled", path: "", uri: null };
+    if (!result.uri) throw new Error("FILE_SAVE_FAILED");
+    return { mode: "native", path: name, uri: result.uri };
   },
 
   canShare(blob, filename) {

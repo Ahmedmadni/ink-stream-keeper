@@ -10,7 +10,8 @@ def releaseSigningReady = releaseSigningValues.values().every { value -> value !
 def releaseTaskRequested = gradle.startParameter.taskNames.any { taskName ->
     taskName.toLowerCase(java.util.Locale.ROOT).contains('release')
 }
-if (releaseTaskRequested && !releaseSigningReady) {
+def unsignedCiReleaseAllowed = System.getenv('CI') == 'true' && project.findProperty('memoflowUnsignedCi') == 'true'
+if (releaseTaskRequested && !releaseSigningReady && !unsignedCiReleaseAllowed) {
     throw new GradleException('Release signing is not configured. Set MEMOFLOW_KEYSTORE_PATH, MEMOFLOW_KEYSTORE_PASSWORD, MEMOFLOW_KEY_ALIAS, and MEMOFLOW_KEY_PASSWORD.')
 }
 
@@ -21,8 +22,8 @@ android {
         applicationId "com.ahmedmadni.memoflow"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 12
-        versionName "1.2.6"
+        versionCode 13
+        versionName "1.2.7"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

@@ -52,15 +52,15 @@ export function AppLockSettings() {
 
   return (
     <section className="px-4 pb-6 sm:px-5" aria-labelledby="app-lock-title">
-      <h2 id="app-lock-title" className="mb-2 px-1 text-xs font-medium text-muted-foreground">
+      <h2 id="app-lock-title" className="mb-2 px-1 text-sm font-semibold text-muted-foreground">
         قفل التطبيق
       </h2>
-      <div className="rounded-2xl bg-card p-4">
+      <div className="rounded-3xl border border-border/60 bg-card p-4 shadow-card">
         <div className="flex items-center gap-3">
-          <KeyRound className="size-5 text-primary" />
-          <h3 className="text-sm font-semibold">رمز فتح MemoFlow</h3>
+          <KeyRound className="size-6 text-primary" />
+          <h3 className="text-base font-semibold">رمز فتح MemoFlow</h3>
         </div>
-        <p className="mt-2 text-xs leading-6 text-muted-foreground">
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
           يُقفل التطبيق عند مغادرته أو إغلاقه، وتُخفى لقطات الشاشة لحماية محتوى الخزنة.
         </p>
         <details className="mt-3 rounded-xl border border-border p-3">

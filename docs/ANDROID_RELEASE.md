@@ -87,6 +87,27 @@ second tap is not required. Drag the card by its title, tap the title to reopen 
 close action to stop the overlay. This is an optional visibility feature and does not replace task
 notifications.
 
+Version 1.2.7 keeps the overlay permission request and its pending card inside the native plugin,
+so the action continues after returning from system Settings even if the app lock remounts the UI.
+It also rechecks notification permissions and reschedules task reminders on resume, opens MemoFlow's
+notification settings when permission was previously denied, and provides an explicit test-notification
+button. Exact alarm access is requested only by the user; without it reminders use inexact scheduling.
+
+## Simple settings and manual backups (1.2.7)
+
+- The Android navigation has four tabs: notes, tasks, vault and settings. Legacy sections and the
+  browser-install action are hidden from the Android settings screen.
+- The UI uses a 16px baseline on phones, readable 15px body labels, 24px navigation icons and
+  44–48px primary touch controls; narrow layouts wrap instead of scaling the entire interface down.
+- **نسخ احتياطي** first asks for **حفظ على الهاتف** or **Google Drive**. Both export the same encrypted
+  backup. Phone saving uses Android's document-save picker; Drive uses the system share sheet, where
+  the user selects Drive and finishes saving. No automatic Drive upload is implied by sharing.
+- Restore has its own dialog with the existing password, account, preview and merge safeguards.
+  Daily local backups remain optional in a collapsed setting.
+- Task dates show a written Arabic month and day–month–year order while retaining the system picker.
+  Incomplete checklist items appear before completed items; each group is ordered high, medium, low,
+  with original position retained for ties. Priority changes use the existing sub_items column.
+
 ## Prepare a Play Store release
 
 1. Run `bun run android:sync`. This cleans stale assets, builds the native SPA,

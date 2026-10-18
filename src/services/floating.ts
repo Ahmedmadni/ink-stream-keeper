@@ -3,7 +3,7 @@ import { isNative } from "./platform";
 export type FloatingItem = { kind: "note" | "task"; title: string };
 
 type FloatingPlugin = {
-  checkPermission(): Promise<{ granted: boolean }>;
+  checkPermission(): Promise<{ granted: boolean; running: boolean }>;
   requestPermission(): Promise<{ granted: boolean }>;
   show(o: { items: FloatingItem[] }): Promise<void>;
   hide(): Promise<void>;
@@ -24,6 +24,9 @@ export function floatingSupported() {
 }
 export async function floatingPermission() {
   return (await (await get())?.checkPermission())?.granted ?? false;
+}
+export async function floatingStatus() {
+  return (await (await get())?.checkPermission()) ?? { granted: false, running: false };
 }
 export async function requestFloatingPermission() {
   return (await (await get())?.requestPermission())?.granted ?? false;

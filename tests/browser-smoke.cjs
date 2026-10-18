@@ -286,7 +286,7 @@ const vaultEntries = [
     await page.evaluate(() => document.fonts.ready);
     assert.equal(
       await page.getByRole("navigation", { name: "التنقل الرئيسي" }).getByRole("link").count(),
-      3,
+      4,
     );
     await page.evaluate(() =>
       document.fonts.load('400 16px "IBM Plex Sans Arabic"', "مذكرات MemoFlow"),
@@ -297,6 +297,10 @@ const vaultEntries = [
       ),
     );
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+    assert.equal(
+      await page.evaluate(() => getComputedStyle(document.documentElement).fontSize),
+      "16px",
+    );
     await page.screenshot({ path: artifacts + "/notes-mobile.png", fullPage: true });
     await page
       .getByRole("navigation", { name: "التنقل الرئيسي" })
@@ -329,10 +333,20 @@ const vaultEntries = [
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
     await page.getByText("المواعيد وتفاصيل إضافية", { exact: true }).click();
     assert.ok(await page.getByLabel("موعد التذكير", { exact: true }).isVisible());
+    await page.getByLabel("موعد التذكير", { exact: true }).fill("2026-10-24T18:30");
+    await page.getByText("24 أكتوبر 2026", { exact: false }).waitFor();
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
     await page.getByText("بنود المهمة", { exact: true }).waitFor();
     assert.equal(await page.getByLabel("إنجاز المهمة").isDisabled(), true);
-    await page.getByRole("checkbox", { name: "تبديل الإنجاز" }).last().click();
+    const checklist = page.getByRole("list", { name: "قائمة بنود المهمة" });
+    assert.deepEqual(
+      await checklist
+        .getByRole("checkbox")
+        .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("aria-label"))),
+      ["إنجاز إرسال الإيميلات", "إنجاز أرشفة الملفات"],
+    );
+    await page.getByRole("combobox", { name: "أولوية إرسال الإيميلات" }).selectOption("high");
+    await page.getByRole("checkbox", { name: "إنجاز إرسال الإيميلات", exact: true }).click();
     await page
       .getByText("تم الحفظ", { exact: false })
       .count()
@@ -362,8 +376,16 @@ const vaultEntries = [
     await page.waitForFunction(() => document.documentElement.classList.contains("dark"));
     await page.screenshot({ path: artifacts + "/settings-dark.png", fullPage: true });
     assert.equal(await page.getByRole("button", { name: "تصدير البيانات" }).count(), 0);
-    await page.getByText("الأقسام السابقة", { exact: true }).click();
-    assert.equal(await page.getByRole("link", { name: "مساحات العمل", exact: true }).count(), 1);
+    assert.equal(await page.getByText("الأقسام السابقة", { exact: true }).count(), 0);
+    assert.equal(await page.getByRole("link", { name: "مساحات العمل", exact: true }).count(), 0);
+    for (const width of [320, 360, 390, 430]) {
+      await page.setViewportSize({ width, height: 844 });
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      assert.equal(
+        await page.evaluate(() => getComputedStyle(document.documentElement).fontSize),
+        "16px",
+      );
+    }
     await page.setViewportSize({ width: 1024, height: 768 });
     await page.goto("http://127.0.0.1:4173/notes");
     await page.getByText("أفكار الأسبوع", { exact: true }).waitFor();
@@ -429,9 +451,108 @@ const vaultEntries = [
     await page.evaluate(() => {
       delete document.hidden;
     });
+    // Exercise the installed-Android UI using a deterministic Capacitor bridge.
+    // System permission screens themselves still require a real-device check.
+    await context.addInitScript(() => {
+      window.androidBridge = {};
+      window.__nativeCalls = [];
+      window.__nativeState = { display: "prompt", exact: false, overlay: false, floating: false };
+      const plugins = {
+        MemoFlowAppLock: ["getStatus", "lock", "unlock", "configure"],
+        MemoFlowAuth: ["getLaunchUrl", "addListener", "removeListener"],
+        MemoFlowBackup: ["getStatus"],
+        MemoFlowFloating: ["checkPermission", "show", "hide"],
+        MemoFlowDeviceSettings: ["openNotifications"],
+        LocalNotifications: [
+          "checkPermissions",
+          "areEnabled",
+          "requestPermissions",
+          "checkExactNotificationSetting",
+          "changeExactNotificationSetting",
+          "getPending",
+          "cancel",
+          "schedule",
+        ],
+      };
+      window.Capacitor = {
+        PluginHeaders: Object.entries(plugins).map(([name, methods]) => ({
+          name,
+          methods: methods.map((method) => ({ name: method, rtype: "promise" })),
+        })),
+        nativePromise: async (plugin, method, options) => {
+          window.__nativeCalls.push({ plugin, method, options });
+          const state = window.__nativeState;
+          if (plugin === "MemoFlowAppLock" && method === "getStatus")
+            return { configured: true, unlocked: true, blockedUntil: 0 };
+          if (plugin === "MemoFlowBackup") return { configured: false, enabled: false };
+          if (plugin === "MemoFlowFloating") {
+            if (method === "show") {
+              state.overlay = true;
+              state.floating = true;
+            }
+            if (method === "hide") state.floating = false;
+            return { granted: state.overlay, running: state.floating };
+          }
+          if (plugin === "LocalNotifications") {
+            if (method === "requestPermissions") state.display = "granted";
+            if (method === "changeExactNotificationSetting") state.exact = true;
+            if (method === "checkPermissions" || method === "requestPermissions")
+              return { display: state.display };
+            if (method === "areEnabled") return { value: state.display === "granted" };
+            if (
+              method === "checkExactNotificationSetting" ||
+              method === "changeExactNotificationSetting"
+            )
+              return { exact_alarm: state.exact ? "granted" : "denied" };
+            if (method === "getPending") return { notifications: [] };
+          }
+          return {};
+        },
+      };
+    });
+    await page.goto(`${baseUrl}/settings`);
+    const notificationButton = page.getByRole("button", { name: /إشعارات التذكير/ });
+    await notificationButton.click();
+    await page.getByRole("button", { name: "تجربة إشعار", exact: true }).waitFor();
+    await page.getByRole("button", { name: "تجربة إشعار", exact: true }).click();
+    await page.waitForFunction(() =>
+      window.__nativeCalls.some((call) => call.method === "schedule"),
+    );
+    assert.equal(
+      await page.evaluate(
+        () =>
+          window.__nativeCalls.find((call) => call.method === "schedule").options.notifications[0]
+            .isExactNotification,
+      ),
+      false,
+    );
+    await page
+      .getByRole("button", { name: "السماح بالتذكير في موعده الدقيق", exact: true })
+      .click();
+    await page.waitForFunction(() => window.__nativeState.exact);
+    await page.evaluate(() => {
+      window.__nativeState.display = "denied";
+      window.dispatchEvent(new Event("focus"));
+    });
+    await page.getByText("السماح بتنبيهات المهام على الهاتف", { exact: true }).waitFor();
+    await notificationButton.click();
+    await page.waitForFunction(() =>
+      window.__nativeCalls.some(
+        (call) => call.plugin === "MemoFlowDeviceSettings" && call.method === "openNotifications",
+      ),
+    );
+    await page.getByRole("button", { name: "السماح وإظهار البطاقة", exact: true }).click();
+    await page.getByRole("button", { name: "إخفاء البطاقة", exact: true }).waitFor();
+    await page.getByRole("button", { name: "إخفاء البطاقة", exact: true }).click();
+    await page.getByRole("button", { name: "إظهار البطاقة", exact: true }).waitFor();
+    assert.equal(
+      await page.getByRole("button", { name: "إضافة إلى الشاشة الرئيسية", exact: true }).count(),
+      0,
+    );
+    await page.screenshot({ path: artifacts + "/settings-android-mobile.png", fullPage: true });
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: mocked browser flows — mobile/tablet navigation, bundled font, RTL overflow, task search/completion PATCH, creation validation, theme, legacy access; task detail/reminder, wrong PIN/unlock/reveal/manual and background lock, failed vault write retained; no page errors.",
+      "PASS: mocked browser flows — four-tab navigation, readable phone sizes at 320–430px, bundled font, RTL dates, task priority/completion order, creation, simplified settings, and vault security; no page errors.",
     );
   } finally {
     await browser?.close();

@@ -63,7 +63,7 @@ export function SubItemsTree({
   const [bulkBusy, setBulkBusy] = useState(false);
   const dragId = useRef<string | null>(null);
 
-  const tree = useMemo(() => buildTree(rows), [rows]);
+  const tree = useMemo(() => buildTree(rows, parentType === "task"), [rows, parentType]);
   const roll = useMemo(() => computeSubItemsProgress(rows), [rows]);
   const lastReported = useRef("");
   useEffect(() => {
@@ -267,6 +267,12 @@ export function SubItemsTree({
           }
           onToggle={(v) => toggle(node, v)}
           onRename={(t) => m.update.mutate({ id: node.id, patch: { title: t } })}
+          onPriority={(priority) =>
+            m.update.mutate(
+              { id: node.id, patch: { priority } },
+              { onError: () => toast.error("تعذر حفظ الأولوية") },
+            )
+          }
           onEnter={() => addSibling(node)}
           onDelete={() => m.remove.mutate(node.id)}
           onAddChild={() => addChild(node)}
@@ -332,7 +338,19 @@ export function SubItemsTree({
       ) : tree.length === 0 ? (
         <p className="text-xs text-muted-foreground">لا توجد بنود بعد — ابدأ بإضافة بند بالأسفل.</p>
       ) : (
-        <ul className="space-y-1.5">{tree.map(renderNode)}</ul>
+        <>
+          {parentType === "task" && (
+            <p className="text-xs leading-6 text-muted-foreground">
+              الأعلى أولوية أولًا، والبنود المكتملة في الأسفل.
+            </p>
+          )}
+          <ul
+            aria-label={parentType === "task" ? "قائمة بنود المهمة" : "قائمة البنود"}
+            className="space-y-2"
+          >
+            {tree.map(renderNode)}
+          </ul>
+        </>
       )}
 
       {!readonly && !query.isError && (
@@ -364,7 +382,7 @@ export function SubItemsTree({
                 .catch(() => toast.error("تعذر حفظ البنود. حاول مجددًا."));
             }}
             placeholder={addPlaceholder}
-            className="min-w-0 flex-1 rounded-2xl bg-card px-4 py-2.5 text-sm shadow-card outline-none focus:ring-2 focus:ring-primary"
+            className="min-h-12 min-w-0 flex-1 rounded-2xl bg-card px-4 py-3 text-sm shadow-card outline-none focus:ring-2 focus:ring-primary"
           />
           {!compact && (
             <DictateButton size="sm" onText={(t) => setDraft((d) => (d ? `${d} ${t}` : t))} />
@@ -372,10 +390,10 @@ export function SubItemsTree({
           <button
             type="submit"
             disabled={bulkBusy || m.add.isPending}
-            className="grid size-10 shrink-0 place-items-center rounded-full gradient-primary text-primary-foreground shadow-fab disabled:opacity-60"
+            className="grid size-12 shrink-0 place-items-center rounded-2xl gradient-primary text-primary-foreground shadow-fab disabled:opacity-60"
             aria-label="إضافة بند"
           >
-            <Plus className="size-4" />
+            <Plus className="size-5" />
           </button>
         </form>
       )}
@@ -401,6 +419,7 @@ type RowProps = {
   onCollapse: () => void;
   onToggle: (v: boolean) => void;
   onRename: (t: string) => void;
+  onPriority: (priority: string) => void;
   onEnter: () => void;
   onDelete: () => void;
   onAddChild: () => void;
@@ -434,9 +453,9 @@ const Row = memo(function Row(p: RowProps) {
         p.onDrop();
       }}
       className={cn(
-        "group grid items-center gap-2 rounded-xl bg-card p-2.5 shadow-card transition",
+        "group grid items-center gap-2 rounded-2xl border border-border/60 bg-card p-3 shadow-card transition",
         p.compact
-          ? "grid-cols-[auto_auto_minmax(0,1fr)_auto]"
+          ? "grid-cols-[auto_minmax(0,1fr)_auto]"
           : "grid-cols-[auto_auto_auto_minmax(0,1fr)_auto]",
         p.node.done && "opacity-70",
         over && "ring-2 ring-primary",
@@ -459,16 +478,19 @@ const Row = memo(function Row(p: RowProps) {
             className={cn("size-4 transition-transform", !p.collapsed && "-rotate-90")}
           />
         </button>
-      ) : (
+      ) : !p.compact ? (
         <span className="size-6" />
-      )}
+      ) : null}
 
-      <Checkbox
-        checked={p.node.done}
-        disabled={p.readonly}
-        onCheckedChange={(v) => p.onToggle(!!v)}
-        aria-label="تبديل الإنجاز"
-      />
+      <div className="grid min-h-11 w-10 place-items-center">
+        <Checkbox
+          className="size-6"
+          checked={p.node.done}
+          disabled={p.readonly}
+          onCheckedChange={(v) => p.onToggle(!!v)}
+          aria-label={`إنجاز ${p.node.title}`}
+        />
+      </div>
 
       <div className="min-w-0">
         {p.readonly ? (
@@ -497,10 +519,27 @@ const Row = memo(function Row(p: RowProps) {
               }
             }}
             className={cn(
-              "w-full bg-transparent text-sm font-semibold outline-none",
+              "min-h-11 w-full bg-transparent text-base font-medium outline-none",
               p.node.done && "line-through",
             )}
           />
+        )}
+        {p.compact && !p.readonly && (
+          <select
+            aria-label={`أولوية ${p.node.title}`}
+            value={
+              p.node.priority === "high" || p.node.priority === "low" ? p.node.priority : "med"
+            }
+            onChange={(event) => p.onPriority(event.target.value)}
+            className={cn(
+              "min-h-10 max-w-full rounded-lg bg-secondary px-2 text-xs font-medium",
+              p.node.priority === "high" && "bg-destructive/10 text-destructive",
+            )}
+          >
+            <option value="high">أولوية عالية</option>
+            <option value="med">أولوية متوسطة</option>
+            <option value="low">أولوية منخفضة</option>
+          </select>
         )}
         {(p.progress !== null || p.node.converted_task_id) && (
           <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -559,10 +598,10 @@ const Row = memo(function Row(p: RowProps) {
           )}
           <button
             onClick={p.onDelete}
-            className="grid size-7 place-items-center rounded-md text-destructive hover:bg-destructive/10"
-            aria-label="حذف"
+            className="grid size-11 place-items-center rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            aria-label={`حذف ${p.node.title}`}
           >
-            <Trash2 className="size-4" />
+            <Trash2 className="size-5" />
           </button>
         </div>
       )}

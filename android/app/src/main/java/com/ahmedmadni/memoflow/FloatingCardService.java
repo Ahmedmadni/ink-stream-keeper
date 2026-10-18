@@ -18,6 +18,8 @@ import java.util.ArrayList;
 
 /** Draggable floating reminder card. Tap the title to open MemoFlow, ✕ to close. */
 public class FloatingCardService extends Service {
+    private static volatile boolean running;
+    public static boolean isRunning() { return running; }
     private WindowManager wm;
     private View card;
 
@@ -48,7 +50,7 @@ public class FloatingCardService extends Service {
         TextView title = new TextView(this);
         title.setText(R.string.floating_card_title);
         title.setTextColor(0xFF111111);
-        title.setTextSize(14);
+        title.setTextSize(16);
         title.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
         title.setOnClickListener(v -> {
             Intent open = new Intent(this, MainActivity.class);
@@ -70,7 +72,7 @@ public class FloatingCardService extends Service {
             TextView t = new TextView(this);
             t.setText(s);
             t.setTextColor(0xFF333333);
-            t.setTextSize(13);
+            t.setTextSize(15);
             t.setPadding(0, (int) (6 * d), 0, 0);
             t.setMaxLines(1);
             box.addView(t);
@@ -124,6 +126,7 @@ public class FloatingCardService extends Service {
         card = box;
         try {
             wm.addView(card, lp);
+            running = true;
         } catch (SecurityException | WindowManager.BadTokenException denied) {
             card = null;
             stopSelf();
@@ -132,6 +135,7 @@ public class FloatingCardService extends Service {
     }
 
     private void removeCard() {
+        running = false;
         if (card != null && wm != null) { try { wm.removeView(card); } catch (Exception ignored) { } }
         card = null;
     }
