@@ -2,6 +2,8 @@ const { app, BrowserWindow, session, shell, protocol, net, ipcMain } = require("
 const { join, basename } = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { existsSync } = require("node:fs");
+const { createFloatingNotes } = require("./floating-notes.cjs");
+const { floatingAssetPath } = require("./floating-security.cjs");
 const {
   APP_URL,
   RECOVERY_SCHEME,
@@ -26,6 +28,7 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 let mainWindow;
+let floatingNotes;
 let callbackReady = false;
 let pendingCallback = process.argv.find(isAuthCallback);
 
@@ -87,6 +90,7 @@ function createWindow() {
     if (mainFrame && !inPlace) callbackReady = false;
   });
   mainWindow.on("closed", () => {
+    floatingNotes?.closeAll();
     mainWindow = undefined;
     callbackReady = false;
   });
@@ -113,9 +117,22 @@ if (!app.requestSingleInstanceLock()) {
     protocol.handle("memoflow", (request) => {
       if (!["GET", "HEAD"].includes(request.method))
         return new Response("Method not allowed", { status: 405 });
-      const path = bundledPath(webRoot, request.url);
+      const path =
+        bundledPath(webRoot, request.url) ||
+        floatingAssetPath(join(__dirname, "floating"), request.url);
       if (!path || !existsSync(path)) return new Response("Not found", { status: 404 });
       return net.fetch(pathToFileURL(path).toString());
+    });
+    floatingNotes = createFloatingNotes({
+      trustedMain: trusted,
+      getMainWindow: () => mainWindow,
+      openMainNote: (id) => {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.webContents.send("memoflow:floating:open-note", id);
+      },
     });
     ipcMain.handle("memoflow:auth:open", async (event, url) => {
       if (!trusted(event) || typeof url !== "string" || !isOAuthUrl(url))

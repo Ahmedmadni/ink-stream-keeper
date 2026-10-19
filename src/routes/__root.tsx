@@ -22,6 +22,8 @@ import { PanelProvider } from "@/hooks/use-panel";
 import { AppLockGate } from "@/components/AppLockGate";
 import { AutoBackupAgent } from "@/features/backup/AutoBackupAgent";
 import { NativeAuthCoordinator } from "@/components/NativeAuthCoordinator";
+import { DesktopFloatingCoordinator } from "@/components/DesktopFloatingCoordinator";
+import { DEVELOPER_NAME } from "@/lib/app-info";
 
 function NotFoundComponent() {
   return (
@@ -98,7 +100,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content:
           "تطبيق سريع وآمن لتدوين الملاحظات وإدارة المهام بالعربية. تصنيفات مخصصة، بحث ذكي، تثبيت كتطبيق على الهاتف.",
       },
-      { name: "author", content: "MemoFlow" },
+      { name: "author", content: DEVELOPER_NAME },
       { name: "theme-color", content: "#2D6CDF" },
       { property: "og:title", content: "MemoFlow — ملاحظات ومهام بالعربية" },
       {
@@ -188,6 +190,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <NativeAuthCoordinator />
+      <DesktopFloatingCoordinator />
       <AppLockGate>
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <VaultSecurity />

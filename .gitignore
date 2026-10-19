@@ -42,3 +42,4 @@ electron/web/
 electron/app.ico
 electron/app.png
 desktop-dist/
+electron/floating/fonts/
