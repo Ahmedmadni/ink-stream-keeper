@@ -34,11 +34,11 @@ jobs:
         run: |
           cp docs/WEB_RELEASE.txt .output/README.txt
           cd .output
-          zip -qr ../MemoFlow-Web-1.2.8.zip .
+          zip -qr ../MemoFlow-Web-1.2.9.zip .
       - uses: actions/upload-artifact@v4
         with:
           name: MemoFlow-Web-Release
-          path: MemoFlow-Web-1.2.8.zip
+          path: MemoFlow-Web-1.2.9.zip
           if-no-files-found: error
       - name: Save UI review images
         if: always()
@@ -132,20 +132,25 @@ jobs:
       - name: Install pinned desktop build tools
         run: npm install --prefix "$env:RUNNER_TEMP/memoflow-electron" --no-save electron@44.9.0 @electron/packager@19.1.1
       - name: Package Windows executable with the bundled UI
+        env:
+          MEMOFLOW_DESKTOP_TOOLS: ${{ runner.temp }}/memoflow-electron
+        run: node scripts/package-windows.mjs
+      - name: Verify developer file metadata
         run: |
-          & "$env:RUNNER_TEMP/memoflow-electron/node_modules/.bin/electron-packager.cmd" electron MemoFlow --platform=win32 --arch=x64 --electron-version=44.9.0 --out=desktop-dist --asar --overwrite --app-version=1.2.8 --icon=electron/app.ico
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $metadata = (Get-Item desktop-dist/MemoFlow-win32-x64/MemoFlow.exe).VersionInfo
+          $expected = (Get-Content electron/package.json -Encoding utf8 | ConvertFrom-Json).author.name
+          if ($metadata.CompanyName -ne $expected) { throw 'Developer name is missing from the Windows executable' }
       - name: Exercise the packaged Windows executable
         env:
           MEMOFLOW_ELECTRON_PATH: ${{ github.workspace }}/desktop-dist/MemoFlow-win32-x64/MemoFlow.exe
           MEMOFLOW_DESKTOP_PACKAGED: "1"
         run: bun run test:desktop
       - name: Create Windows download
-        run: Compress-Archive -Path desktop-dist/MemoFlow-win32-x64 -DestinationPath MemoFlow-Windows-1.2.8.zip
+        run: Compress-Archive -Path desktop-dist/MemoFlow-win32-x64 -DestinationPath MemoFlow-Windows-1.2.9.zip
       - uses: actions/upload-artifact@v4
         with:
           name: MemoFlow-Windows-Release
-          path: MemoFlow-Windows-1.2.8.zip
+          path: MemoFlow-Windows-1.2.9.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()

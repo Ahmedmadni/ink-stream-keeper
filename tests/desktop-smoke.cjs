@@ -53,6 +53,23 @@ const items = [
   parent_type: "task",
   created_at: task.created_at,
 }));
+const note = {
+  id: "note-desktop",
+  user_id: user.id,
+  title: "مذكرة العمل",
+  content: "<p>أرشفة الملفات</p><p>إرسال البريد</p><p>&lt;img src=x onerror=alert(1)&gt;</p>",
+  category_id: "category-work",
+  emoji: null,
+  pinned: false,
+  favorite: false,
+  archived: false,
+  created_at: "2026-10-19T00:00:00Z",
+  updated_at: "2026-10-19T00:00:00Z",
+};
+let notes = [
+  note,
+  { ...note, id: "note-second", title: "مذكرة المتابعة", content: "<p>متابعة الأعمال</p>" },
+];
 
 (async () => {
   let desktop, page;
@@ -81,6 +98,12 @@ const items = [
           },
         });
       const table = url.pathname.split("/").pop();
+      if (table === "notes") {
+        const id = url.searchParams.get("id");
+        return route.fulfill({
+          json: id?.startsWith("eq.") ? (notes.find((n) => n.id === id.slice(3)) ?? null) : notes,
+        });
+      }
       const rows = {
         tasks: [task],
         categories: [
@@ -101,7 +124,7 @@ const items = [
     await page.getByRole("button", { name: "المتابعة عبر Google", exact: true }).waitFor();
     assert.equal(await page.evaluate(() => location.protocol), "memoflow:");
     assert.equal(await page.evaluate(() => typeof window.require), "undefined");
-    assert.equal(await page.evaluate(() => window.memoFlowDesktop.version), "1.2.8");
+    assert.equal(await page.evaluate(() => window.memoFlowDesktop.version), "1.2.9");
     await desktop.evaluate(({ shell }) => {
       global.__openedOAuth = null;
       shell.openExternal = async (url) => {
@@ -155,9 +178,146 @@ const items = [
     await page.screenshot({ path: resolve(artifacts, "tasks-windows.png"), fullPage: true });
     await page.reload();
     await page.getByText(task.title, { exact: true }).waitFor();
+    await page.goto("memoflow://app/notes");
+    await page.getByRole("link", { name: /مذكرة العمل/ }).waitFor();
+    const firstWindow = desktop.waitForEvent("window");
+    await page.getByRole("button", { name: "عرض مذكرة العمل فوق النوافذ", exact: true }).click();
+    const detached = await firstWindow;
+    detached.on("pageerror", (error) => errors.push(error.message));
+    await detached.getByRole("heading", { name: note.title, exact: true }).waitFor();
+    assert.equal(await detached.evaluate(() => typeof window.memoFlowDesktop), "undefined");
+    assert.equal(await detached.evaluate(() => typeof window.require), "undefined");
+    assert.equal(await detached.locator("img").count(), 0);
+    assert.match(await detached.locator("#content").textContent(), /أرشفة الملفات\nإرسال البريد/);
+    assert.equal(
+      await detached
+        .locator("header")
+        .evaluate((el) => getComputedStyle(el).getPropertyValue("-webkit-app-region")),
+      "drag",
+    );
+    assert.equal(
+      await desktop.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()
+          .find((w) => w.webContents.getURL().startsWith("memoflow://floating/"))
+          .isAlwaysOnTop(),
+      ),
+      true,
+    );
+    await desktop.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((w) => w.webContents.getURL().startsWith("memoflow://app/"))
+        .minimize(),
+    );
+    assert.equal(
+      await desktop.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()
+          .find((w) => w.webContents.getURL().startsWith("memoflow://floating/"))
+          .isVisible(),
+      ),
+      true,
+    );
+    const pin = detached.getByRole("button", { name: "تثبيت فوق النوافذ", exact: true });
+    await pin.click();
+    await detached.locator('#pin[aria-pressed="false"]').waitFor();
+    await pin.click();
+    await detached.locator('#pin[aria-pressed="true"]').waitFor();
+    await desktop.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((w) => w.webContents.getURL().startsWith("memoflow://app/"))
+        .restore(),
+    );
+    await page.getByRole("button", { name: "عرض مذكرة العمل فوق النوافذ", exact: true }).click();
+    assert.equal(
+      await page.evaluate(
+        async () => (await window.memoFlowDesktop.getFloatingStatus()).ids.length,
+      ),
+      1,
+    );
+    note.content = "<p>تم تحديث محتوى المذكرة</p>";
+    note.updated_at = "2026-10-19T01:00:00Z";
+    await page.reload();
+    await detached.getByText("تم تحديث محتوى المذكرة", { exact: true }).waitFor();
+    await detached.evaluate(() => document.fonts.ready);
+    await detached.screenshot({ path: resolve(artifacts, "floating-note-windows.png") });
+    await detached.getByRole("button", { name: "إعادة المذكرة إلى التطبيق", exact: true }).click();
+    await page.getByRole("textbox", { name: "عنوان الملاحظة", exact: true }).waitFor();
+    await page.goto("memoflow://app/notes");
+    const source = page.locator('[data-note-card="note-second"]');
+    await source.waitFor();
+    await source.evaluate((el) =>
+      el.addEventListener(
+        "pointerdown",
+        (event) => {
+          window.__dragPointer = event.pointerId;
+        },
+        { once: true },
+      ),
+    );
+    const rect = await source.boundingBox();
+    await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(rect.x + rect.width / 2 + 25, rect.y + rect.height / 2 + 25);
+    const bounds = await desktop.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((w) => w.webContents.getURL().startsWith("memoflow://app/"))
+        .getBounds(),
+    );
+    const secondWindow = desktop.waitForEvent("window");
+    await source.dispatchEvent("pointerup", {
+      pointerId: await page.evaluate(() => window.__dragPointer),
+      pointerType: "mouse",
+      button: 0,
+      buttons: 0,
+      screenX: bounds.x + bounds.width + 50,
+      screenY: bounds.y + 150,
+    });
+    await page.mouse.up();
+    const second = await secondWindow;
+    second.on("pageerror", (error) => errors.push(error.message));
+    await second.getByRole("heading", { name: "مذكرة المتابعة", exact: true }).waitFor();
+    const reopenedWindow = desktop.waitForEvent("window");
+    await page.getByRole("button", { name: "عرض مذكرة العمل فوق النوافذ", exact: true }).click();
+    const reopened = await reopenedWindow;
+    await reopened.getByRole("heading", { name: note.title, exact: true }).waitFor();
+    const deletedClose = reopened.waitForEvent("close");
+    notes = notes.filter((n) => n.id !== note.id);
+    await page.reload();
+    await deletedClose;
+    assert.equal(
+      await page.evaluate(
+        async () => (await window.memoFlowDesktop.getFloatingStatus()).ids.length,
+      ),
+      1,
+    );
+    await page.goto("memoflow://app/settings");
+    await page.getByText("أحمد محمد المدني", { exact: true }).waitFor();
+    assert.equal(
+      await page.getByRole("button", { name: "إضافة إلى الشاشة الرئيسية", exact: true }).count(),
+      0,
+    );
+    const secondClose = second.waitForEvent("close");
+    await page.getByRole("button", { name: "إغلاق البطاقات العائمة", exact: true }).click();
+    await secondClose;
+    await page.getByText("لا توجد بطاقات عائمة مفتوحة", { exact: true }).waitFor();
+    await page.goto("memoflow://app/notes");
+    const logoutWindow = desktop.waitForEvent("window");
+    await page.getByRole("button", { name: "عرض مذكرة المتابعة فوق النوافذ", exact: true }).click();
+    const logoutCard = await logoutWindow;
+    await logoutCard.getByRole("heading", { name: "مذكرة المتابعة", exact: true }).waitFor();
+    await page.goto("memoflow://app/settings");
+    const logoutClose = logoutCard.waitForEvent("close");
+    await page.getByRole("button", { name: "تسجيل الخروج", exact: true }).click();
+    await logoutClose;
+    await page.getByRole("button", { name: "المتابعة عبر Google", exact: true }).waitFor();
+    assert.equal(
+      await page.evaluate(
+        async () => (await window.memoFlowDesktop.getFloatingStatus()).ids.length,
+      ),
+      0,
+    );
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: packaged Windows desktop — local UI, isolated renderer, external OAuth callback and persisted session, compact filters, category row and sorted checklist previews.",
+      "PASS: packaged Windows desktop — OAuth/session, task previews, floating notes, pointer drop, always-on-top, pin toggle, deduplication, live updates, deletion cleanup, return to editor, developer identity, close-all and sign-out cleanup.",
     );
   } catch (error) {
     if (page) {

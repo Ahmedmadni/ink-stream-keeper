@@ -14,6 +14,7 @@ import { FloatingCardsSettings } from "@/components/FloatingCardsSettings";
 import { ReminderSettings } from "@/components/ReminderSettings";
 import { isNative } from "@/services/platform";
 import { isDesktop } from "@/services/desktop";
+import { AboutApp } from "@/components/AboutApp";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "MemoFlow — الإعدادات" }] }),
@@ -78,10 +79,12 @@ function SettingsPage() {
           <ChevronLeft className="size-4 text-muted-foreground" />
         </Link>
       </Group>
-      <Group title="التذكيرات والظهور على الهاتف">
-        <ReminderSettings />
-        <FloatingCardsSettings />
-      </Group>
+      {(isNative() || isDesktop()) && (
+        <Group title={isDesktop() ? "البطاقات العائمة" : "التذكيرات والظهور على الهاتف"}>
+          <ReminderSettings />
+          <FloatingCardsSettings />
+        </Group>
+      )}
       <BackupPanel />
       <Group title="التطبيق والحساب">
         {!isNative() && !isDesktop() && !pwa.installed && (
@@ -122,6 +125,9 @@ function SettingsPage() {
             {signingOut ? "جارٍ تسجيل الخروج…" : "تسجيل الخروج"}
           </span>
         </button>
+      </Group>
+      <Group title="حول MemoFlow">
+        <AboutApp />
       </Group>
     </AppShell>
   );

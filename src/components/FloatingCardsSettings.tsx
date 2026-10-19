@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Layers, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useNotes, useTasks } from "@/lib/data";
+import { desktopBridge, isDesktop } from "@/services/desktop";
 import {
   floatingSupported,
   floatingStatus,
@@ -11,6 +12,70 @@ import {
 } from "@/services/floating";
 
 export function FloatingCardsSettings() {
+  return isDesktop() ? <DesktopFloatingCardsSettings /> : <AndroidFloatingCardsSettings />;
+}
+
+function DesktopFloatingCardsSettings() {
+  const [count, setCount] = useState(0);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const bridge = desktopBridge();
+    if (!bridge) return;
+    let active = true;
+    const receive = (status: { ids: string[] }) => {
+      if (active) setCount(status.ids.length);
+    };
+    const remove = bridge.onFloatingStatus(receive);
+    void bridge
+      .getFloatingStatus()
+      .then(receive)
+      .catch(() => undefined);
+    return () => {
+      active = false;
+      remove();
+    };
+  }, []);
+  return (
+    <div className="p-4">
+      <div className="flex items-start gap-3">
+        <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary-soft text-primary">
+          <Layers className="size-6" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-base font-semibold">مذكرات فوق النوافذ</h3>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            اسحب المذكرة خارج نافذة البرنامج أو اضغط زر البطاقة العائمة. حرّكها من شريطها العلوي،
+            وثبّتها فوق التطبيقات الأخرى.
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {count ? `بطاقات مفتوحة: ${count}` : "لا توجد بطاقات عائمة مفتوحة"}
+          </p>
+        </div>
+      </div>
+      {count > 0 && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await desktopBridge()?.closeFloatingNotes();
+            } catch {
+              toast.error("تعذر إغلاق البطاقات العائمة");
+            } finally {
+              setBusy(false);
+            }
+          }}
+          className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-secondary px-4 text-sm font-semibold disabled:opacity-50"
+        >
+          {busy && <Loader2 className="size-5 animate-spin" />} إغلاق البطاقات العائمة
+        </button>
+      )}
+    </div>
+  );
+}
+
+function AndroidFloatingCardsSettings() {
   const { data: tasks } = useTasks();
   const { data: notes } = useNotes();
   const [status, setStatus] = useState({ granted: false, running: false });

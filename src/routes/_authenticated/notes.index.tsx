@@ -6,6 +6,8 @@ import { useCategories, useNotes, tsOf } from "@/lib/data";
 import { LoadingState, ErrorState } from "@/components/feedback";
 import { formatRelative, plainTextFromHtml } from "@/lib/format";
 import { CategoryBar, CategoryChip } from "@/components/CategoryBar";
+import { DesktopNoteCard } from "@/components/DesktopNoteCard";
+import { isDesktop } from "@/services/desktop";
 
 export const Route = createFileRoute("/_authenticated/notes/")({
   validateSearch: (search: Record<string, unknown>): { cat?: string } => ({
@@ -113,42 +115,46 @@ function NotesPage() {
         {filtered.map((n) => {
           const c = categories.find((x) => x.id === n.category_id);
           return (
-            <Link
-              key={n.id}
-              to="/notes/$id"
-              params={{ id: n.id }}
-              className="group relative flex min-h-52 flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-card transition-shadow hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary-soft text-xl text-primary">
-                  {n.emoji || <NotebookText className="size-5" />}
-                </div>
-                {n.pinned && (
-                  <Pin aria-label="مثبتة" className="size-4 shrink-0 rotate-45 text-primary" />
-                )}
-              </div>
-              <div className="flex min-w-0 flex-1 flex-col">
-                <div className="flex items-center gap-2">
-                  <h3 className="line-clamp-2 break-words text-base font-semibold">
-                    {n.title || "بدون عنوان"}
-                  </h3>
-                  {n.favorite && <Star className="size-3.5 shrink-0 fill-warning text-warning" />}
-                </div>
-                <p className="mt-2 line-clamp-3 break-words text-sm leading-relaxed text-muted-foreground">
-                  {plainTextFromHtml(n.content) || "ملاحظة فارغة"}
-                </p>
-                <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
-                  {c && (
-                    <span className="rounded-md bg-primary-soft px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-                      {c.name}
-                    </span>
+            <DesktopNoteCard key={n.id} note={n}>
+              <Link
+                draggable={false}
+                to="/notes/$id"
+                params={{ id: n.id }}
+                className="group relative flex h-full min-h-52 flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-card transition-shadow hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
+              >
+                <div
+                  className={`flex items-center justify-between gap-2 ${isDesktop() ? "pe-11" : ""}`}
+                >
+                  <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary-soft text-xl text-primary">
+                    {n.emoji || <NotebookText className="size-5" />}
+                  </div>
+                  {n.pinned && (
+                    <Pin aria-label="مثبتة" className="size-4 shrink-0 rotate-45 text-primary" />
                   )}
-                  <span className="text-[10px] text-muted-foreground">
-                    {formatRelative(tsOf(n.updated_at))}
-                  </span>
                 </div>
-              </div>
-            </Link>
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <div className="flex items-center gap-2">
+                    <h3 className="line-clamp-2 break-words text-base font-semibold">
+                      {n.title || "بدون عنوان"}
+                    </h3>
+                    {n.favorite && <Star className="size-3.5 shrink-0 fill-warning text-warning" />}
+                  </div>
+                  <p className="mt-2 line-clamp-3 break-words text-sm leading-relaxed text-muted-foreground">
+                    {plainTextFromHtml(n.content) || "ملاحظة فارغة"}
+                  </p>
+                  <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
+                    {c && (
+                      <span className="rounded-md bg-primary-soft px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                        {c.name}
+                      </span>
+                    )}
+                    <span className="text-[10px] text-muted-foreground">
+                      {formatRelative(tsOf(n.updated_at))}
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            </DesktopNoteCard>
           );
         })}
       </div>
