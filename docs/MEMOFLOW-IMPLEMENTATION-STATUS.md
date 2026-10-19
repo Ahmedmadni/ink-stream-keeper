@@ -189,4 +189,7 @@
 - Web, Android and Windows share the same UI source. Windows packages the local
   SPA and uses the existing validated browser callback for OAuth.
 - No database migration is needed for this release.
+- Removed the obsolete static offline index that shadowed the web server's root
+  route. Release verification now starts the built server and checks `/`,
+  `/notes`, `/tasks`, and the auth page, in addition to bundled stylesheet assets.
 
