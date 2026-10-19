@@ -24,6 +24,12 @@ export class VaultSession {
     this.notify();
   };
   isLocked = () => this.key === null;
+  isCurrentUser = (userId: string) => this.userId === userId;
+  lockForUser(userId: string): boolean {
+    if (userId !== this.userId) return false;
+    this.lock();
+    return true;
+  }
   beginUnlock(userId = this.userId) {
     if (!userId || this.userId !== userId) throw new Error("تغير الحساب. افتح الخزنة مجددًا.");
     this.lock();

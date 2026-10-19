@@ -1,9 +1,10 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSyncExternalStore } from "react";
 import { vaultSession } from "@/features/vault/session";
+import { changeVaultPinWithStore } from "@/features/vault/change-pin";
+import { announceVaultPinChange } from "@/features/vault/pin-events";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  checkVerifier,
   decryptVaultField,
   decryptString,
   deriveKey,
@@ -11,6 +12,7 @@ import {
   encryptVaultField,
   makeVerifier,
   randomSaltB64,
+  unlockVaultKey,
 } from "./vault-crypto";
 
 export type VaultSettings = {
@@ -220,14 +222,63 @@ export function useUnlockVault() {
       const userId = await uid();
       if (settings.user_id !== userId || ticket.userId !== userId)
         throw new Error("تغير الحساب. أعد المحاولة.");
-      const key = await deriveKey(pin, settings.kdf_salt);
-      const ok = await checkVerifier(settings.verifier_iv, settings.verifier_ct, key);
-      if (!ok) throw new Error("رمز خاطئ");
+      // A PIN changed on another device must not be checked against an old
+      // settings query still present in this screen's cache.
+      const { data: current, error } = await supabase
+        .from("vault_settings")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (error) throw error;
+      vaultSession.assertUnlockCurrent(ticket);
+      if (!current || current.user_id !== userId) throw new Error("تعذر تحميل إعداد الخزنة الحالي");
+      const key = await unlockVaultKey(pin, current as VaultSettings);
       if (!vaultSession.completeUnlock(ticket, key))
         throw new Error("أُغلقت الخزنة. افتحها مجددًا.");
       return true;
     },
   });
+}
+
+export async function changeVaultPin(currentPin: string, newPin: string): Promise<VaultSettings> {
+  const next = await changeVaultPinWithStore(
+    currentPin,
+    newPin,
+    {
+      userId: uid,
+      read: async (userId) => {
+        const { data, error } = await supabase
+          .from("vault_settings")
+          .select("*")
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (error) throw error;
+        return data as VaultSettings | null;
+      },
+      compareAndSwap: async (previous, next) => {
+        // One conditional row update is atomic. A stale request never replaces a
+        // newer PIN, and all stored entry/category ciphertext stays unchanged.
+        const { data, error } = await supabase
+          .from("vault_settings")
+          .update({
+            kdf_salt: next.kdf_salt,
+            verifier_iv: next.verifier_iv,
+            verifier_ct: next.verifier_ct,
+          })
+          .eq("user_id", previous.user_id)
+          .eq("kdf_salt", previous.kdf_salt)
+          .eq("verifier_iv", previous.verifier_iv)
+          .eq("verifier_ct", previous.verifier_ct)
+          .select("user_id")
+          .maybeSingle();
+        if (error) throw error;
+        return data?.user_id === previous.user_id;
+      },
+    },
+    vaultSession,
+  );
+  announceVaultPinChange(next.user_id);
+  return next;
 }
 
 export function useAddVaultEntry() {

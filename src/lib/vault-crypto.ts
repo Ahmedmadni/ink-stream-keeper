@@ -3,6 +3,14 @@ const dec = new TextDecoder();
 const VERIFIER_PLAINTEXT = "MEMOFLOW_VAULT_OK_v1";
 const PBKDF2_ITERATIONS = 150_000;
 const VAULT_FIELD_PREFIX = "memoflow:vault:v2:";
+const WRAPPED_KEY_PREFIX = "memoflow:vault-key:v1:";
+
+export type VaultKeySettings = {
+  user_id: string;
+  kdf_salt: string;
+  verifier_iv: string;
+  verifier_ct: string;
+};
 
 export type VaultEncryptedField = "label" | "username" | "url" | "notes" | "category_name";
 
@@ -19,7 +27,12 @@ function b64decode(s: string): Uint8Array<ArrayBuffer> {
   return out;
 }
 
-export async function deriveKey(pin: string, saltB64: string): Promise<CryptoKey> {
+async function deriveAesKey(
+  pin: string,
+  saltB64: string,
+  extractable = false,
+  usages: KeyUsage[] = ["encrypt", "decrypt"],
+): Promise<CryptoKey> {
   const baseKey = await crypto.subtle.importKey("raw", enc.encode(pin), { name: "PBKDF2" }, false, [
     "deriveKey",
   ]);
@@ -32,9 +45,86 @@ export async function deriveKey(pin: string, saltB64: string): Promise<CryptoKey
     },
     baseKey,
     { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"],
+    extractable,
+    usages,
   );
+}
+
+export function deriveKey(pin: string, saltB64: string): Promise<CryptoKey> {
+  return deriveAesKey(pin, saltB64);
+}
+
+function keyEnvelopeContext(userId: string): Uint8Array<ArrayBuffer> {
+  return enc.encode(`${WRAPPED_KEY_PREFIX}${userId}`);
+}
+
+async function readVaultKey(
+  pin: string,
+  settings: VaultKeySettings,
+  extractable: boolean,
+): Promise<CryptoKey> {
+  if (!/^\d{6}$/.test(pin)) throw new Error("أدخل رمز الخزنة المكوّن من 6 أرقام");
+  try {
+    if (!settings.verifier_ct.startsWith(WRAPPED_KEY_PREFIX)) {
+      const key = await deriveAesKey(pin, settings.kdf_salt, extractable);
+      if (!(await checkVerifier(settings.verifier_iv, settings.verifier_ct, key)))
+        throw new Error("Invalid PIN");
+      return key;
+    }
+    const wrapped = b64decode(settings.verifier_ct.slice(WRAPPED_KEY_PREFIX.length));
+    const iv = b64decode(settings.verifier_iv);
+    if (
+      wrapped.byteLength !== 48 ||
+      iv.byteLength !== 12 ||
+      b64decode(settings.kdf_salt).byteLength !== 16
+    )
+      throw new Error("Invalid key envelope");
+    const wrappingKey = await deriveAesKey(pin, settings.kdf_salt, false, ["wrapKey", "unwrapKey"]);
+    return await crypto.subtle.unwrapKey(
+      "raw",
+      wrapped,
+      wrappingKey,
+      { name: "AES-GCM", iv, additionalData: keyEnvelopeContext(settings.user_id) },
+      { name: "AES-GCM", length: 256 },
+      extractable,
+      ["encrypt", "decrypt"],
+    );
+  } catch {
+    throw new Error("رمز الخزنة غير صحيح أو بيانات التشفير غير صالحة");
+  }
+}
+
+/** Normal unlocked sessions never receive an extractable key. */
+export function unlockVaultKey(pin: string, settings: VaultKeySettings): Promise<CryptoKey> {
+  return readVaultKey(pin, settings, false);
+}
+
+/** Change only the PIN envelope; entry/category ciphertext remains untouched. */
+export async function prepareVaultPinChange(
+  currentPin: string,
+  newPin: string,
+  settings: VaultKeySettings,
+): Promise<VaultKeySettings> {
+  if (!/^\d{6}$/.test(currentPin) || !/^\d{6}$/.test(newPin))
+    throw new Error("أدخل رمزًا من 6 أرقام");
+  if (currentPin === newPin) throw new Error("اختر رمزًا جديدًا مختلفًا عن الرمز الحالي");
+  // Extractability exists only in this local operation, never in the active
+  // vault session. WebCrypto wraps the raw key without exposing its bytes to JS.
+  const key = await readVaultKey(currentPin, settings, true);
+  const salt = randomSaltB64();
+  const wrappingKey = await deriveAesKey(newPin, salt, false, ["wrapKey", "unwrapKey"]);
+  const iv = crypto.getRandomValues(new Uint8Array(new ArrayBuffer(12)));
+  const wrapped = await crypto.subtle.wrapKey("raw", key, wrappingKey, {
+    name: "AES-GCM",
+    iv,
+    additionalData: keyEnvelopeContext(settings.user_id),
+  });
+  return {
+    user_id: settings.user_id,
+    kdf_salt: salt,
+    verifier_iv: b64encode(iv),
+    verifier_ct: WRAPPED_KEY_PREFIX + b64encode(wrapped),
+  };
 }
 
 export function randomSaltB64(): string {

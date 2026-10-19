@@ -15,6 +15,7 @@ import { ReminderSettings } from "@/components/ReminderSettings";
 import { isNative } from "@/services/platform";
 import { isDesktop } from "@/services/desktop";
 import { AboutApp } from "@/components/AboutApp";
+import { VaultPinSettings } from "@/components/VaultPinSettings";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "MemoFlow — الإعدادات" }] }),
@@ -62,8 +63,9 @@ function SettingsPage() {
           </button>
         </div>
       </Group>
-      <AppLockSettings />
-      <Group title="الخزنة">
+      <Group title="الأمان والرموز السرية">
+        <AppLockSettings />
+        <VaultPinSettings />
         <Link
           to="/vault"
           onClick={() => lockVault()}

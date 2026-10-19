@@ -12,7 +12,7 @@ export function backupError(error: unknown): string {
         ? String(error.message)
         : "";
   if (/MF_VAULT_KEY_CONFLICT/.test(message))
-    return "إعداد تشفير الخزنة الحالية مختلف عن النسخة. توقفت الاستعادة لحماية كلمات المرور.";
+    return "إعداد تشفير الخزنة الحالية مختلف عن النسخة. اختر نسخة أحدث أُنشئت بعد آخر تغيير للرمز؛ توقفت الاستعادة لحماية كلمات المرور.";
   if (/MF_ACCOUNT_CHANGED|MF_AUTH_REQUIRED/.test(message))
     return "تغير الحساب أو انتهت الجلسة. سجّل الدخول مجددًا.";
   if (/MF_TOO_LARGE/.test(message)) return "حجم البيانات يتجاوز الحد المدعوم لهذه النسخة.";

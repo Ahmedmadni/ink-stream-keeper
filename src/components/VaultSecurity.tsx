@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { purgeSensitiveVaultQueries } from "@/features/vault/cache";
 import { vaultSession } from "@/features/vault/session";
 import { retireLegacyBiometric } from "@/lib/vault-biometric";
+import { VAULT_PIN_CHANNEL } from "@/features/vault/pin-events";
 
 export function VaultSecurity() {
   const queryClient = useQueryClient();
@@ -24,6 +25,22 @@ export function VaultSecurity() {
       purgeUnlockedVaultData();
       resetIdle();
     });
+    let channel: BroadcastChannel | undefined;
+    if (typeof BroadcastChannel !== "undefined") {
+      try {
+        channel = new BroadcastChannel(VAULT_PIN_CHANNEL);
+        channel.onmessage = (event) => {
+          if (
+            event.data?.type === "pin-changed" &&
+            typeof event.data.userId === "string" &&
+            vaultSession.lockForUser(event.data.userId)
+          )
+            void queryClient.invalidateQueries({ queryKey: ["vault", "settings"] });
+        };
+      } catch {
+        /* The current tab still locks independently. */
+      }
+    }
     window.addEventListener("pointerdown", resetIdle, { passive: true });
     window.addEventListener("keydown", resetIdle);
     window.addEventListener("pagehide", vaultSession.lock);
@@ -35,6 +52,7 @@ export function VaultSecurity() {
       clearTimeout(idle);
       vaultSession.lock();
       unsubscribe();
+      channel?.close();
       window.removeEventListener("pointerdown", resetIdle);
       window.removeEventListener("keydown", resetIdle);
       window.removeEventListener("pagehide", vaultSession.lock);

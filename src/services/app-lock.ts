@@ -40,7 +40,9 @@ export const appLock = {
     if (isNative()) await nativePlugin.lock();
   },
   async changePin(currentPin: string, newPin: string) {
+    if (!validAppPin(currentPin)) throw new Error("أدخل رمز التطبيق الحالي المكوّن من 6 أرقام");
     if (!validAppPin(newPin)) throw new Error("يجب أن يتكون الرمز الجديد من 6 أرقام");
+    if (currentPin === newPin) throw new Error("اختر رمزًا جديدًا مختلفًا عن الرمز الحالي");
     await nativePlugin.changePin({ currentPin, newPin });
   },
   async resetAfterSignOut() {

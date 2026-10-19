@@ -70,6 +70,40 @@ let notes = [
   note,
   { ...note, id: "note-second", title: "مذكرة المتابعة", content: "<p>متابعة الأعمال</p>" },
 ];
+const { pbkdf2Sync, randomBytes, createCipheriv } = require("node:crypto");
+const vaultSalt = randomBytes(16);
+const vaultKey = pbkdf2Sync("123456", vaultSalt, 150000, 32, "sha256");
+function encryptVaultFixture(plain) {
+  const iv = randomBytes(12),
+    cipher = createCipheriv("aes-256-gcm", vaultKey, iv);
+  return {
+    iv: iv.toString("base64"),
+    ct: Buffer.concat([cipher.update(plain, "utf8"), cipher.final(), cipher.getAuthTag()]).toString(
+      "base64",
+    ),
+  };
+}
+const vaultVerifier = encryptVaultFixture("MEMOFLOW_VAULT_OK_v1");
+const vaultSecret = encryptVaultFixture("Desktop-Fixture-Secret");
+const vaultSettings = {
+  user_id: user.id,
+  kdf_salt: vaultSalt.toString("base64"),
+  verifier_iv: vaultVerifier.iv,
+  verifier_ct: vaultVerifier.ct,
+};
+const vaultEntries = [
+  {
+    id: "desktop-vault-entry",
+    user_id: user.id,
+    label: "حساب ويندوز",
+    username: "desktop@example.test",
+    url: "",
+    notes: "",
+    category_id: null,
+    password_iv: vaultSecret.iv,
+    password_ct: vaultSecret.ct,
+  },
+];
 
 (async () => {
   let desktop, page;
@@ -98,6 +132,19 @@ let notes = [
           },
         });
       const table = url.pathname.split("/").pop();
+      if (table === "vault_settings") {
+        if (route.request().method() === "PATCH") {
+          const patch = route.request().postDataJSON();
+          assert.equal(url.searchParams.get("user_id"), "eq." + user.id);
+          for (const field of ["kdf_salt", "verifier_iv", "verifier_ct"])
+            assert.equal(url.searchParams.get(field), "eq." + vaultSettings[field]);
+          assert.deepEqual(Object.keys(patch).sort(), ["kdf_salt", "verifier_ct", "verifier_iv"]);
+          Object.assign(vaultSettings, patch);
+          return route.fulfill({ json: { user_id: user.id } });
+        }
+        return route.fulfill({ json: vaultSettings });
+      }
+      if (table === "vault_entries") return route.fulfill({ json: vaultEntries });
       if (table === "notes") {
         const id = url.searchParams.get("id");
         return route.fulfill({
@@ -124,7 +171,7 @@ let notes = [
     await page.getByRole("button", { name: "المتابعة عبر Google", exact: true }).waitFor();
     assert.equal(await page.evaluate(() => location.protocol), "memoflow:");
     assert.equal(await page.evaluate(() => typeof window.require), "undefined");
-    assert.equal(await page.evaluate(() => window.memoFlowDesktop.version), "1.2.9");
+    assert.equal(await page.evaluate(() => window.memoFlowDesktop.version), "1.2.10");
     await desktop.evaluate(({ shell }) => {
       global.__openedOAuth = null;
       shell.openExternal = async (url) => {
@@ -299,6 +346,25 @@ let notes = [
     await page.getByRole("button", { name: "إغلاق البطاقات العائمة", exact: true }).click();
     await secondClose;
     await page.getByText("لا توجد بطاقات عائمة مفتوحة", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "تغيير رمز الخزنة", exact: true }).click();
+    const pinForm = page.getByRole("form", { name: "تغيير رمز الخزنة", exact: true });
+    await pinForm.getByLabel("رمز الخزنة الحالي", { exact: true }).fill("123456");
+    await pinForm.getByLabel("رمز الخزنة الجديد", { exact: true }).fill("654321");
+    await pinForm.getByLabel("تأكيد رمز الخزنة الجديد", { exact: true }).fill("654321");
+    await pinForm.getByRole("button", { name: "حفظ رمز الخزنة الجديد", exact: true }).click();
+    await pinForm.getByText("تم تغيير رمز الخزنة بنجاح.", { exact: true }).waitFor();
+    await page.screenshot({
+      path: resolve(artifacts, "vault-pin-settings-windows.png"),
+      fullPage: true,
+    });
+    assert.equal(vaultEntries[0].password_ct, vaultSecret.ct);
+    await page.goto("memoflow://app/vault");
+    await page.getByRole("heading", { name: "فتح الخزنة", exact: true }).waitFor();
+    for (const digit of "654321")
+      await page.getByRole("button", { name: digit, exact: true }).click();
+    await page.getByText("حساب ويندوز", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "عرض", exact: true }).click();
+    await page.getByText("Desktop-Fixture-Secret", { exact: true }).waitFor();
     await page.goto("memoflow://app/notes");
     const logoutWindow = desktop.waitForEvent("window");
     await page.getByRole("button", { name: "عرض مذكرة المتابعة فوق النوافذ", exact: true }).click();
@@ -317,7 +383,7 @@ let notes = [
     );
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: packaged Windows desktop — OAuth/session, task previews, floating notes, pointer drop, always-on-top, pin toggle, deduplication, live updates, deletion cleanup, return to editor, developer identity, close-all and sign-out cleanup.",
+      "PASS: packaged Windows desktop — OAuth/session, task previews, floating notes, pointer drop, always-on-top, pin toggle, deduplication, live updates, cleanup, developer identity, vault PIN change and retained password decryption.",
     );
   } catch (error) {
     if (page) {
