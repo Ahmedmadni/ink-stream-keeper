@@ -7,7 +7,7 @@
     "dev": "vite dev",
     "build": "vite build",
     "build:web-release": "MEMOFLOW_WEB_NODE_BUILD=1 vite build",
-    "build:native": "node scripts/clean-native-web.mjs && MEMOFLOW_NATIVE_BUILD=1 vite build && node scripts/prepare-native-web.mjs && node scripts/verify-block-registry-bundle.mjs",
+    "build:native": "node scripts/build-native.mjs",
     "desktop:prepare": "node scripts/prepare-desktop-web.mjs",
     "test:desktop": "node tests/desktop-smoke.cjs",
     "build:dev": "vite build --mode development",
