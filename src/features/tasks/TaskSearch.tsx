@@ -57,7 +57,7 @@ export function TaskSearch({
           align="end"
           sideOffset={10}
           aria-label="تصفية المهام"
-          className="w-80 max-w-[calc(100vw-2rem)] space-y-4 rounded-2xl p-4 shadow-elevated"
+          className="w-80 max-w-[calc(100vw-2rem)] space-y-4 rounded-2xl bg-background p-4 shadow-elevated"
         >
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold">خيارات البحث</h2>

@@ -146,6 +146,9 @@ const items = [
     assert.equal(await page.getByText(task.title, { exact: true }).count(), 0);
     await page.getByRole("button", { name: "إعادة ضبط", exact: true }).click();
     await page.keyboard.press("Escape");
+    await page
+      .getByRole("dialog", { name: "تصفية المهام", exact: true })
+      .waitFor({ state: "hidden" });
     await page.getByText(task.title, { exact: true }).waitFor();
     await page.evaluate(() => document.fonts.ready);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
