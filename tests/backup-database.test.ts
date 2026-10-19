@@ -95,6 +95,25 @@ afterAll(async () => {
   await db?.close();
 });
 describe("backup PostgreSQL transactions and RLS", () => {
+  test("vault PIN settings compare-and-swap rejects stale changes and other accounts without touching entries", async () => {
+    const sql =
+      "UPDATE public.vault_settings SET kdf_salt=$1,verifier_iv=$2,verifier_ct=$3 WHERE user_id=$4 AND kdf_salt=$5 AND verifier_iv=$6 AND verifier_ct=$7 RETURNING user_id";
+    const args = ["new-salt", "new-iv", "wrapped-key", ACCOUNT, "salt", "iv", "ct"];
+    const before = await db.query("SELECT * FROM public.vault_entries WHERE user_id=$1", [ACCOUNT]);
+    await asUser(OTHER);
+    expect((await db.query(sql, args)).rows).toHaveLength(0);
+    await asUser();
+    expect((await db.query(sql, args)).rows).toHaveLength(1);
+    expect((await db.query(sql, args)).rows).toHaveLength(0);
+    expect(
+      (await db.query("SELECT * FROM public.vault_entries WHERE user_id=$1", [ACCOUNT])).rows,
+    ).toEqual(before.rows);
+    const saved = await db.query<{ verifier_ct: string }>(
+      "SELECT verifier_ct FROM public.vault_settings WHERE user_id=$1",
+      [ACCOUNT],
+    );
+    expect(saved.rows[0].verifier_ct).toBe("wrapped-key");
+  });
   test("all 25 tables match the file schema and restore without losing rows or relationships", async () => {
     await db.query("INSERT INTO public.purchase_lists(user_id,title) VALUES ($1,'قائمة')", [
       ACCOUNT,

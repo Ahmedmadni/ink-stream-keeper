@@ -2,7 +2,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("memoFlowDesktop", {
   isDesktop: true,
-  version: "1.2.9",
+  version: "1.2.10",
   setFloatingOwner: (userId) => ipcRenderer.invoke("memoflow:floating:owner", userId),
   openFloatingNote: (note) => ipcRenderer.invoke("memoflow:floating:open", note),
   dropFloatingNote: (input) => ipcRenderer.invoke("memoflow:floating:drop", input),

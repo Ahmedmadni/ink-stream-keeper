@@ -33,6 +33,7 @@ public final class MemoFlowAppLockPlugin extends Plugin {
     private static final int KEY_BITS = 256;
     private static final SecureRandom RANDOM = new SecureRandom();
     private static volatile boolean sessionUnlocked = false;
+    private static long sessionEpoch = 0;
 
     private SharedPreferences preferences() {
         return getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
@@ -42,8 +43,17 @@ public final class MemoFlowAppLockPlugin extends Plugin {
         return sessionUnlocked;
     }
 
-    public static void lockSession() {
+    public static synchronized void lockSession() {
         sessionUnlocked = false;
+        sessionEpoch++;
+    }
+
+    static synchronized long captureSessionEpoch() { return sessionEpoch; }
+
+    static synchronized boolean finishUnlock(long expectedEpoch) {
+        if (expectedEpoch != sessionEpoch) return false;
+        sessionUnlocked = true;
+        return true;
     }
 
     static boolean isValidPin(String pin) {
@@ -67,6 +77,7 @@ public final class MemoFlowAppLockPlugin extends Plugin {
 
     @PluginMethod
     public void configure(PluginCall call) {
+        long epoch = captureSessionEpoch();
         String pin = call.getString("pin");
         if (!isValidPin(pin)) {
             call.reject("يجب أن يتكون رمز التطبيق من 6 أرقام");
@@ -78,7 +89,10 @@ public final class MemoFlowAppLockPlugin extends Plugin {
         }
         try {
             writeVerifier(pin);
-            sessionUnlocked = true;
+            if (!finishUnlock(epoch)) {
+                call.reject("أُغلق التطبيق؛ افتحه بالرمز الجديد");
+                return;
+            }
             call.resolve();
         } catch (GeneralSecurityException error) {
             call.reject("تعذر حفظ رمز التطبيق بأمان", error);
@@ -87,6 +101,7 @@ public final class MemoFlowAppLockPlugin extends Plugin {
 
     @PluginMethod
     public void unlock(PluginCall call) {
+        long epoch = captureSessionEpoch();
         String pin = call.getString("pin");
         if (!configured()) {
             call.reject("رمز التطبيق غير مضبوط");
@@ -109,7 +124,10 @@ public final class MemoFlowAppLockPlugin extends Plugin {
                 return;
             }
             preferences().edit().putInt(FAILURES, 0).remove(BLOCKED_UNTIL).apply();
-            sessionUnlocked = true;
+            if (!finishUnlock(epoch)) {
+                call.reject("أُغلق التطبيق؛ أدخل الرمز مجددًا");
+                return;
+            }
             call.resolve();
         } catch (GeneralSecurityException error) {
             call.reject("تعذر التحقق من رمز التطبيق", error);
@@ -124,19 +142,33 @@ public final class MemoFlowAppLockPlugin extends Plugin {
 
     @PluginMethod
     public void changePin(PluginCall call) {
+        long epoch = captureSessionEpoch();
         String currentPin = call.getString("currentPin");
         String newPin = call.getString("newPin");
+        if (!sessionUnlocked) {
+            call.reject("افتح التطبيق قبل تغيير الرمز");
+            return;
+        }
+        if (preferences().getLong(BLOCKED_UNTIL, 0) > System.currentTimeMillis()) {
+            call.reject("محاولات كثيرة؛ انتظر قليلًا", "APP_LOCK_THROTTLED");
+            return;
+        }
         if (!isValidPin(newPin)) {
             call.reject("يجب أن يتكون الرمز الجديد من 6 أرقام");
             return;
         }
         try {
             if (!configured() || !isValidPin(currentPin) || !matches(currentPin)) {
+                recordFailure();
                 call.reject("رمز التطبيق الحالي غير صحيح");
                 return;
             }
+            if (currentPin.equals(newPin)) {
+                call.reject("اختر رمزًا جديدًا مختلفًا عن الرمز الحالي");
+                return;
+            }
             writeVerifier(newPin);
-            sessionUnlocked = true;
+            finishUnlock(epoch);
             call.resolve();
         } catch (GeneralSecurityException error) {
             call.reject("تعذر تغيير رمز التطبيق", error);

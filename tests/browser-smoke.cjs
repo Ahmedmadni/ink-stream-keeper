@@ -174,6 +174,8 @@ const vaultEntries = [
     password_ct: secret.ct,
   },
 ];
+let failVaultPinWrite = false;
+const vaultPinWrites = [];
 
 (async () => {
   const server = spawn(
@@ -268,7 +270,23 @@ const vaultEntries = [
           const parent = u.searchParams.get("parent_id")?.replace("eq.", "");
           result = parent ? taskItems.filter((item) => item.parent_id === parent) : taskItems;
         }
-        if (table === "vault_settings") result = vaultSettings;
+        if (table === "vault_settings") {
+          if (req.method() === "PATCH") {
+            const patch = req.postDataJSON();
+            assert.deepEqual(Object.keys(patch).sort(), ["kdf_salt", "verifier_ct", "verifier_iv"]);
+            assert.equal(u.searchParams.get("user_id"), "eq." + user.id);
+            assert.equal(u.searchParams.get("kdf_salt"), "eq." + vaultSettings.kdf_salt);
+            assert.equal(u.searchParams.get("verifier_iv"), "eq." + vaultSettings.verifier_iv);
+            assert.equal(u.searchParams.get("verifier_ct"), "eq." + vaultSettings.verifier_ct);
+            if (failVaultPinWrite) {
+              failVaultPinWrite = false;
+              return route.fulfill({ status: 500, json: { message: "Fixture PIN write failure" } });
+            }
+            Object.assign(vaultSettings, patch);
+            vaultPinWrites.push(patch);
+            result = { user_id: user.id };
+          } else result = vaultSettings;
+        }
         if (table === "vault_entries") {
           if (req.method() === "POST")
             return route.fulfill({ status: 500, json: { message: "Fixture write failure" } });
@@ -459,7 +477,9 @@ const vaultEntries = [
     await page.getByRole("heading", { name: "فتح الخزنة", exact: true }).waitFor();
     for (const digit of "111111")
       await page.getByRole("button", { name: digit, exact: true }).click();
-    await page.getByText("رمز خاطئ", { exact: true }).waitFor();
+    await page
+      .getByText("رمز الخزنة غير صحيح أو بيانات التشفير غير صالحة", { exact: true })
+      .waitFor();
     for (const digit of "123456")
       await page.getByRole("button", { name: digit, exact: true }).click();
     await page.getByText("حساب تجريبي", { exact: true }).waitFor();
@@ -502,6 +522,58 @@ const vaultEntries = [
     await page.evaluate(() => {
       delete document.hidden;
     });
+    await page.goto(`${baseUrl}/settings`);
+    await page.getByRole("heading", { name: "الأمان والرموز السرية", exact: true }).waitFor();
+    await page.getByRole("button", { name: "تغيير رمز الخزنة", exact: true }).click();
+    const pinForm = page.getByRole("form", { name: "تغيير رمز الخزنة", exact: true });
+    const fillVaultPin = async (current, next, repeat = next) => {
+      await pinForm.getByLabel("رمز الخزنة الحالي", { exact: true }).fill(current);
+      await pinForm.getByLabel("رمز الخزنة الجديد", { exact: true }).fill(next);
+      await pinForm.getByLabel("تأكيد رمز الخزنة الجديد", { exact: true }).fill(repeat);
+    };
+    const originalVaultSettings = { ...vaultSettings };
+    const originalVaultEntries = JSON.stringify(vaultEntries);
+    await fillVaultPin("123456", "654321", "654322");
+    assert.equal(
+      await pinForm
+        .getByRole("button", { name: "حفظ رمز الخزنة الجديد", exact: true })
+        .isDisabled(),
+      true,
+    );
+    await fillVaultPin("111111", "654321");
+    await pinForm.getByRole("button", { name: "حفظ رمز الخزنة الجديد", exact: true }).click();
+    await pinForm.getByRole("alert").waitFor();
+    assert.equal(vaultPinWrites.length, 0);
+    await fillVaultPin("123456", "654321");
+    failVaultPinWrite = true;
+    await pinForm.getByRole("button", { name: "حفظ رمز الخزنة الجديد", exact: true }).click();
+    await pinForm.getByRole("alert").waitFor();
+    assert.deepEqual(vaultSettings, originalVaultSettings);
+    await fillVaultPin("123456", "654321");
+    await pinForm.getByRole("button", { name: "حفظ رمز الخزنة الجديد", exact: true }).click();
+    await pinForm.getByText("تم تغيير رمز الخزنة بنجاح.", { exact: true }).waitFor();
+    assert.equal(vaultPinWrites.length, 1);
+    assert.equal(JSON.stringify(vaultEntries), originalVaultEntries);
+    for (const input of await pinForm.locator("input").all())
+      assert.equal(await input.inputValue(), "");
+    await page.screenshot({ path: artifacts + "/vault-pin-settings-mobile.png", fullPage: true });
+    await page.goto(`${baseUrl}/vault`);
+    await page.getByRole("heading", { name: "فتح الخزنة", exact: true }).waitFor();
+    for (const digit of "123456")
+      await page.getByRole("button", { name: digit, exact: true }).click();
+    await page
+      .getByText("رمز الخزنة غير صحيح أو بيانات التشفير غير صالحة", { exact: true })
+      .waitFor();
+    for (const digit of "654321")
+      await page.getByRole("button", { name: digit, exact: true }).click();
+    await page.getByText("حساب تجريبي", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "عرض", exact: true }).click();
+    await page.getByText("Fixture-Password-Only", { exact: true }).waitFor();
+    await page.reload();
+    await page.getByRole("heading", { name: "فتح الخزنة", exact: true }).waitFor();
+    for (const digit of "654321")
+      await page.getByRole("button", { name: digit, exact: true }).click();
+    await page.getByText("حساب تجريبي", { exact: true }).waitFor();
     assert.deepEqual(errors, []);
     // Exercise the installed-Android UI using a deterministic Capacitor bridge.
     // System permission screens themselves still require a real-device check.
@@ -510,7 +582,7 @@ const vaultEntries = [
       window.__nativeCalls = [];
       window.__nativeState = { display: "prompt", exact: false, overlay: false, floating: false };
       const plugins = {
-        MemoFlowAppLock: ["getStatus", "lock", "unlock", "configure"],
+        MemoFlowAppLock: ["getStatus", "lock", "unlock", "configure", "changePin"],
         MemoFlowAuth: ["getLaunchUrl", "addListener", "removeListener"],
         MemoFlowBackup: ["getStatus"],
         MemoFlowFloating: ["checkPermission", "show", "hide"],
@@ -534,6 +606,12 @@ const vaultEntries = [
         nativePromise: async (plugin, method, options) => {
           window.__nativeCalls.push({ plugin, method, options });
           const state = window.__nativeState;
+          if (plugin === "MemoFlowAppLock" && method === "changePin") {
+            if (options.currentPin !== (state.appPin ?? "123456"))
+              throw new Error("رمز التطبيق الحالي غير صحيح");
+            state.appPin = options.newPin;
+            return {};
+          }
           if (plugin === "MemoFlowAppLock" && method === "getStatus")
             return { configured: true, unlocked: true, blockedUntil: 0 };
           if (plugin === "MemoFlowBackup") return { configured: false, enabled: false };
@@ -565,6 +643,19 @@ const vaultEntries = [
     await page.goto(`${baseUrl}/settings`);
     await page.bringToFront();
     await page.getByRole("heading", { name: "رمز فتح MemoFlow", exact: true }).waitFor();
+    await page.getByRole("button", { name: "تغيير رمز التطبيق", exact: true }).click();
+    const appPinForm = page.getByRole("form", { name: "تغيير رمز التطبيق", exact: true });
+    await appPinForm.getByLabel("رمز التطبيق الحالي", { exact: true }).fill("123456");
+    await appPinForm.getByLabel("رمز التطبيق الجديد", { exact: true }).fill("246810");
+    await appPinForm.getByLabel("تأكيد رمز التطبيق الجديد", { exact: true }).fill("246810");
+    await appPinForm.getByRole("button", { name: "حفظ رمز التطبيق الجديد", exact: true }).click();
+    await appPinForm.getByText("تم تغيير رمز التطبيق بنجاح.", { exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => window.__nativeState.appPin), "246810");
+    assert.equal(
+      await appPinForm.getByLabel("رمز التطبيق الحالي", { exact: true }).inputValue(),
+      "",
+    );
+    await page.getByRole("button", { name: "تغيير رمز التطبيق", exact: true }).click();
     await page.evaluate(() => {
       document.dispatchEvent(new Event("visibilitychange"));
       window.dispatchEvent(new Event("focus"));
@@ -629,7 +720,7 @@ const vaultEntries = [
       [],
     );
     console.log(
-      "PASS: mocked browser flows — four-tab navigation, readable phone sizes at 320–430px, bundled font, RTL dates, task priority/completion order, creation, simplified settings, and vault security; no page errors.",
+      "PASS: mocked browser flows — navigation, readable sizes, bundled font, RTL dates, task order, settings, vault PIN change/wrong PIN/write failure/reload/data preservation, native app PIN change and vault security; no page errors.",
     );
   } catch (error) {
     if (page) {
