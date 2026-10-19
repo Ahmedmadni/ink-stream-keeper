@@ -79,12 +79,18 @@ function SettingsPage() {
           <ChevronLeft className="size-4 text-muted-foreground" />
         </Link>
       </Group>
-      {(isNative() || isDesktop()) && (
-        <Group title={isDesktop() ? "البطاقات العائمة" : "التذكيرات والظهور على الهاتف"}>
-          <ReminderSettings />
-          <FloatingCardsSettings />
-        </Group>
-      )}
+      <Group
+        title={
+          isDesktop()
+            ? "التذكيرات والبطاقات العائمة"
+            : isNative()
+              ? "التذكيرات والظهور على الهاتف"
+              : "التذكيرات"
+        }
+      >
+        <ReminderSettings />
+        <FloatingCardsSettings />
+      </Group>
       <BackupPanel />
       <Group title="التطبيق والحساب">
         {!isNative() && !isDesktop() && !pwa.installed && (
