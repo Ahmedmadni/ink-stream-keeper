@@ -10,6 +10,8 @@ import { VitePWA } from "vite-plugin-pwa";
 const isNativeBuild = process.env.MEMOFLOW_NATIVE_BUILD === "1";
 
 export default defineConfig({
+  // Downloadable web release; the connected hosted build keeps its default target.
+  ...(process.env.MEMOFLOW_WEB_NODE_BUILD === "1" ? { nitro: { preset: "node-server" } } : {}),
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this

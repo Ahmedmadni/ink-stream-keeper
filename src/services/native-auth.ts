@@ -1,6 +1,7 @@
 import { Capacitor, registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
 import { APP_BACKEND_ORIGIN } from "@/lib/native-url";
+import { desktopBridge, isDesktop } from "./desktop";
 
 export type NativeOAuthProvider = "google" | "apple";
 
@@ -30,7 +31,7 @@ const STATE_MAX_AGE_MS = 15 * 60 * 1000;
 
 export function isNativeOAuthAvailable(): boolean {
   try {
-    return Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android";
+    return isDesktop() || (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android");
   } catch {
     return false;
   }
@@ -141,7 +142,9 @@ export async function beginNativeOAuth(provider: NativeOAuthProvider): Promise<v
   url.searchParams.set("state", state);
 
   try {
-    await nativePlugin.openOAuth({ url: url.toString() });
+    const desktop = desktopBridge();
+    if (desktop) await desktop.openOAuth(url.toString());
+    else await nativePlugin.openOAuth({ url: url.toString() });
   } catch (error) {
     localStorage.removeItem(STATE_STORAGE_KEY);
     throw error;
@@ -195,6 +198,14 @@ export async function listenForNativeOAuthCallback(
   listener: (url: string) => void,
 ): Promise<() => Promise<void>> {
   if (!isNativeOAuthAvailable()) return async () => {};
+
+  const desktop = desktopBridge();
+  if (desktop) {
+    const remove = desktop.onAuthCallback(listener);
+    const launch = await desktop.getLaunchUrl();
+    if (launch.url) listener(launch.url);
+    return async () => remove();
+  }
 
   const handle = await nativePlugin.addListener("authCallback", ({ url }) => listener(url));
   const launch = await nativePlugin.getLaunchUrl();

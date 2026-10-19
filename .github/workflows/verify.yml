@@ -28,6 +28,18 @@ jobs:
       - run: bun run build
       - run: bunx playwright install --with-deps chromium
       - run: bun run test:browser
+      - run: bun run build:web-release
+      - run: node scripts/verify-web-server.mjs
+      - name: Package runnable web release
+        run: |
+          cp docs/WEB_RELEASE.txt .output/README.txt
+          cd .output
+          zip -qr ../MemoFlow-Web-1.2.8.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MemoFlow-Web-Release
+          path: MemoFlow-Web-1.2.8.zip
+          if-no-files-found: error
       - name: Save UI review images
         if: always()
         uses: actions/upload-artifact@v4
@@ -81,3 +93,64 @@ jobs:
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/outputs/apk/debug/app-debug.apk.sha256
           if-no-files-found: error
+
+      # CI-only signing material verifies release builds. These candidates are
+      # re-signed with the existing protected distribution key before delivery.
+      - name: Build release candidate with a disposable CI certificate
+        env:
+          MEMOFLOW_KEYSTORE_PATH: ${{ runner.temp }}/memoflow-ci.jks
+          MEMOFLOW_KEYSTORE_PASSWORD: ci-verification-only
+          MEMOFLOW_KEY_ALIAS: memoflow-ci
+          MEMOFLOW_KEY_PASSWORD: ci-verification-only
+        run: |
+          keytool -genkeypair -keystore "$MEMOFLOW_KEYSTORE_PATH" -storepass "$MEMOFLOW_KEYSTORE_PASSWORD" -keypass "$MEMOFLOW_KEY_PASSWORD" -alias "$MEMOFLOW_KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 2 -dname "CN=MemoFlow CI candidate"
+          cd android
+          ./gradlew lintRelease testReleaseUnitTest assembleRelease bundleRelease --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MemoFlow-Android-Release-Candidate
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+
+  windows-release:
+    needs: verify
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.9
+      - run: bun install --frozen-lockfile
+      - run: bun run build:native
+      - run: bun run desktop:prepare
+      - name: Install pinned desktop build tools
+        run: npm install --prefix "$env:RUNNER_TEMP/memoflow-electron" --no-save electron@44.9.0 @electron/packager@19.1.1
+      - name: Package Windows executable with the bundled UI
+        run: |
+          & "$env:RUNNER_TEMP/memoflow-electron/node_modules/.bin/electron-packager.cmd" electron MemoFlow --platform=win32 --arch=x64 --electron-version=44.9.0 --out=desktop-dist --asar --overwrite --app-version=1.2.8 --icon=electron/app.ico
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Exercise the packaged Windows executable
+        env:
+          MEMOFLOW_ELECTRON_PATH: ${{ github.workspace }}/desktop-dist/MemoFlow-win32-x64/MemoFlow.exe
+          MEMOFLOW_DESKTOP_PACKAGED: "1"
+        run: bun run test:desktop
+      - name: Create Windows download
+        run: Compress-Archive -Path desktop-dist/MemoFlow-win32-x64 -DestinationPath MemoFlow-Windows-1.2.8.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MemoFlow-Windows-Release
+          path: MemoFlow-Windows-1.2.8.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: MemoFlow-Windows-UI-Checks
+          path: .qa-results/*.png
+          include-hidden-files: true
+          if-no-files-found: ignore

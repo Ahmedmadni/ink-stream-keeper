@@ -8,6 +8,7 @@
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { compareTaskChecklistItems } from "@/features/tasks/task-rules";
 
 export type SubItemParentType = "task" | "note" | "plan" | "purchase" | "workspace" | "plan_step";
 
@@ -327,14 +328,7 @@ export function nodeProgress(
 /** Build the visible tree order (depth-first) from a flat list. */
 export type SubItemNode = SubItem & { children: SubItemNode[] };
 export function compareChecklistItems(a: SubItem, b: SubItem): number {
-  const priority: Record<string, number> = { high: 0, med: 1, medium: 1, low: 2 };
-  return (
-    Number(a.done) - Number(b.done) ||
-    (priority[a.priority] ?? 1) - (priority[b.priority] ?? 1) ||
-    a.position - b.position ||
-    a.created_at.localeCompare(b.created_at) ||
-    a.id.localeCompare(b.id)
-  );
+  return compareTaskChecklistItems(a, b);
 }
 
 export function buildTree(rows: SubItem[], prioritize = false): SubItemNode[] {

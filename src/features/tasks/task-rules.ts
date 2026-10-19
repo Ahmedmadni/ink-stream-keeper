@@ -1,6 +1,43 @@
 export type DatedTask = { title: string; done: boolean; due_at: string | null; priority: string };
 export type TaskFilter = "all" | "today" | "upcoming" | "done";
 export type TaskItemSummary = { done: number; total: number; progress: number };
+export type TaskItemPreview = {
+  id: string;
+  title: string;
+  done: boolean;
+  priority: string;
+  position: number;
+  created_at: string;
+};
+
+/** Same ordering in the task editor and its card preview. */
+export function compareTaskChecklistItems(a: TaskItemPreview, b: TaskItemPreview): number {
+  const rank: Record<string, number> = { high: 0, med: 1, medium: 1, low: 2 };
+  return (
+    Number(a.done) - Number(b.done) ||
+    (rank[a.priority] ?? 1) - (rank[b.priority] ?? 1) ||
+    a.position - b.position ||
+    a.created_at.localeCompare(b.created_at) ||
+    a.id.localeCompare(b.id)
+  );
+}
+
+/** Current rows replace legacy rows for the whole parent, including previews. */
+export function previewTaskItems(
+  current: (TaskItemPreview & { taskId: string })[],
+  legacy: (TaskItemPreview & { taskId: string })[],
+): Record<string, TaskItemPreview[]> {
+  const currentParents = new Set(current.map((row) => row.taskId));
+  const result: Record<string, TaskItemPreview[]> = {};
+  for (const { taskId, ...item } of [
+    ...current,
+    ...legacy.filter((row) => !currentParents.has(row.taskId)),
+  ]) {
+    (result[taskId] ??= []).push(item);
+  }
+  for (const items of Object.values(result)) items.sort(compareTaskChecklistItems);
+  return result;
+}
 
 export function formatTaskDateTime(value: string): string {
   if (!value) return "اختيار التاريخ والوقت";

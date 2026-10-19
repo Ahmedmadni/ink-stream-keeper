@@ -1,4 +1,5 @@
 import { Capacitor } from "@capacitor/core";
+import { isDesktop } from "@/services/desktop";
 
 export const APP_BACKEND_ORIGIN = "https://ink-stream-keeper.lovable.app";
 
@@ -9,7 +10,7 @@ export const APP_BACKEND_ORIGIN = "https://ink-stream-keeper.lovable.app";
  */
 export function resolveAppEndpoint(
   path: `/${string}`,
-  native = Capacitor.isNativePlatform(),
+  native = Capacitor.isNativePlatform() || isDesktop(),
 ): string {
   return native ? new URL(path, APP_BACKEND_ORIGIN).toString() : path;
 }

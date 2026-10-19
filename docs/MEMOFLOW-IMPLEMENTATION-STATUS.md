@@ -176,3 +176,17 @@
 - زر النسخ يعرض الهاتف أو Google Drive؛ الحفظ المحلي عبر منتقي Android، وDrive عبر نافذة المشاركة. الاستعادة منفصلة والنسخ اليومي المحلي خيار مطوي.
 - المواعيد تُعرض بأسماء شهور عربية وبترتيب اليوم والشهر والسنة. البنود ترتب حسب الإنجاز ثم الأولوية مع إمكانية تغيير أولوية كل بند.
 - لا يحتاج الإصدار Migration جديدًا. يبقى التحقق من شاشات الأذونات الأصلية على هاتف فعلي خطوة اختبار جهاز، منفصلة عن محاكاة الجسر واختبارات Java والواجهة.
+# Release 1.2.8 — compact task navigation
+
+- Task status and priority filters live in a popover inside the search field.
+- Notes and tasks share one horizontally scrolling category row, with a fixed
+  add button and 44px minimum category targets. Task category creation uses a dialog.
+- Task cards preview up to three checklist titles below the main title, with a
+  remaining-items count. Unfinished items sort first by priority; finished items
+  remain at the bottom. Current checklist data takes precedence over legacy rows.
+- The existing aggregated checklist request supplies titles as well as counts;
+  cards do not issue an extra request for every task. Completion guards are retained.
+- Web, Android and Windows share the same UI source. Windows packages the local
+  SPA and uses the existing validated browser callback for OAuth.
+- No database migration is needed for this release.
+

@@ -38,3 +38,7 @@ keystore.properties
 
 # Local browser verification artifacts
 .qa-results/
+electron/web/
+electron/app.ico
+electron/app.png
+desktop-dist/

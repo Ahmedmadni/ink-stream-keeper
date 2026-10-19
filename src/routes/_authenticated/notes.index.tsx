@@ -5,6 +5,7 @@ import { AppShell, PageHeader } from "@/components/AppShell";
 import { useCategories, useNotes, tsOf } from "@/lib/data";
 import { LoadingState, ErrorState } from "@/components/feedback";
 import { formatRelative, plainTextFromHtml } from "@/lib/format";
+import { CategoryBar, CategoryChip } from "@/components/CategoryBar";
 
 export const Route = createFileRoute("/_authenticated/notes/")({
   validateSearch: (search: Record<string, unknown>): { cat?: string } => ({
@@ -53,20 +54,7 @@ function NotesPage() {
 
   return (
     <AppShell>
-      <PageHeader
-        title="المذكرات"
-        subtitle={`${filtered.length} مذكرة`}
-        action={
-          <Link
-            to="/create"
-            search={{ kind: "note" }}
-            className="grid size-12 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground"
-            aria-label="مذكرة جديدة"
-          >
-            <Plus className="size-6" />
-          </Link>
-        }
-      />
+      <PageHeader title="المذكرات" subtitle={`${filtered.length} مذكرة`} />
 
       <div className="px-5">
         <div className="flex items-center gap-2 rounded-2xl bg-card px-4 py-3 shadow-card">
@@ -82,17 +70,29 @@ function NotesPage() {
         </div>
       </div>
 
-      <div className="mt-4 overflow-x-auto px-5">
-        <div className="flex gap-2 pb-1">
-          <Chip active={cat === "all"} onClick={() => setCat("all")}>
-            الكل
-          </Chip>
+      <div className="mt-4 px-5">
+        <CategoryBar
+          action={
+            <Link
+              to="/create"
+              search={{ kind: "note" }}
+              className="grid size-12 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground"
+              aria-label="مذكرة جديدة"
+            >
+              <Plus className="size-6" />
+            </Link>
+          }
+        >
+          <CategoryChip active={cat === "all"} onClick={() => setCat("all")} label="الكل" />
           {categories.map((c) => (
-            <Chip key={c.id} active={cat === c.id} onClick={() => setCat(c.id)}>
-              {c.name}
-            </Chip>
+            <CategoryChip
+              key={c.id}
+              active={cat === c.id}
+              onClick={() => setCat(c.id)}
+              label={c.name}
+            />
           ))}
-        </div>
+        </CategoryBar>
       </div>
 
       {notesQuery.isLoading && <LoadingState />}
@@ -106,7 +106,7 @@ function NotesPage() {
       )}
       <div className="mt-4 grid grid-cols-1 gap-4 px-5 sm:grid-cols-2" aria-label="بطاقات المذكرات">
         {!notesQuery.isLoading && !notesQuery.isError && filtered.length === 0 && (
-            <div className="col-span-full rounded-2xl bg-card p-8 text-center text-sm text-muted-foreground shadow-card">
+          <div className="col-span-full rounded-2xl bg-card p-8 text-center text-sm text-muted-foreground shadow-card">
             لا توجد ملاحظات مطابقة.
           </div>
         )}
@@ -120,14 +120,18 @@ function NotesPage() {
               className="group relative flex min-h-52 flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-card transition-shadow hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
             >
               <div className="flex items-center justify-between gap-2">
-              <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary-soft text-xl text-primary">
-                {n.emoji || <NotebookText className="size-5" />}
-              </div>
-              {n.pinned && <Pin aria-label="مثبتة" className="size-4 shrink-0 rotate-45 text-primary" />}
+                <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary-soft text-xl text-primary">
+                  {n.emoji || <NotebookText className="size-5" />}
+                </div>
+                {n.pinned && (
+                  <Pin aria-label="مثبتة" className="size-4 shrink-0 rotate-45 text-primary" />
+                )}
               </div>
               <div className="flex min-w-0 flex-1 flex-col">
                 <div className="flex items-center gap-2">
-                  <h3 className="line-clamp-2 break-words text-base font-semibold">{n.title || "بدون عنوان"}</h3>
+                  <h3 className="line-clamp-2 break-words text-base font-semibold">
+                    {n.title || "بدون عنوان"}
+                  </h3>
                   {n.favorite && <Star className="size-3.5 shrink-0 fill-warning text-warning" />}
                 </div>
                 <p className="mt-2 line-clamp-3 break-words text-sm leading-relaxed text-muted-foreground">
@@ -149,24 +153,5 @@ function NotesPage() {
         })}
       </div>
     </AppShell>
-  );
-}
-
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${active ? "bg-primary text-primary-foreground shadow-card" : "bg-card text-muted-foreground hover:text-foreground"}`}
-    >
-      {children}
-    </button>
   );
 }

@@ -13,6 +13,7 @@ import { AppLockSettings } from "@/components/AppLockSettings";
 import { FloatingCardsSettings } from "@/components/FloatingCardsSettings";
 import { ReminderSettings } from "@/components/ReminderSettings";
 import { isNative } from "@/services/platform";
+import { isDesktop } from "@/services/desktop";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "MemoFlow — الإعدادات" }] }),
@@ -83,7 +84,7 @@ function SettingsPage() {
       </Group>
       <BackupPanel />
       <Group title="التطبيق والحساب">
-        {!isNative() && !pwa.installed && (
+        {!isNative() && !isDesktop() && !pwa.installed && (
           <button
             onClick={async () => {
               const result = await pwa.promptInstall();
