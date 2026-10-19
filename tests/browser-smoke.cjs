@@ -309,6 +309,47 @@ const vaultEntries = [
     await page.getByText("مراجعة الحسابات", { exact: true }).waitFor();
     await page.getByRole("heading", { name: "العمل", exact: true }).waitFor();
     await page.getByText("1 من 2", { exact: true }).waitFor();
+    const preview = page.getByRole("list", { name: "بنود شراء المستلزمات", exact: true });
+    assert.deepEqual(await preview.getByRole("listitem").allTextContents(), [
+      "إرسال الإيميلات",
+      "أرشفة الملفات",
+    ]);
+    assert.ok(
+      await preview.evaluate(
+        (node) =>
+          parseFloat(getComputedStyle(node).fontSize) <
+          parseFloat(getComputedStyle(node.previousElementSibling).fontSize),
+      ),
+    );
+    assert.equal(await page.getByRole("button", { name: "المكتملة", exact: true }).count(), 0);
+    const filterButton = page.getByRole("button", { name: "خيارات البحث والتصفية", exact: true });
+    await filterButton.click();
+    await page.getByRole("combobox", { name: "أولوية المهام" }).selectOption("high");
+    assert.equal(await page.getByText("شراء المستلزمات", { exact: true }).count(), 0);
+    await page.getByRole("dialog", { name: "تصفية المهام", exact: true }).evaluate(async (node) => {
+      await Promise.all(
+        node.getAnimations().map((animation) => animation.finished.catch(() => {})),
+      );
+    });
+    await page.screenshot({ path: artifacts + "/task-search-filters-mobile.png", fullPage: true });
+    await page.getByRole("button", { name: "إعادة ضبط", exact: true }).click();
+    await page.keyboard.press("Escape");
+    await page
+      .getByRole("dialog", { name: "تصفية المهام", exact: true })
+      .waitFor({ state: "hidden" });
+    await page.getByText("شراء المستلزمات", { exact: true }).waitFor();
+    for (const width of [320, 360, 390, 430, 1280]) {
+      await page.setViewportSize({ width, height: 844 });
+      const bar = page.getByLabel("التصنيفات والإضافة", { exact: true });
+      const add = page.getByRole("link", { name: "مهمة جديدة", exact: true });
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      const [barRect, addRect] = await Promise.all([bar.boundingBox(), add.boundingBox()]);
+      assert.ok(addRect.x >= 0 && addRect.x + addRect.width <= width);
+      assert.ok(Math.abs(barRect.y + barRect.height / 2 - addRect.y - addRect.height / 2) <= 1);
+      if (width === 1280)
+        await page.screenshot({ path: artifacts + "/tasks-desktop.png", fullPage: true });
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
     assert.equal(
       await page
         .getByRole("checkbox", {
@@ -322,10 +363,20 @@ const vaultEntries = [
     assert.equal(await page.getByText("شراء المستلزمات", { exact: true }).count(), 0);
     await page.getByRole("searchbox", { name: "بحث في المهام" }).fill("");
     await page.getByRole("checkbox", { name: "إنجاز مراجعة الحسابات" }).click();
+    await filterButton.click();
     await page.getByRole("button", { name: "المكتملة", exact: true }).click();
+    await page.keyboard.press("Escape");
+    await page
+      .getByRole("dialog", { name: "تصفية المهام", exact: true })
+      .waitFor({ state: "hidden" });
     await page.getByRole("checkbox", { name: "إلغاء إنجاز مراجعة الحسابات" }).waitFor();
     assert.ok(patchSeen);
+    await filterButton.click();
     await page.getByRole("button", { name: "غير المكتملة", exact: true }).click();
+    await page.keyboard.press("Escape");
+    await page
+      .getByRole("dialog", { name: "تصفية المهام", exact: true })
+      .waitFor({ state: "hidden" });
     await page.screenshot({ path: artifacts + "/tasks-mobile.png", fullPage: true });
     await page.getByRole("link", { name: /شراء المستلزمات/ }).click();
     await page.getByRole("textbox", { name: "عنوان المهمة" }).waitFor();
@@ -557,6 +608,18 @@ const vaultEntries = [
       0,
     );
     await page.screenshot({ path: artifacts + "/settings-android-mobile.png", fullPage: true });
+    await page
+      .getByRole("navigation", { name: "التنقل الرئيسي" })
+      .getByRole("link", { name: "المهام", exact: true })
+      .click();
+    await page.getByRole("button", { name: "خيارات البحث والتصفية", exact: true }).click();
+    await page.getByRole("button", { name: "المكتملة", exact: true }).click();
+    await page.keyboard.press("Escape");
+    await page.getByRole("list", { name: "بنود شراء المستلزمات", exact: true }).waitFor();
+    await page
+      .getByRole("dialog", { name: "تصفية المهام", exact: true })
+      .waitFor({ state: "hidden" });
+    await page.screenshot({ path: artifacts + "/tasks-android-mobile.png", fullPage: true });
     // This fixture changes a web SSR page into Android on the client. React's
     // expected SSR mismatch is absent from the real Android build (local SPA).
     assert.deepEqual(

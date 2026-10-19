@@ -7,6 +7,7 @@ import {
   taskCompletionPatch,
   taskRollupPatch,
   formatTaskDateTime,
+  previewTaskItems,
 } from "../src/features/tasks/task-rules";
 
 const task = {
@@ -16,6 +17,30 @@ const task = {
   priority: "med",
 };
 describe("task checklist semantics", () => {
+  test("card previews keep unfinished work first by priority and replace legacy rows", () => {
+    const row = {
+      title: "بند",
+      done: false,
+      priority: "med",
+      position: 0,
+      created_at: "2026-10-19",
+    };
+    const result = previewTaskItems(
+      [
+        { ...row, id: "done", taskId: "current", done: true, priority: "high" },
+        { ...row, id: "low", taskId: "current", priority: "low" },
+        { ...row, id: "high", taskId: "current", priority: "high" },
+        { ...row, id: "nested", taskId: "current", position: 2 },
+      ],
+      [
+        { ...row, id: "old-duplicate", taskId: "current" },
+        { ...row, id: "legacy-only", taskId: "legacy", title: "بند قديم" },
+      ],
+    );
+    expect(result.current.map((item) => item.id)).toEqual(["high", "nested", "low", "done"]);
+    expect(result.legacy[0].title).toBe("بند قديم");
+    expect(previewTaskItems([], [])).toEqual({});
+  });
   test("Arabic dates spell out the month and keep day before month before year", () => {
     const text = formatTaskDateTime("2026-10-18T18:30");
     expect(text).toContain("18 أكتوبر 2026");

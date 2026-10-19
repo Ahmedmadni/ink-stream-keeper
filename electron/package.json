@@ -1,1 +1,8 @@
-{ "name": "memoflow", "productName": "MemoFlow", "version": "1.0.0", "main": "main.cjs" }
+{
+  "name": "memoflow",
+  "productName": "MemoFlow",
+  "version": "1.2.8",
+  "description": "MemoFlow — notes, tasks and a private vault",
+  "author": "Ahmed Madni",
+  "main": "main.cjs"
+}
