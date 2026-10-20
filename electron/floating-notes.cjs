@@ -2,14 +2,15 @@ const { BrowserWindow, ipcMain, screen } = require("electron");
 const { join } = require("node:path");
 const {
   floatingOwner,
-  floatingNote,
+  floatingCard,
+  floatingCardKey,
   floatingPoint,
   containsPoint,
   visibleBounds,
   isFloatingUrl,
 } = require("./floating-security.cjs");
 
-function createFloatingNotes({ trustedMain, getMainWindow, openMainNote }) {
+function createFloatingNotes({ trustedMain, getMainWindow, openMainCard }) {
   let owner = null;
   const cards = new Map();
   const status = () => ({ ids: [...cards.keys()] });
@@ -22,6 +23,8 @@ function createFloatingNotes({ trustedMain, getMainWindow, openMainNote }) {
   }
   const view = (card) => ({
     id: card.note.id,
+    kind: card.note.kind,
+    ...(card.note.kind === "task" ? { items: card.note.items, done: card.note.done } : {}),
     title: card.note.title,
     text: card.note.text,
     updatedAt: card.note.updatedAt,
@@ -43,9 +46,9 @@ function createFloatingNotes({ trustedMain, getMainWindow, openMainNote }) {
     return card;
   }
   function open(raw, point, inactive = false) {
-    const note = floatingNote(raw);
+    const note = floatingCard(raw);
     if (!owner || note.userId !== owner) throw new Error("Account mismatch");
-    const existing = cards.get(note.id);
+    const existing = cards.get(floatingCardKey(note));
     if (existing) {
       existing.note = note;
       existing.window.setAlwaysOnTop(true);
@@ -89,7 +92,7 @@ function createFloatingNotes({ trustedMain, getMainWindow, openMainNote }) {
       },
     });
     const card = { window, note };
-    cards.set(note.id, card);
+    cards.set(floatingCardKey(note), card);
     window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     window.webContents.on("will-navigate", (event) => event.preventDefault());
     window.once("ready-to-show", () => {
@@ -97,7 +100,7 @@ function createFloatingNotes({ trustedMain, getMainWindow, openMainNote }) {
       else window.show();
     });
     window.once("closed", () => {
-      cards.delete(note.id);
+      cards.delete(floatingCardKey(note));
       announce();
     });
     void window.loadURL("memoflow://floating/index.html");
@@ -123,25 +126,27 @@ function createFloatingNotes({ trustedMain, getMainWindow, openMainNote }) {
     const point = floatingPoint(input?.point);
     const main = getMainWindow();
     if (!main || containsPoint(main.getBounds(), point)) return { opened: false };
-    open(input.note, point, true);
+    open(input.card, point, true);
     return { opened: true };
   });
   mainHandler("sync", (input) => {
     if (
       !owner ||
       input?.userId !== owner ||
-      !Array.isArray(input.notes) ||
-      input.notes.length > 10000
+      !Array.isArray(input.cards) ||
+      input.cards.length > 10000 ||
+      !["note", "task"].includes(input.kind)
     )
-      throw new Error("Invalid note synchronization");
+      throw new Error("Invalid card synchronization");
     const notes = new Map(
-      input.notes.map((raw) => {
-        const note = floatingNote(raw);
-        if (note.userId !== owner) throw new Error("Account mismatch");
-        return [note.id, note];
+      input.cards.map((raw) => {
+        const note = floatingCard(raw);
+        if (note.userId !== owner || note.kind !== input.kind) throw new Error("Account mismatch");
+        return [floatingCardKey(note), note];
       }),
     );
     for (const [id, card] of [...cards]) {
+      if (card.note.kind !== input.kind) continue;
       const note = notes.get(id);
       if (!note) card.window.close();
       else {
@@ -166,9 +171,9 @@ function createFloatingNotes({ trustedMain, getMainWindow, openMainNote }) {
   ipcMain.handle("memoflow:floating:close", (event) => cardFor(event).window.close());
   ipcMain.handle("memoflow:floating:return", (event) => {
     const card = cardFor(event),
-      id = card.note.id;
+      target = { id: card.note.id, kind: card.note.kind };
     card.window.close();
-    openMainNote(id);
+    openMainCard(target);
   });
   return { closeAll };
 }

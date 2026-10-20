@@ -20,6 +20,7 @@ export function floatingNoteText(html: string): string {
 
 export function desktopNoteSnapshot(note: Note): DesktopFloatingNote {
   return {
+    kind: "note",
     id: note.id,
     userId: note.user_id,
     title: note.title || "مذكرة",

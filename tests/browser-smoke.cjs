@@ -475,13 +475,18 @@ const vaultPinWrites = [];
       .getByRole("link", { name: "الخزنة" })
       .click();
     await page.getByRole("heading", { name: "فتح الخزنة", exact: true }).waitFor();
-    for (const digit of "111111")
-      await page.getByRole("button", { name: digit, exact: true }).click();
+    const keyboardPin = page.getByLabel("رمز الخزنة", { exact: true });
+    assert.equal(await keyboardPin.getAttribute("type"), "password");
+    assert.equal(await keyboardPin.getAttribute("inputmode"), "numeric");
+    await keyboardPin.pressSequentially("12a3");
+    assert.equal(await keyboardPin.inputValue(), "123");
+    await keyboardPin.press("Backspace");
+    assert.equal(await keyboardPin.inputValue(), "12");
+    await keyboardPin.fill("111111");
     await page
       .getByText("رمز الخزنة غير صحيح أو بيانات التشفير غير صالحة", { exact: true })
       .waitFor();
-    for (const digit of "123456")
-      await page.getByRole("button", { name: digit, exact: true }).click();
+    await keyboardPin.fill("١٢٣٤٥٦");
     await page.getByText("حساب تجريبي", { exact: true }).waitFor();
     await page.getByRole("button", { name: "عرض", exact: true }).click();
     await page.getByText("Fixture-Password-Only", { exact: true }).waitFor();
@@ -564,8 +569,7 @@ const vaultPinWrites = [];
     await page
       .getByText("رمز الخزنة غير صحيح أو بيانات التشفير غير صالحة", { exact: true })
       .waitFor();
-    for (const digit of "654321")
-      await page.getByRole("button", { name: digit, exact: true }).click();
+    await page.getByLabel("رمز الخزنة", { exact: true }).fill("۶۵۴۳۲۱");
     await page.getByText("حساب تجريبي", { exact: true }).waitFor();
     await page.getByRole("button", { name: "عرض", exact: true }).click();
     await page.getByText("Fixture-Password-Only", { exact: true }).waitFor();
@@ -711,6 +715,9 @@ const vaultPinWrites = [];
       .getByRole("dialog", { name: "تصفية المهام", exact: true })
       .waitFor({ state: "hidden" });
     await page.screenshot({ path: artifacts + "/tasks-android-mobile.png", fullPage: true });
+    await page.goto(`${baseUrl}/vault`);
+    await page.getByLabel("رمز الخزنة", { exact: true }).fill("654321");
+    await page.getByText("حساب تجريبي", { exact: true }).waitFor();
     // This fixture changes a web SSR page into Android on the client. React's
     // expected SSR mismatch is absent from the real Android build (local SPA).
     assert.deepEqual(

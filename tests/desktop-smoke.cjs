@@ -42,6 +42,7 @@ const task = {
   created_at: "2026-10-19T00:00:00Z",
   updated_at: "2026-10-19T00:00:00Z",
 };
+let tasks = [task];
 const items = [
   { id: "done", title: "إقفال البرنامج", done: true, priority: "high", position: 0 },
   { id: "low", title: "إرسال الملفات", done: false, priority: "low", position: 1 },
@@ -151,8 +152,12 @@ const vaultEntries = [
           json: id?.startsWith("eq.") ? (notes.find((n) => n.id === id.slice(3)) ?? null) : notes,
         });
       }
+      if (table === "tasks" && url.searchParams.get("id")?.startsWith("eq."))
+        return route.fulfill({
+          json: tasks.find((t) => t.id === url.searchParams.get("id").slice(3)) ?? null,
+        });
       const rows = {
-        tasks: [task],
+        tasks: tasks,
         categories: [
           {
             id: "category-work",
@@ -171,7 +176,7 @@ const vaultEntries = [
     await page.getByRole("button", { name: "المتابعة عبر Google", exact: true }).waitFor();
     assert.equal(await page.evaluate(() => location.protocol), "memoflow:");
     assert.equal(await page.evaluate(() => typeof window.require), "undefined");
-    assert.equal(await page.evaluate(() => window.memoFlowDesktop.version), "1.2.10");
+    assert.equal(await page.evaluate(() => window.memoFlowDesktop.version), "1.2.11");
     await desktop.evaluate(({ shell }) => {
       global.__openedOAuth = null;
       shell.openExternal = async (url) => {
@@ -225,6 +230,60 @@ const vaultEntries = [
     await page.screenshot({ path: resolve(artifacts, "tasks-windows.png"), fullPage: true });
     await page.reload();
     await page.getByText(task.title, { exact: true }).waitFor();
+    const taskWindow = desktop.waitForEvent("window");
+    await page.getByRole("button", { name: "عرض تطوير الموقع فوق النوافذ", exact: true }).click();
+    const floatingTask = await taskWindow;
+    floatingTask.on("pageerror", (error) => errors.push(error.message));
+    await floatingTask.getByRole("heading", { name: task.title, exact: true }).waitFor();
+    assert.deepEqual(
+      await floatingTask.locator("#checklist li > span:last-child").allTextContents(),
+      ["تطوير الواجهة", "إعادة التصميم", "إرسال الملفات", "إقفال البرنامج"],
+    );
+    assert.equal(await floatingTask.locator("#progress").textContent(), "1 من 4 بنود مكتملة");
+    const taskView = await floatingTask.evaluate(() => window.memoFlowFloating.read());
+    assert.equal(taskView.kind, "task");
+    assert.equal("userId" in taskView, false);
+    assert.equal(await floatingTask.evaluate(() => typeof window.memoFlowDesktop), "undefined");
+    await page.getByRole("button", { name: "عرض تطوير الموقع فوق النوافذ", exact: true }).click();
+    assert.equal(
+      await page.evaluate(
+        async () => (await window.memoFlowDesktop.getFloatingStatus()).ids.length,
+      ),
+      1,
+    );
+    items.find((item) => item.id === "high").done = true;
+    await page.reload();
+    await floatingTask.getByText("2 من 4 بنود مكتملة", { exact: true }).waitFor();
+    assert.deepEqual(
+      await floatingTask.locator("#checklist li > span:last-child").allTextContents(),
+      ["إعادة التصميم", "إرسال الملفات", "إقفال البرنامج", "تطوير الواجهة"],
+    );
+    await floatingTask.screenshot({ path: resolve(artifacts, "floating-task-windows.png") });
+    await page.goto("memoflow://app/notes");
+    await page.getByRole("link", { name: /مذكرة العمل/ }).waitFor();
+    assert.equal(
+      floatingTask.isClosed(),
+      false,
+      "Note synchronization must preserve floating tasks",
+    );
+    const taskReturned = floatingTask.waitForEvent("close");
+    await floatingTask
+      .getByRole("button", { name: "إعادة المهمة إلى التطبيق", exact: true })
+      .click();
+    await taskReturned;
+    await page.getByLabel("عنوان المهمة", { exact: true }).waitFor();
+    assert.equal(new URL(page.url()).pathname, "/tasks/" + task.id);
+    await page.goto("memoflow://app/tasks");
+    const deletedTaskWindow = desktop.waitForEvent("window");
+    await page.getByRole("button", { name: "عرض تطوير الموقع فوق النوافذ", exact: true }).click();
+    const deletedTaskCard = await deletedTaskWindow;
+    await deletedTaskCard.getByRole("heading", { name: task.title, exact: true }).waitFor();
+    const deletedTaskClose = deletedTaskCard.waitForEvent("close");
+    tasks = [];
+    await page.reload();
+    await deletedTaskClose;
+    tasks = [task];
+    items.find((item) => item.id === "high").done = false;
     await page.goto("memoflow://app/notes");
     await page.getByRole("link", { name: /مذكرة العمل/ }).waitFor();
     const firstWindow = desktop.waitForEvent("window");
@@ -339,6 +398,10 @@ const vaultEntries = [
     await page.goto("memoflow://app/settings");
     await page.getByText("أحمد محمد المدني", { exact: true }).waitFor();
     assert.equal(
+      await page.getByRole("link", { name: "موقع المطوّر", exact: true }).getAttribute("href"),
+      "https://ahmedelmadni.com",
+    );
+    assert.equal(
       await page.getByRole("button", { name: "إضافة إلى الشاشة الرئيسية", exact: true }).count(),
       0,
     );
@@ -360,8 +423,12 @@ const vaultEntries = [
     assert.equal(vaultEntries[0].password_ct, vaultSecret.ct);
     await page.goto("memoflow://app/vault");
     await page.getByRole("heading", { name: "فتح الخزنة", exact: true }).waitFor();
-    for (const digit of "654321")
-      await page.getByRole("button", { name: digit, exact: true }).click();
+    const keyboardPin = page.getByLabel("رمز الخزنة", { exact: true });
+    await keyboardPin.pressSequentially("65a43");
+    assert.equal(await keyboardPin.inputValue(), "6543");
+    await keyboardPin.press("Backspace");
+    assert.equal(await keyboardPin.inputValue(), "654");
+    await keyboardPin.pressSequentially("321");
     await page.getByText("حساب ويندوز", { exact: true }).waitFor();
     await page.getByRole("button", { name: "عرض", exact: true }).click();
     await page.getByText("Desktop-Fixture-Secret", { exact: true }).waitFor();
@@ -383,7 +450,7 @@ const vaultEntries = [
     );
     assert.deepEqual(errors, []);
     console.log(
-      "PASS: packaged Windows desktop — OAuth/session, task previews, floating notes, pointer drop, always-on-top, pin toggle, deduplication, live updates, cleanup, developer identity, vault PIN change and retained password decryption.",
+      "PASS: packaged Windows desktop — OAuth/session, task previews, floating tasks and notes, checklist sync, task return/delete, pointer drop, always-on-top, pin toggle, deduplication, live updates, cleanup, developer identity, keyboard vault PIN, PIN change and retained password decryption.",
     );
   } catch (error) {
     if (page) {

@@ -7,6 +7,8 @@ const require = createRequire(import.meta.url);
 const {
   floatingOwner,
   floatingNote,
+  floatingCard,
+  floatingCardKey,
   floatingPoint,
   containsPoint,
   visibleBounds,
@@ -43,6 +45,26 @@ describe("desktop floating note boundaries", () => {
     expect(() => floatingPoint({ x: Infinity, y: 1 })).toThrow();
     expect(() => floatingPoint({ x: "1", y: 1 })).toThrow();
   });
+  test("isolates task and note identities and rejects malformed checklist payloads", () => {
+    const task = {
+      ...note,
+      kind: "task",
+      done: false,
+      items: [{ id: "item", title: "بند", done: false, access_token: "private" }],
+    };
+    const safe = floatingCard(task);
+    expect(safe.items).toEqual([{ id: "item", title: "بند", done: false }]);
+    expect(floatingCardKey(safe)).not.toBe(
+      floatingCardKey(floatingCard({ ...note, kind: "note" })),
+    );
+    expect(() => floatingCard({ ...task, kind: "vault" })).toThrow();
+    expect(() => floatingCard({ ...task, items: [{ ...task.items[0], done: "false" }] })).toThrow();
+    expect(() => floatingCard({ ...task, items: [task.items[0], task.items[0]] })).toThrow();
+    expect(() =>
+      floatingCard({ ...task, items: [{ ...task.items[0], title: "x".repeat(4001) }] }),
+    ).toThrow();
+    expect(() => floatingCard({ ...task, items: Array(1001).fill(task.items[0]) })).toThrow();
+  });
   test("keeps the card visible on small screens and negative-coordinate monitors", () => {
     expect(visibleBounds({ x: 500, y: -100 }, { x: 0, y: 0, width: 320, height: 600 })).toEqual({
       x: 0,
@@ -76,6 +98,8 @@ describe("desktop floating note boundaries", () => {
   test("ships matching developer identity and version information", () => {
     const pkg = JSON.parse(read("electron/package.json"));
     expect(pkg.author.name).toBe("أحمد محمد المدني");
+    expect(pkg.author.url).toBe("https://ahmedelmadni.com");
+    expect(read("src/lib/app-info.ts")).toContain(pkg.author.url);
     expect(read("src/lib/app-info.ts")).toContain(pkg.author.name);
     expect(read("src/lib/app-info.ts")).toContain(pkg.version);
     expect(read("electron/preload.cjs")).toContain(`version: "${pkg.version}"`);

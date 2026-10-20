@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { normalizePinInput } from "@/lib/pin-input";
 import { ChevronDown, Loader2 } from "lucide-react";
 
 export function PinChangeForm({
@@ -69,11 +70,10 @@ export function PinChangeForm({
         type="password"
         inputMode="numeric"
         autoComplete="off"
-        maxLength={6}
         disabled={busy}
         value={value}
         onChange={(event) => {
-          update(event.target.value.replace(/\D/g, "").slice(0, 6));
+          update(normalizePinInput(event.target.value));
           setError("");
           setMessage("");
         }}

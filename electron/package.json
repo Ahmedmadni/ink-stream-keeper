@@ -1,11 +1,11 @@
 {
   "name": "memoflow",
   "productName": "MemoFlow",
-  "version": "1.2.10",
+  "version": "1.2.11",
   "description": "MemoFlow — notes, tasks and a private vault",
   "author": {
     "name": "أحمد محمد المدني",
-    "url": "https://github.com/Ahmedmadni"
+    "url": "https://ahmedelmadni.com"
   },
   "main": "main.cjs"
 }
