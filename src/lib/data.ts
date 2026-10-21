@@ -187,44 +187,45 @@ export function useProfile() {
 }
 
 export type TaskSubItemSummary = TaskItemSummary & { items: TaskItemPreview[] };
+export const taskSubItemSummariesQuery = queryOptions({
+  queryKey: keys.taskSubItemSummaries,
+  queryFn: async (): Promise<Record<string, TaskSubItemSummary>> => {
+    const [current, legacyChecklist, legacySubtasks] = await Promise.all([
+      supabase
+        .from("sub_items")
+        .select("id,parent_id,title,done,priority,position,created_at")
+        .eq("parent_type", "task"),
+      supabase.from("task_checklist").select("id,task_id,text,done,sort_order,created_at"),
+      supabase.from("subtasks").select("id,task_id,title,done,sort_order,created_at"),
+    ]);
+    if (current.error) throw current.error;
+    if (legacyChecklist.error) throw legacyChecklist.error;
+    if (legacySubtasks.error) throw legacySubtasks.error;
+    const currentItems = (current.data ?? []).map((row) => ({ ...row, taskId: row.parent_id }));
+    const legacyItems = [
+      ...(legacyChecklist.data ?? []).map((row) => ({ ...row, title: row.text })),
+      ...(legacySubtasks.data ?? []),
+    ].map((row) => ({
+      id: row.id,
+      taskId: row.task_id,
+      title: row.title,
+      done: row.done,
+      priority: "med",
+      position: row.sort_order,
+      created_at: row.created_at,
+    }));
+    const summaries = summarizeTaskItems(currentItems, legacyItems);
+    const previews = previewTaskItems(currentItems, legacyItems);
+    return Object.fromEntries(
+      Object.entries(summaries).map(([id, summary]) => [
+        id,
+        { ...summary, items: previews[id] ?? [] },
+      ]),
+    );
+  },
+});
 export function useTaskSubItemSummaries() {
-  return useQuery({
-    queryKey: keys.taskSubItemSummaries,
-    queryFn: async (): Promise<Record<string, TaskSubItemSummary>> => {
-      const [current, legacyChecklist, legacySubtasks] = await Promise.all([
-        supabase
-          .from("sub_items")
-          .select("id,parent_id,title,done,priority,position,created_at")
-          .eq("parent_type", "task"),
-        supabase.from("task_checklist").select("id,task_id,text,done,sort_order,created_at"),
-        supabase.from("subtasks").select("id,task_id,title,done,sort_order,created_at"),
-      ]);
-      if (current.error) throw current.error;
-      if (legacyChecklist.error) throw legacyChecklist.error;
-      if (legacySubtasks.error) throw legacySubtasks.error;
-      const currentItems = (current.data ?? []).map((row) => ({ ...row, taskId: row.parent_id }));
-      const legacyItems = [
-        ...(legacyChecklist.data ?? []).map((row) => ({ ...row, title: row.text })),
-        ...(legacySubtasks.data ?? []),
-      ].map((row) => ({
-        id: row.id,
-        taskId: row.task_id,
-        title: row.title,
-        done: row.done,
-        priority: "med",
-        position: row.sort_order,
-        created_at: row.created_at,
-      }));
-      const summaries = summarizeTaskItems(currentItems, legacyItems);
-      const previews = previewTaskItems(currentItems, legacyItems);
-      return Object.fromEntries(
-        Object.entries(summaries).map(([id, summary]) => [
-          id,
-          { ...summary, items: previews[id] ?? [] },
-        ]),
-      );
-    },
-  });
+  return useQuery(taskSubItemSummariesQuery);
 }
 
 export function useNote(id: string) {

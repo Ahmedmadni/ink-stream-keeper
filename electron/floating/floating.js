@@ -9,6 +9,36 @@ function show(note) {
   document.title = note.title + " — MemoFlow";
   title.textContent = note.title;
   content.textContent = note.text;
+  const checklist = document.getElementById("checklist");
+  checklist.replaceChildren();
+  checklist.hidden = note.kind !== "task" || !note.items.length;
+  if (note.kind === "task") {
+    for (const item of note.items) {
+      const row = document.createElement("li");
+      row.className = item.done ? "done" : "";
+      const mark = document.createElement("span");
+      mark.textContent = item.done ? "☑" : "☐";
+      mark.setAttribute("aria-hidden", "true");
+      const text = document.createElement("span");
+      text.textContent = item.title;
+      row.append(mark, text);
+      checklist.append(row);
+    }
+  }
+  const progress = document.getElementById("progress");
+  progress.hidden = note.kind !== "task";
+  progress.textContent =
+    note.kind === "task"
+      ? note.items.length
+        ? `${note.items.filter((item) => item.done).length} من ${note.items.length} بنود مكتملة`
+        : note.done
+          ? "مهمة مكتملة"
+          : "مهمة غير مكتملة"
+      : "";
+  const returnLabel =
+    note.kind === "task" ? "إعادة المهمة إلى التطبيق" : "إعادة المذكرة إلى التطبيق";
+  document.getElementById("return").setAttribute("aria-label", returnLabel);
+  document.getElementById("return").title = returnLabel;
   document.body.classList.toggle("dark", note.dark);
   pin.setAttribute("aria-pressed", String(note.pinned));
   document.getElementById("state").textContent = note.pinned ? "مثبتة فوق النوافذ" : "بطاقة عائمة";

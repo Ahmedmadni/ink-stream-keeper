@@ -22,7 +22,7 @@ export function AboutApp() {
         rel="noopener noreferrer"
         className="mt-3 flex min-h-11 items-center justify-between gap-2 rounded-xl bg-secondary px-3 text-sm font-medium"
       >
-        حساب المطوّر على GitHub <ExternalLink className="size-4" />
+        موقع المطوّر <ExternalLink className="size-4" />
       </a>
     </div>
   );

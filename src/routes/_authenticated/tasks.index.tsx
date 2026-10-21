@@ -25,6 +25,9 @@ import {
 import { localDayKey, matchesTask, type TaskFilter } from "@/features/tasks/task-rules";
 import { Button } from "@/components/ui/button";
 import { CategoryBar, CategoryChip } from "@/components/CategoryBar";
+import { DesktopFloatingCard } from "@/components/DesktopFloatingCard";
+import { desktopTaskSnapshot } from "@/features/tasks/desktop-floating";
+import { isDesktop } from "@/services/desktop";
 import { TaskSearch } from "@/features/tasks/TaskSearch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -278,114 +281,120 @@ function TaskCard({
       ? `تكتمل ${task.title} تلقائيًا بعد إنجاز جميع البنود`
       : `${task.done ? "إلغاء إنجاز" : "إنجاز"} ${task.title}`;
   return (
-    <li className="relative flex min-h-40 items-start gap-2 rounded-2xl border border-border bg-card p-4 shadow-card transition-shadow hover:shadow-elevated">
-      <Button
-        variant="ghost"
-        size="icon"
-        role="checkbox"
-        aria-checked={task.done}
-        aria-label={completionLabel}
-        title={autoManaged ? "تكتمل المهمة تلقائيًا عند إنجاز جميع البنود" : undefined}
-        disabled={toggle.isPending || completionUnavailable}
-        onClick={() =>
-          toggle.mutate(
-            { id: task.id, done: !task.done, task },
-            { onError: () => toast.error("تعذر حفظ حالة المهمة. حاول مجددًا.") },
-          )
-        }
-        className="size-11 shrink-0 rounded-xl disabled:opacity-50"
+    <li>
+      <DesktopFloatingCard
+        card={desktopTaskSnapshot(task, summary)}
+        disabled={!summariesReady}
+        className="flex min-h-40 items-start gap-2 rounded-2xl border border-border bg-card p-4 shadow-card transition-shadow hover:shadow-elevated"
       >
-        <span
-          className={`grid size-6 place-items-center rounded-full border-2 ${task.done ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40"}`}
+        <Button
+          variant="ghost"
+          size="icon"
+          role="checkbox"
+          aria-checked={task.done}
+          aria-label={completionLabel}
+          title={autoManaged ? "تكتمل المهمة تلقائيًا عند إنجاز جميع البنود" : undefined}
+          disabled={toggle.isPending || completionUnavailable}
+          onClick={() =>
+            toggle.mutate(
+              { id: task.id, done: !task.done, task },
+              { onError: () => toast.error("تعذر حفظ حالة المهمة. حاول مجددًا.") },
+            )
+          }
+          className="size-11 shrink-0 rounded-xl disabled:opacity-50"
         >
-          {task.done && <Check className="size-4" />}
-        </span>
-      </Button>
-      <Link
-        to="/tasks/$id"
-        params={{ id: task.id }}
-        className="flex min-h-32 min-w-0 flex-1 flex-col items-stretch gap-3 rounded-lg py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <div className="flex min-w-0 flex-1 flex-col">
-          <p
-            className={`line-clamp-3 break-words text-base font-semibold ${task.done ? "text-muted-foreground line-through" : ""}`}
+          <span
+            className={`grid size-6 place-items-center rounded-full border-2 ${task.done ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40"}`}
           >
-            {task.title}
-          </p>
-          {!!summary?.items.length && (
-            <ul
-              aria-label={`بنود ${task.title}`}
-              className="mt-3 space-y-1.5 text-xs leading-relaxed text-muted-foreground"
+            {task.done && <Check className="size-4" />}
+          </span>
+        </Button>
+        <Link
+          to="/tasks/$id"
+          params={{ id: task.id }}
+          className={`flex min-h-32 min-w-0 flex-1 flex-col items-stretch gap-3 rounded-lg py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${isDesktop() ? "pe-11" : ""}`}
+        >
+          <div className="flex min-w-0 flex-1 flex-col">
+            <p
+              className={`line-clamp-3 break-words text-base font-semibold ${task.done ? "text-muted-foreground line-through" : ""}`}
             >
-              {summary.items.slice(0, 3).map((item) => (
-                <li key={item.id} className="flex items-start gap-2">
-                  {item.done ? (
-                    <CircleCheck
-                      aria-hidden="true"
-                      className="mt-0.5 size-3.5 shrink-0 text-primary/60"
-                    />
-                  ) : (
-                    <Circle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 opacity-60" />
-                  )}
-                  <span
-                    className={`line-clamp-2 break-words ${item.done ? "line-through opacity-70" : ""}`}
-                  >
-                    {item.title}
-                  </span>
-                </li>
-              ))}
-              {summary.items.length > 3 && (
-                <li className="ps-5.5 text-muted-foreground/80">
-                  + {summary.items.length - 3} بنود أخرى
-                </li>
-              )}
-            </ul>
-          )}
-          {task.description && (
-            <p className="mt-2 line-clamp-2 break-words text-sm leading-relaxed text-muted-foreground">
-              {task.description}
+              {task.title}
             </p>
-          )}
-          <div className="mt-auto flex flex-wrap items-center gap-2 pt-4 text-xs text-muted-foreground">
-            {due && (
-              <span className={overdue ? "text-destructive" : ""}>
-                {overdue ? "متأخرة · " : ""}
-                {due.toLocaleDateString("ar-SA", {
-                  calendar: "gregory",
-                  day: "numeric",
-                  month: "short",
-                })}
-              </span>
+            {!!summary?.items.length && (
+              <ul
+                aria-label={`بنود ${task.title}`}
+                className="mt-3 space-y-1.5 text-xs leading-relaxed text-muted-foreground"
+              >
+                {summary.items.slice(0, 3).map((item) => (
+                  <li key={item.id} className="flex items-start gap-2">
+                    {item.done ? (
+                      <CircleCheck
+                        aria-hidden="true"
+                        className="mt-0.5 size-3.5 shrink-0 text-primary/60"
+                      />
+                    ) : (
+                      <Circle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 opacity-60" />
+                    )}
+                    <span
+                      className={`line-clamp-2 break-words ${item.done ? "line-through opacity-70" : ""}`}
+                    >
+                      {item.title}
+                    </span>
+                  </li>
+                ))}
+                {summary.items.length > 3 && (
+                  <li className="ps-5.5 text-muted-foreground/80">
+                    + {summary.items.length - 3} بنود أخرى
+                  </li>
+                )}
+              </ul>
             )}
-            {task.reminder_at && <Bell aria-label="تذكير" className="size-3" />}
-            {task.priority === "high" && <span className="text-destructive">أولوية عالية</span>}
+            {task.description && (
+              <p className="mt-2 line-clamp-2 break-words text-sm leading-relaxed text-muted-foreground">
+                {task.description}
+              </p>
+            )}
+            <div className="mt-auto flex flex-wrap items-center gap-2 pt-4 text-xs text-muted-foreground">
+              {due && (
+                <span className={overdue ? "text-destructive" : ""}>
+                  {overdue ? "متأخرة · " : ""}
+                  {due.toLocaleDateString("ar-SA", {
+                    calendar: "gregory",
+                    day: "numeric",
+                    month: "short",
+                  })}
+                </span>
+              )}
+              {task.reminder_at && <Bell aria-label="تذكير" className="size-3" />}
+              {task.priority === "high" && <span className="text-destructive">أولوية عالية</span>}
+              {summary && (
+                <span className="inline-flex items-center gap-1">
+                  <ListChecks className="size-3" />
+                  {summary.done} من {summary.total}
+                </span>
+              )}
+            </div>
             {summary && (
-              <span className="inline-flex items-center gap-1">
-                <ListChecks className="size-3" />
-                {summary.done} من {summary.total}
-              </span>
+              <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-secondary">
+                <div
+                  className="h-full rounded-full bg-primary transition-[width]"
+                  style={{ width: `${summary.progress}%` }}
+                />
+              </div>
             )}
           </div>
-          {summary && (
-            <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-secondary">
-              <div
-                className="h-full rounded-full bg-primary transition-[width]"
-                style={{ width: `${summary.progress}%` }}
-              />
-            </div>
-          )}
-        </div>
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>
-            {task.done
-              ? "مكتملة"
-              : summary && summary.total > 0
-                ? `${summary.progress}% مكتمل`
-                : "غير مكتملة"}
-          </span>
-          <ChevronLeft className="size-4 shrink-0" />
-        </div>
-      </Link>
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>
+              {task.done
+                ? "مكتملة"
+                : summary && summary.total > 0
+                  ? `${summary.progress}% مكتمل`
+                  : "غير مكتملة"}
+            </span>
+            <ChevronLeft className="size-4 shrink-0" />
+          </div>
+        </Link>
+      </DesktopFloatingCard>
     </li>
   );
 }

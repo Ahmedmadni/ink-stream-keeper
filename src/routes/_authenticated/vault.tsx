@@ -44,6 +44,7 @@ import {
   type VaultCategory,
   type VaultEntry,
 } from "@/lib/vault";
+import { PinPad } from "@/components/PinPad";
 import { androidAutofill, type AutofillStatus } from "@/services/autofill";
 
 export const Route = createFileRoute("/_authenticated/vault")({
@@ -114,68 +115,6 @@ function VaultPage() {
   return <VaultHome />;
 }
 
-// ---------- PIN pad
-function PinPad({
-  value,
-  onChange,
-  max = 6,
-  disabled = false,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  max?: number;
-  disabled?: boolean;
-}) {
-  const press = (k: string) => {
-    if (k === "del") return onChange(value.slice(0, -1));
-    if (value.length >= max) return;
-    onChange(value + k);
-  };
-  const dots = Array.from({ length: max }).map((_, i) => (
-    <span
-      key={i}
-      className={`size-3.5 rounded-full transition-all ${
-        i < value.length ? "bg-primary scale-110" : "bg-border"
-      }`}
-    />
-  ));
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-center gap-3">{dots}</div>
-      <div dir="ltr" className="mx-auto grid max-w-[260px] grid-cols-3 gap-3">
-        {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((n) => (
-          <button
-            key={n}
-            type="button"
-            disabled={disabled}
-            onClick={() => press(n)}
-            className="grid h-14 place-items-center rounded-2xl bg-card text-xl font-bold shadow-card transition-transform active:scale-95"
-          >
-            {n}
-          </button>
-        ))}
-        <div />
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => press("0")}
-          className="grid h-14 place-items-center rounded-2xl bg-card text-xl font-bold shadow-card transition-transform active:scale-95"
-        >
-          0
-        </button>
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => press("del")}
-          className="grid h-14 place-items-center rounded-2xl bg-card text-sm font-bold text-muted-foreground shadow-card transition-transform active:scale-95"
-        >
-          حذف
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ---------- Setup
 function SetupPin() {
   const [step, setStep] = useState<"first" | "confirm">("first");
@@ -230,6 +169,7 @@ function SetupPin() {
 
         <div className="pt-8">
           <PinPad
+            label={step === "first" ? "رمز الخزنة الجديد" : "تأكيد رمز الخزنة"}
             disabled={setup.isPending}
             value={step === "first" ? pin1 : pin2}
             onChange={step === "first" ? setPin1 : setPin2}

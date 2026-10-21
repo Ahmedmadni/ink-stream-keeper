@@ -39,3 +39,12 @@ wrong PINs, malformed/tampered/account-swapped envelopes, non-extractable
 session keys, read/write/stale-update failures, locks and account switches,
 real PostgreSQL RLS/CAS checks, browser PIN changes/reload/data preservation,
 and the native Android settings bridge.
+
+## Keyboard input — 1.2.11
+
+The vault setup and unlock screens share a real masked numeric input, alongside
+the existing keypad. Physical keyboards, Backspace, selection/replacement and
+paste work without global keyboard listeners. Arabic and Persian digits normalize
+to the same six Latin digits before derivation. Android advertises the numeric
+soft keyboard; device keyboards themselves remain controlled by Android. Changing
+either application or vault PIN uses the same normalization.

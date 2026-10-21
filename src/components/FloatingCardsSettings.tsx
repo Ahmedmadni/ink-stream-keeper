@@ -42,10 +42,10 @@ function DesktopFloatingCardsSettings() {
           <Layers className="size-6" />
         </span>
         <div className="min-w-0 flex-1">
-          <h3 className="text-base font-semibold">مذكرات فوق النوافذ</h3>
+          <h3 className="text-base font-semibold">مهام ومذكرات فوق النوافذ</h3>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            اسحب المذكرة خارج نافذة البرنامج أو اضغط زر البطاقة العائمة. حرّكها من شريطها العلوي،
-            وثبّتها فوق التطبيقات الأخرى.
+            اسحب بطاقة المهمة أو المذكرة خارج نافذة البرنامج أو اضغط زر البطاقة العائمة. حرّكها من
+            شريطها العلوي، وثبّتها فوق التطبيقات الأخرى.
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
             {count ? `بطاقات مفتوحة: ${count}` : "لا توجد بطاقات عائمة مفتوحة"}

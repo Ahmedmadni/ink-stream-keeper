@@ -2,11 +2,11 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("memoFlowDesktop", {
   isDesktop: true,
-  version: "1.2.10",
+  version: "1.2.11",
   setFloatingOwner: (userId) => ipcRenderer.invoke("memoflow:floating:owner", userId),
-  openFloatingNote: (note) => ipcRenderer.invoke("memoflow:floating:open", note),
-  dropFloatingNote: (input) => ipcRenderer.invoke("memoflow:floating:drop", input),
-  syncFloatingNotes: (input) => ipcRenderer.invoke("memoflow:floating:sync", input),
+  openFloatingCard: (card) => ipcRenderer.invoke("memoflow:floating:open", card),
+  dropFloatingCard: (input) => ipcRenderer.invoke("memoflow:floating:drop", input),
+  syncFloatingCards: (input) => ipcRenderer.invoke("memoflow:floating:sync", input),
   getFloatingStatus: () => ipcRenderer.invoke("memoflow:floating:status"),
   closeFloatingNotes: () => ipcRenderer.invoke("memoflow:floating:close-all"),
   onFloatingStatus: (listener) => {
@@ -14,10 +14,10 @@ contextBridge.exposeInMainWorld("memoFlowDesktop", {
     ipcRenderer.on("memoflow:floating:status", receive);
     return () => ipcRenderer.removeListener("memoflow:floating:status", receive);
   },
-  onOpenNote: (listener) => {
+  onOpenCard: (listener) => {
     const receive = (_event, id) => listener(id);
-    ipcRenderer.on("memoflow:floating:open-note", receive);
-    return () => ipcRenderer.removeListener("memoflow:floating:open-note", receive);
+    ipcRenderer.on("memoflow:floating:open-card", receive);
+    return () => ipcRenderer.removeListener("memoflow:floating:open-card", receive);
   },
   openOAuth: (url) => ipcRenderer.invoke("memoflow:auth:open", url),
   getLaunchUrl: () => ipcRenderer.invoke("memoflow:auth:launch"),

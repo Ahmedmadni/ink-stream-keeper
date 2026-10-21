@@ -43,6 +43,34 @@ function floatingPoint(value) {
   return { x: Math.round(value.x), y: Math.round(value.y) };
 }
 
+function floatingCard(value) {
+  if (!["note", "task"].includes(value?.kind)) throw new Error("Invalid card type");
+  const base = floatingNote(value);
+  if (value.kind === "note") return { ...base, kind: "note" };
+  if (!Array.isArray(value.items) || value.items.length > 1000 || typeof value.done !== "boolean")
+    throw new Error("Invalid task");
+  const ids = new Set();
+  const items = value.items.map((item) => {
+    if (
+      !item ||
+      typeof item.id !== "string" ||
+      !/^[a-z0-9_-]{1,128}$/i.test(item.id) ||
+      ids.has(item.id) ||
+      typeof item.title !== "string" ||
+      item.title.length > 4000 ||
+      typeof item.done !== "boolean"
+    )
+      throw new Error("Invalid task item");
+    ids.add(item.id);
+    return { id: item.id, title: item.title, done: item.done };
+  });
+  return { ...base, title: value.title.trim() || "مهمة", kind: "task", done: value.done, items };
+}
+
+function floatingCardKey(card) {
+  return card.kind + ":" + card.id;
+}
+
 function containsPoint(bounds, point) {
   return (
     point.x >= bounds.x &&
@@ -93,6 +121,8 @@ function floatingAssetPath(root, raw) {
 module.exports = {
   floatingOwner,
   floatingNote,
+  floatingCard,
+  floatingCardKey,
   floatingPoint,
   containsPoint,
   visibleBounds,

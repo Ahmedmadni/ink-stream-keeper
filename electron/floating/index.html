@@ -7,7 +7,7 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
     />
-    <title>مذكرة — MemoFlow</title>
+    <title>بطاقة — MemoFlow</title>
     <link rel="stylesheet" href="/floating.css" />
     <script src="/floating.js" defer></script>
   </head>
@@ -27,8 +27,8 @@
         </button>
         <button
           id="return"
-          aria-label="إعادة المذكرة إلى التطبيق"
-          title="إعادة المذكرة إلى التطبيق"
+          aria-label="إعادة البطاقة إلى التطبيق"
+          title="إعادة البطاقة إلى التطبيق"
         >
           <svg viewBox="0 0 24 24"><path d="M14 4H4v16h16V10M10 14 21 3m-7 0h7v7" /></svg>
         </button>
@@ -39,9 +39,11 @@
     </header>
     <main>
       <h1 id="title"></h1>
-      <div id="content" role="document" aria-label="محتوى المذكرة"></div>
+      <p id="progress" hidden></p>
+      <div id="content" role="document" aria-label="محتوى البطاقة"></div>
+      <ul id="checklist" aria-label="بنود المهمة" hidden></ul>
     </main>
     <footer><span id="state">مثبتة فوق النوافذ</span><time id="updated"></time></footer>
-    <p id="error" role="alert" hidden>تعذر عرض المذكرة. أغلق البطاقة وافتحها مجددًا.</p>
+    <p id="error" role="alert" hidden>تعذر عرض البطاقة. أغلقها وافتحها مجددًا.</p>
   </body>
 </html>

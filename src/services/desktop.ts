@@ -1,4 +1,5 @@
 export type DesktopFloatingNote = {
+  kind: "note";
   id: string;
   userId: string;
   title: string;
@@ -6,25 +7,34 @@ export type DesktopFloatingNote = {
   updatedAt: string;
   dark: boolean;
 };
+export type DesktopFloatingTask = Omit<DesktopFloatingNote, "kind"> & {
+  kind: "task";
+  done: boolean;
+  items: { id: string; title: string; done: boolean }[];
+};
+export type DesktopFloatingCard = DesktopFloatingNote | DesktopFloatingTask;
 export type DesktopFloatingStatus = { ids: string[] };
 
 type DesktopBridge = {
   isDesktop: true;
   version: string;
   setFloatingOwner(userId: string | null): Promise<DesktopFloatingStatus>;
-  openFloatingNote(note: DesktopFloatingNote): Promise<DesktopFloatingStatus>;
-  dropFloatingNote(input: {
-    note: DesktopFloatingNote;
+  openFloatingCard(card: DesktopFloatingCard): Promise<DesktopFloatingStatus>;
+  dropFloatingCard(input: {
+    card: DesktopFloatingCard;
     point: { x: number; y: number };
   }): Promise<{ opened: boolean }>;
-  syncFloatingNotes(input: {
+  syncFloatingCards(input: {
     userId: string;
-    notes: DesktopFloatingNote[];
+    kind: DesktopFloatingCard["kind"];
+    cards: DesktopFloatingCard[];
   }): Promise<DesktopFloatingStatus>;
   getFloatingStatus(): Promise<DesktopFloatingStatus>;
   closeFloatingNotes(): Promise<DesktopFloatingStatus>;
   onFloatingStatus(listener: (status: DesktopFloatingStatus) => void): () => void;
-  onOpenNote(listener: (id: string) => void): () => void;
+  onOpenCard(
+    listener: (card: { id: string; kind: DesktopFloatingCard["kind"] }) => void,
+  ): () => void;
   openOAuth(url: string): Promise<void>;
   getLaunchUrl(): Promise<{ url?: string }>;
   onAuthCallback(listener: (url: string) => void): () => void;

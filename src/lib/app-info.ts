@@ -1,3 +1,3 @@
-export const APP_VERSION = "1.2.10";
+export const APP_VERSION = "1.2.11";
 export const DEVELOPER_NAME = "أحمد محمد المدني";
-export const DEVELOPER_URL = "https://github.com/Ahmedmadni";
+export const DEVELOPER_URL = "https://ahmedelmadni.com";

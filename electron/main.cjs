@@ -126,12 +126,12 @@ if (!app.requestSingleInstanceLock()) {
     floatingNotes = createFloatingNotes({
       trustedMain: trusted,
       getMainWindow: () => mainWindow,
-      openMainNote: (id) => {
+      openMainCard: (card) => {
         if (!mainWindow || mainWindow.isDestroyed()) return;
         if (mainWindow.isMinimized()) mainWindow.restore();
         mainWindow.show();
         mainWindow.focus();
-        mainWindow.webContents.send("memoflow:floating:open-note", id);
+        mainWindow.webContents.send("memoflow:floating:open-card", card);
       },
     });
     ipcMain.handle("memoflow:auth:open", async (event, url) => {
