@@ -16,6 +16,7 @@ await packager({
   electronVersion: "44.9.0",
   out: resolve("desktop-dist"),
   asar: true,
+  extraResource: [resolve("public/IBM-Plex-OFL.txt")],
   overwrite: true,
   appVersion: pkg.version,
   icon: resolve("electron/app.ico"),

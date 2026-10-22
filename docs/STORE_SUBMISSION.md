@@ -62,7 +62,9 @@ entries. Its application user model ID matches the Store package family.
 The desktop capability is `runFullTrust`, with no administrator/elevation
 capability. The app retains Electron's sandboxed renderers, isolated preloads,
 local SPA and bundled fonts. Its floating task/note windows and native backup
-save dialogs require the desktop execution model. Store and portable versions
+save dialogs require the desktop execution model. The upstream IBM Plex OFL
+notice is included as a readable `resources/IBM-Plex-OFL.txt` in the Windows
+package and as a public web asset in all builds. Store and portable versions
 can have separate Windows storage contexts; a user can transfer content through
 the existing backup export/import flow when needed.
 
