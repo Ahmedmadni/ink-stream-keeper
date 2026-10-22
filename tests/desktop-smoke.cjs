@@ -124,6 +124,7 @@ const vaultEntries = [
         true,
         "The application must run with MSIX package identity",
       );
+      console.log("PASS: Electron is running with MSIX package identity.");
     }
     page.on("pageerror", (error) => errors.push(error.message));
     const context = desktop.context();
@@ -235,12 +236,16 @@ const vaultEntries = [
       "lovable://oauth-callback#" +
       new URLSearchParams({ state, access_token: jwt, refresh_token: "fixture-refresh" });
     if (process.env.MEMOFLOW_MSIX_TEST === "1") {
-      execFileSync("powershell.exe", [
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-        `Start-Process -FilePath '${callback.replace(/'/g, "''")}'`,
-      ]);
+      execFileSync(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          `Start-Process -FilePath '${callback.replace(/'/g, "''")}'`,
+        ],
+        { timeout: 60000 },
+      );
     } else {
       await desktop.evaluate(
         ({ app }, raw) => app.emit("open-url", { preventDefault() {} }, raw),

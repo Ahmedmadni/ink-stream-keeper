@@ -27,24 +27,37 @@ try {
   $env:MEMOFLOW_MSIX_TEST = '1'
   # Directly starting the loose executable does not grant package identity.
   # Run the test harness and its Electron child in the registered app context.
-  $env:MEMOFLOW_MSIX_SMOKE_ROOT = (Get-Location).Path
-  $qa = Join-Path $env:MEMOFLOW_MSIX_SMOKE_ROOT '.qa-results'
+  $root = (Get-Location).Path
+  $qa = Join-Path $root '.qa-results'
   New-Item $qa -ItemType Directory -Force | Out-Null
   $runner = Join-Path $qa 'msix-smoke-runner.cjs'
   $result = Join-Path $qa 'msix-smoke-exit.txt'
   $log = Join-Path $qa 'msix-smoke.log'
-  Remove-Item $result -ErrorAction SilentlyContinue
-  @'
+  $started = Join-Path $qa 'msix-smoke-started.txt'
+  Remove-Item $result, $log, $started -ErrorAction SilentlyContinue
+  # Activation can supply a fresh environment. Embed only the test paths and
+  # flags explicitly instead of relying on inheritance from this PowerShell.
+  $config = @{
+    root = $root
+    env = @{
+      MEMOFLOW_ELECTRON_PATH = $env:MEMOFLOW_ELECTRON_PATH
+      MEMOFLOW_DESKTOP_PACKAGED = '1'
+      MEMOFLOW_MSIX_TEST = '1'
+    }
+  } | ConvertTo-Json -Depth 3 -Compress
+  $runnerSource = @'
 const { spawnSync } = require("node:child_process");
 const { openSync, closeSync, writeSync, writeFileSync } = require("node:fs");
 const { join } = require("node:path");
-const root = process.env.MEMOFLOW_MSIX_SMOKE_ROOT;
+const config = __MEMOFLOW_CONFIG__;
+const root = config.root;
+writeFileSync(join(root, ".qa-results/msix-smoke-started.txt"), String(process.pid));
 const log = openSync(join(root, ".qa-results/msix-smoke.log"), "w");
 let status = 1;
 try {
   const run = spawnSync(process.execPath, [join(root, "tests/desktop-smoke.cjs")], {
     cwd: root,
-    env: process.env,
+    env: { ...process.env, ...config.env },
     stdio: ["ignore", log, log],
     timeout: 300000,
   });
@@ -57,10 +70,14 @@ try {
   writeFileSync(join(root, ".qa-results/msix-smoke-exit.txt"), String(status));
 }
 process.exitCode = status;
-'@ | Set-Content $runner -Encoding utf8
+'@
+  $runnerSource.Replace('__MEMOFLOW_CONFIG__', $config) | Set-Content $runner -Encoding utf8
   Invoke-CommandInDesktopPackage -PackageFamilyName $package.PackageFamilyName `
     -AppId $identity.applicationId -Command (Get-Command node.exe).Source `
     -Args ('"{0}"' -f $runner) -PreventBreakaway
+  $bootDeadline = (Get-Date).AddSeconds(45)
+  while (!(Test-Path $started) -and (Get-Date) -lt $bootDeadline) { Start-Sleep -Seconds 1 }
+  if (!(Test-Path $started)) { throw 'The packaged test harness did not start' }
   $deadline = (Get-Date).AddMinutes(6)
   while (!(Test-Path $result) -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 1 }
   if (Test-Path $log) { Get-Content $log -Encoding utf8 }
