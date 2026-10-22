@@ -2,9 +2,6 @@ import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { createRequire } from "node:module";
-
-const { RECOVERY_SCHEME } = createRequire(import.meta.url)("../electron/security.cjs");
 const xml = (value) =>
   String(value).replace(
     /[&<>"']/g,
@@ -44,7 +41,9 @@ export function createMsixManifest(identity, version) {
     identity.packageFamilyName !== `${identity.name}_${publisherId(identity.publisher)}`
   )
     throw new Error("Invalid or mismatched Microsoft Store identity");
-  const protocols = ["lovable", RECOVERY_SCHEME.slice(0, -1)]
+  // Windows limits protocol registrations to 39 characters. Store password
+  // recovery uses the existing HTTPS form, rather than the longer mobile URI.
+  const protocols = ["lovable"]
     .map(
       (scheme) => `
           <uap3:Extension Category="windows.protocol">

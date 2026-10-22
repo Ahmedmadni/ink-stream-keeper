@@ -47,10 +47,14 @@ artifact, not a publicly trusted sideload package before Store signing.
 
 ## Desktop integration
 
-The manifest registers `lovable` for OAuth and the existing application scheme
-for password recovery. It passes a quoted URI as an argument to the desktop
-executable. Existing URI allowlists and OAuth random-state verification still
-apply. A Store process does not attempt to rewrite ordinary protocol registry
+The manifest registers `lovable` for OAuth, passing a quoted URI as an argument
+to the desktop executable. Existing URI allowlists and OAuth random-state
+verification still apply. Windows restricts protocol names to 39 characters, so
+the longer mobile password-recovery scheme cannot be declared in the MSIX.
+Store password reset instead uses the existing HTTPS `/auth?recovery=1` browser
+form, then asks the user to sign in with the new password. This works with the
+existing hosted recovery page and needs no new Supabase redirect configuration.
+Android and portable desktop retain their existing recovery handoff. A Store process does not attempt to rewrite ordinary protocol registry
 entries. Its application user model ID matches the Store package family.
 
 The desktop capability is `runFullTrust`, with no administrator/elevation

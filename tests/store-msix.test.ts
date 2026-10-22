@@ -18,15 +18,17 @@ describe("Microsoft Store submission identity", () => {
       ),
     ).toThrow();
   });
-  test("preserves OAuth and password-recovery URI activation in the manifest", () => {
+  test("preserves OAuth activation and respects the Windows protocol length limit", () => {
     const manifest = createMsixManifest(identity, "1.2.11");
     expect(manifest).toContain('Version="1.2.11.0"');
     expect(manifest).toContain('Executable="app\\MemoFlow.exe"');
     expect(manifest).toContain('EntryPoint="Windows.FullTrustApplication"');
     expect(manifest).toContain('Name="lovable" Parameters="&quot;%1&quot;"');
-    expect(manifest).toContain(
-      'Name="app.lovable.c357f296dbad4d33991e76d86c92e6d0" Parameters="&quot;%1&quot;"',
+    const protocols = [...manifest.matchAll(/<uap3:Protocol Name="([^"]+)"/g)].map(
+      (match) => match[1],
     );
+    expect(protocols).toEqual(["lovable"]);
+    expect(protocols.every((scheme) => scheme.length <= 39)).toBe(true);
     expect(manifest).toContain('Capability Name="runFullTrust"');
     expect(manifest).not.toContain("allowElevation");
     const escaped = createMsixManifest(

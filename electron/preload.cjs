@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("memoFlowDesktop", {
   isDesktop: true,
+  isWindowsStore: process.windowsStore === true,
   version: "1.2.11",
   setFloatingOwner: (userId) => ipcRenderer.invoke("memoflow:floating:owner", userId),
   openFloatingCard: (card) => ipcRenderer.invoke("memoflow:floating:open", card),

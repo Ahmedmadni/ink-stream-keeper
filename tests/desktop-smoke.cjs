@@ -110,6 +110,7 @@ const vaultEntries = [
 (async () => {
   let desktop, page;
   const errors = [];
+  let recoveryRedirect;
   try {
     desktop = await electron.launch({
       executablePath: process.env.MEMOFLOW_ELECTRON_PATH,
@@ -129,6 +130,14 @@ const vaultEntries = [
     await context.route(backend + "/**", async (route) => {
       const url = new URL(route.request().url());
       if (url.pathname.endsWith("/auth/v1/user")) return route.fulfill({ json: user });
+      if (url.pathname.endsWith("/auth/v1/recover")) {
+        if (route.request().method() === "POST") {
+          assert.equal(route.request().postDataJSON().email, user.email);
+          recoveryRedirect = url.searchParams.get("redirect_to");
+        }
+        return route.fulfill({ json: {} });
+      }
+
       if (url.pathname.includes("/auth/v1/token"))
         return route.fulfill({
           json: {
@@ -185,6 +194,25 @@ const vaultEntries = [
     assert.equal(await page.evaluate(() => location.protocol), "memoflow:");
     assert.equal(await page.evaluate(() => typeof window.require), "undefined");
     assert.equal(await page.evaluate(() => window.memoFlowDesktop.version), "1.2.11");
+    if (process.env.MEMOFLOW_MSIX_TEST === "1") {
+      assert.equal(await page.evaluate(() => window.memoFlowDesktop.isWindowsStore), true);
+      await page.getByRole("button", { name: "نسيت كلمة المرور؟", exact: true }).click();
+      await page.getByPlaceholder("you@example.com", { exact: true }).fill(user.email);
+      await page.getByRole("button", { name: "إرسال رابط الاستعادة", exact: true }).click();
+      await page
+        .getByText(
+          "أرسلنا رابط الاستعادة إن كان البريد مسجلًا. افتحه في المتصفح لتغيير كلمة المرور، ثم سجّل الدخول هنا.",
+          { exact: true },
+        )
+        .waitFor();
+      const recovery = new URL(recoveryRedirect);
+      assert.equal(recovery.origin, "https://ink-stream-keeper.lovable.app");
+      assert.equal(recovery.pathname, "/auth");
+      assert.equal(recovery.searchParams.get("recovery"), "1");
+      assert.equal(recovery.searchParams.has("native_recovery"), false);
+      await page.getByRole("button", { name: "العودة لتسجيل الدخول", exact: true }).click();
+    }
+
     await desktop.evaluate(({ shell }) => {
       global.__openedOAuth = null;
       shell.openExternal = async (url) => {
