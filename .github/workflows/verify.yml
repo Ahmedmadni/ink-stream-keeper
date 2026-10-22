@@ -149,6 +149,20 @@ jobs:
         run: bun run test:desktop
       - name: Create Windows download
         run: Compress-Archive -Path desktop-dist/MemoFlow-win32-x64 -DestinationPath MemoFlow-Windows-1.2.11.zip
+      - name: Build and validate the Microsoft Store MSIX
+        run: ./scripts/package-msix.ps1
+      - name: Exercise the registered MSIX and its protocol callback
+        shell: powershell
+        run: ./scripts/test-msix.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MemoFlow-Microsoft-Store
+          path: |
+            desktop-dist/store/*.msix
+            desktop-dist/store/*.sha256
+            desktop-dist/store/AppxManifest.xml
+            desktop-dist/store/store-identity.json
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: MemoFlow-Windows-Release

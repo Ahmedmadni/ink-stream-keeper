@@ -2,6 +2,7 @@ const { _electron: electron } = require("playwright");
 const { readFileSync, mkdirSync } = require("node:fs");
 const { resolve } = require("node:path");
 const assert = require("node:assert/strict");
+const { execFileSync } = require("node:child_process");
 
 const root = resolve(__dirname, "..");
 const artifacts = resolve(root, ".qa-results");
@@ -116,6 +117,13 @@ const vaultEntries = [
       timeout: 60000,
     });
     page = await desktop.firstWindow();
+    if (process.env.MEMOFLOW_MSIX_TEST === "1") {
+      assert.equal(
+        await desktop.evaluate(() => process.windowsStore),
+        true,
+        "The application must run with MSIX package identity",
+      );
+    }
     page.on("pageerror", (error) => errors.push(error.message));
     const context = desktop.context();
     await context.route(backend + "/**", async (route) => {
@@ -198,10 +206,19 @@ const vaultEntries = [
     const callback =
       "lovable://oauth-callback#" +
       new URLSearchParams({ state, access_token: jwt, refresh_token: "fixture-refresh" });
-    await desktop.evaluate(
-      ({ app }, raw) => app.emit("open-url", { preventDefault() {} }, raw),
-      callback,
-    );
+    if (process.env.MEMOFLOW_MSIX_TEST === "1") {
+      execFileSync("powershell.exe", [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        `Start-Process -FilePath '${callback.replace(/'/g, "''")}'`,
+      ]);
+    } else {
+      await desktop.evaluate(
+        ({ app }, raw) => app.emit("open-url", { preventDefault() {} }, raw),
+        callback,
+      );
+    }
     await page.getByRole("navigation", { name: "التنقل الجانبي" }).waitFor();
     await page.goto("memoflow://app/tasks");
     await page.getByText(task.title, { exact: true }).waitFor();
