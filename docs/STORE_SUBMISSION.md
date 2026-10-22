@@ -28,7 +28,9 @@ Store identity values and the version, and compares the embedded ASAR hash.
 
 `scripts/test-msix.ps1` temporarily registers the loose package on the disposable
 CI Windows runner, checks the assigned package family, and exercises the
-application with MSIX identity and a real OS OAuth protocol activation. It
+application with MSIX identity and a real OS OAuth protocol activation. The
+harness uses `Invoke-CommandInDesktopPackage -PreventBreakaway` so Electron
+inherits the registered identity instead of starting as a loose executable. It
 removes the test registration and restores the runner's previous developer
 registration policy afterward. No test certificate or modified trust store is
 included in the download. The Store upload package remains unsigned so the
