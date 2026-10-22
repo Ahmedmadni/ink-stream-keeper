@@ -115,8 +115,12 @@ export function parseNativeRecoveryCallback(rawUrl: string): OAuthCallback {
   return { accessToken, refreshToken, error: null };
 }
 
-export function nativeRecoveryRedirectUrl(): string {
-  return `${APP_BACKEND_ORIGIN}/auth?native_recovery=1`;
+export function nativeRecoveryRedirectUrl(
+  inBrowser = desktopBridge()?.isWindowsStore === true,
+): string {
+  // The Store cannot register the long mobile scheme (Windows maximum: 39).
+  // Its existing HTTPS reset form works without new auth redirect settings.
+  return `${APP_BACKEND_ORIGIN}/auth?${inBrowser ? "recovery" : "native_recovery"}=1`;
 }
 
 export function nativeEmailConfirmationRedirectUrl(): string {

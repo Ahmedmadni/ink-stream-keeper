@@ -17,6 +17,7 @@ export type DesktopFloatingStatus = { ids: string[] };
 
 type DesktopBridge = {
   isDesktop: true;
+  isWindowsStore: boolean;
   version: string;
   setFloatingOwner(userId: string | null): Promise<DesktopFloatingStatus>;
   openFloatingCard(card: DesktopFloatingCard): Promise<DesktopFloatingStatus>;

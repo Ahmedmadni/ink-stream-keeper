@@ -109,7 +109,11 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
   app.whenReady().then(() => {
-    if (app.isPackaged) {
+    if (process.windowsStore) {
+      const identity = require("./store-identity.json");
+      app.setAppUserModelId(`${identity.packageFamilyName}!${identity.applicationId}`);
+    }
+    if (app.isPackaged && !process.windowsStore) {
       for (const scheme of ["lovable", RECOVERY_SCHEME.slice(0, -1)])
         app.setAsDefaultProtocolClient(scheme);
     }

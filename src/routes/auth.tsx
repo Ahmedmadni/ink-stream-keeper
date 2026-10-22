@@ -12,6 +12,7 @@ import {
   nativeRecoveryHandoffUrl,
   nativeRecoveryRedirectUrl,
 } from "@/services/native-auth";
+import { desktopBridge } from "@/services/desktop";
 
 type AuthMode = "signin" | "signup" | "forgot" | "reset";
 
@@ -50,6 +51,7 @@ export const Route = createFileRoute("/auth")({
 });
 
 function AuthPage() {
+  const recoverInBrowser = desktopBridge()?.isWindowsStore === true;
   const [mode, setMode] = useState<AuthMode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -162,7 +164,9 @@ function AuthPage() {
       const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, { redirectTo });
       if (error) throw error;
       setNotice(
-        "أرسلنا رابط الاستعادة إن كان البريد مسجلًا. افتحه على هذا الهاتف للعودة إلى MemoFlow.",
+        recoverInBrowser
+          ? "أرسلنا رابط الاستعادة إن كان البريد مسجلًا. افتحه في المتصفح لتغيير كلمة المرور، ثم سجّل الدخول هنا."
+          : "أرسلنا رابط الاستعادة إن كان البريد مسجلًا. افتحه على هذا الهاتف للعودة إلى MemoFlow.",
       );
     } catch (reason) {
       setError(readableAuthError(reason));
@@ -268,7 +272,9 @@ function AuthPage() {
               <KeyRound className="mx-auto mt-4 size-8 text-primary" />
               <h2 className="mt-3 text-center text-lg font-bold">استعادة كلمة المرور</h2>
               <p className="mt-2 text-center text-xs leading-6 text-muted-foreground">
-                سنرسل رابطًا آمنًا إلى بريدك، ثم يعيدك إلى التطبيق لاختيار كلمة مرور جديدة.
+                {recoverInBrowser
+                  ? "سنرسل رابطًا آمنًا إلى بريدك لتغيير كلمة المرور في المتصفح، ثم يمكنك تسجيل الدخول هنا."
+                  : "سنرسل رابطًا آمنًا إلى بريدك، ثم يعيدك إلى التطبيق لاختيار كلمة مرور جديدة."}
               </p>
               <Field
                 label="البريد الإلكتروني"

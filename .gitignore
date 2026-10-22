@@ -42,4 +42,6 @@ electron/web/
 electron/app.ico
 electron/app.png
 desktop-dist/
+*.msix
+*.msixupload
 electron/floating/fonts/

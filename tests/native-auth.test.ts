@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   nativeRecoveryHandoffUrl,
+  nativeRecoveryRedirectUrl,
   OAUTH_CALLBACK_URI,
   parseNativeOAuthCallback,
   parseNativeRecoveryCallback,
@@ -78,5 +79,13 @@ describe("native password recovery callback", () => {
     const url = nativeRecoveryHandoffUrl("access", "refresh");
     expect(url.startsWith(`${recovery}#`)).toBe(true);
     expect(url).toContain("type=recovery");
+  });
+  test("Store recovery uses the existing browser form without the long mobile scheme", () => {
+    const store = new URL(nativeRecoveryRedirectUrl(true));
+    expect(store.protocol).toBe("https:");
+    expect(store.pathname).toBe("/auth");
+    expect(store.searchParams.get("recovery")).toBe("1");
+    expect(store.searchParams.has("native_recovery")).toBe(false);
+    expect(new URL(nativeRecoveryRedirectUrl(false)).searchParams.get("native_recovery")).toBe("1");
   });
 });

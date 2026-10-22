@@ -2,6 +2,7 @@ const { _electron: electron } = require("playwright");
 const { readFileSync, mkdirSync } = require("node:fs");
 const { resolve } = require("node:path");
 const assert = require("node:assert/strict");
+const { execFileSync } = require("node:child_process");
 
 const root = resolve(__dirname, "..");
 const artifacts = resolve(root, ".qa-results");
@@ -109,6 +110,7 @@ const vaultEntries = [
 (async () => {
   let desktop, page;
   const errors = [];
+  let recoveryRedirect;
   try {
     desktop = await electron.launch({
       executablePath: process.env.MEMOFLOW_ELECTRON_PATH,
@@ -116,11 +118,27 @@ const vaultEntries = [
       timeout: 60000,
     });
     page = await desktop.firstWindow();
+    if (process.env.MEMOFLOW_MSIX_TEST === "1") {
+      assert.equal(
+        await desktop.evaluate(() => process.windowsStore),
+        true,
+        "The application must run with MSIX package identity",
+      );
+      console.log("PASS: Electron is running with MSIX package identity.");
+    }
     page.on("pageerror", (error) => errors.push(error.message));
     const context = desktop.context();
     await context.route(backend + "/**", async (route) => {
       const url = new URL(route.request().url());
       if (url.pathname.endsWith("/auth/v1/user")) return route.fulfill({ json: user });
+      if (url.pathname.endsWith("/auth/v1/recover")) {
+        if (route.request().method() === "POST") {
+          assert.equal(route.request().postDataJSON().email, user.email);
+          recoveryRedirect = url.searchParams.get("redirect_to");
+        }
+        return route.fulfill({ json: {} });
+      }
+
       if (url.pathname.includes("/auth/v1/token"))
         return route.fulfill({
           json: {
@@ -177,6 +195,25 @@ const vaultEntries = [
     assert.equal(await page.evaluate(() => location.protocol), "memoflow:");
     assert.equal(await page.evaluate(() => typeof window.require), "undefined");
     assert.equal(await page.evaluate(() => window.memoFlowDesktop.version), "1.2.11");
+    if (process.env.MEMOFLOW_MSIX_TEST === "1") {
+      assert.equal(await page.evaluate(() => window.memoFlowDesktop.isWindowsStore), true);
+      await page.getByRole("button", { name: "نسيت كلمة المرور؟", exact: true }).click();
+      await page.getByPlaceholder("you@example.com", { exact: true }).fill(user.email);
+      await page.getByRole("button", { name: "إرسال رابط الاستعادة", exact: true }).click();
+      await page
+        .getByText(
+          "أرسلنا رابط الاستعادة إن كان البريد مسجلًا. افتحه في المتصفح لتغيير كلمة المرور، ثم سجّل الدخول هنا.",
+          { exact: true },
+        )
+        .waitFor();
+      const recovery = new URL(recoveryRedirect);
+      assert.equal(recovery.origin, "https://ink-stream-keeper.lovable.app");
+      assert.equal(recovery.pathname, "/auth");
+      assert.equal(recovery.searchParams.get("recovery"), "1");
+      assert.equal(recovery.searchParams.has("native_recovery"), false);
+      await page.getByRole("button", { name: "العودة لتسجيل الدخول", exact: true }).click();
+    }
+
     await desktop.evaluate(({ shell }) => {
       global.__openedOAuth = null;
       shell.openExternal = async (url) => {
@@ -198,10 +235,23 @@ const vaultEntries = [
     const callback =
       "lovable://oauth-callback#" +
       new URLSearchParams({ state, access_token: jwt, refresh_token: "fixture-refresh" });
-    await desktop.evaluate(
-      ({ app }, raw) => app.emit("open-url", { preventDefault() {} }, raw),
-      callback,
-    );
+    if (process.env.MEMOFLOW_MSIX_TEST === "1") {
+      execFileSync(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          `Start-Process -FilePath '${callback.replace(/'/g, "''")}'`,
+        ],
+        { timeout: 60000 },
+      );
+    } else {
+      await desktop.evaluate(
+        ({ app }, raw) => app.emit("open-url", { preventDefault() {} }, raw),
+        callback,
+      );
+    }
     await page.getByRole("navigation", { name: "التنقل الجانبي" }).waitFor();
     await page.goto("memoflow://app/tasks");
     await page.getByText(task.title, { exact: true }).waitFor();
