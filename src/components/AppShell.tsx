@@ -1,5 +1,5 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { NotebookText, CheckSquare, Settings, ShieldCheck } from "lucide-react";
+import { Home, NotebookText, CheckSquare, Settings, ShieldCheck } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 import { useProfile } from "@/lib/data";
 import { useTaskReminders } from "@/hooks/use-task-reminders";
@@ -7,10 +7,11 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { PageFade } from "@/components/motion";
 
 const nav = [
-  { to: "/notes", label: "المذكرات", icon: NotebookText },
-  { to: "/tasks", label: "المهام", icon: CheckSquare },
-  { to: "/vault", label: "الخزنة", icon: ShieldCheck },
-  { to: "/settings", label: "الإعدادات", icon: Settings },
+  { to: "/", label: "الرئيسية", icon: Home, exact: true },
+  { to: "/notes", label: "المذكرات", icon: NotebookText, exact: false },
+  { to: "/tasks", label: "المهام", icon: CheckSquare, exact: false },
+  { to: "/vault", label: "الخزنة", icon: ShieldCheck, exact: false },
+  { to: "/settings", label: "الإعدادات", icon: Settings, exact: false },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
