@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getDialect } from "./dialect";
 import { resolveAppEndpoint } from "@/lib/native-url";
+import { supabase } from "@/integrations/supabase/client";
 
 const TARGET_RATE = 16000;
 
