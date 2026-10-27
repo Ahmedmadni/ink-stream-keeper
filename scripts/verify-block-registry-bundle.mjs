@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-const assetsDir = resolve(".output/public/assets");
+const assetsDir = resolve("dist/client/assets");
 const assetNames = await readdir(assetsDir);
 const javascriptAssets = assetNames.filter((name) => name.endsWith(".js"));
 

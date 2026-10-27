@@ -21,6 +21,18 @@ export const Route = createFileRoute("/api/transcribe")({
           return json({ error: "خدمة التفريغ غير مهيأة." }, 500);
         }
 
+        // Require a signed-in user: verify the Supabase bearer token.
+        const authHeader = request.headers.get("authorization") ?? "";
+        const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+        if (!token) return json({ error: "يلزم تسجيل الدخول." }, 401);
+        const supabaseUrl = process.env["VITE_SUPABASE_URL"];
+        const anonKey = process.env["VITE_SUPABASE_PUBLISHABLE_KEY"];
+        if (!supabaseUrl || !anonKey) return json({ error: "خدمة التفريغ غير مهيأة." }, 500);
+        const whoami = await fetch(`${supabaseUrl}/auth/v1/user`, {
+          headers: { Authorization: `Bearer ${token}`, apikey: anonKey },
+        }).catch(() => null);
+        if (!whoami?.ok) return json({ error: "انتهت الجلسة — سجّل الدخول مجدداً." }, 401);
+
         let form: FormData;
         try {
           form = await request.formData();

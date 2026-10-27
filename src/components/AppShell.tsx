@@ -1,5 +1,5 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { NotebookText, CheckSquare, Settings, ShieldCheck } from "lucide-react";
+import { Home, NotebookText, CheckSquare, Settings, ShieldCheck } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 import { useProfile } from "@/lib/data";
 import { useTaskReminders } from "@/hooks/use-task-reminders";
@@ -7,10 +7,11 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { PageFade } from "@/components/motion";
 
 const nav = [
-  { to: "/notes", label: "المذكرات", icon: NotebookText },
-  { to: "/tasks", label: "المهام", icon: CheckSquare },
-  { to: "/vault", label: "الخزنة", icon: ShieldCheck },
-  { to: "/settings", label: "الإعدادات", icon: Settings },
+  { to: "/", label: "الرئيسية", icon: Home, exact: true },
+  { to: "/notes", label: "المذكرات", icon: NotebookText, exact: false },
+  { to: "/tasks", label: "المهام", icon: CheckSquare, exact: false },
+  { to: "/vault", label: "الخزنة", icon: ShieldCheck, exact: false },
+  { to: "/settings", label: "الإعدادات", icon: Settings, exact: false },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -25,15 +26,15 @@ export function AppShell({ children }: { children: ReactNode }) {
       <CommandPalette />
       <div className="mx-auto max-w-6xl md:grid md:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="sticky top-0 hidden h-dvh border-e border-border px-4 py-8 md:flex md:flex-col">
-          <Link to="/notes" className="mb-10 flex items-center gap-3 px-3 text-xl font-semibold">
+          <Link to="/" className="mb-10 flex items-center gap-3 px-3 text-xl font-semibold">
             <span className="grid size-10 place-items-center rounded-2xl bg-primary text-primary-foreground">
               <NotebookText className="size-5" />
             </span>
             <span dir="ltr">MemoFlow</span>
           </Link>
           <nav aria-label="التنقل الجانبي" className="space-y-2">
-            {nav.map(({ to, label, icon: Icon }) => {
-              const active = pathname.startsWith(to);
+            {nav.map(({ to, label, icon: Icon, exact }) => {
+              const active = exact ? pathname === to : pathname.startsWith(to);
               return (
                 <Link
                   key={to}
@@ -54,7 +55,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           <div className="mx-auto flex max-w-3xl items-center justify-between px-4 pt-[max(env(safe-area-inset-top),0.75rem)] sm:px-5 md:pt-8">
             <Link
-              to="/notes"
+              to="/"
               className="text-sm font-semibold tracking-wide text-muted-foreground"
               dir="ltr"
             >
@@ -77,9 +78,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         aria-label="التنقل الرئيسي"
         className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/90 backdrop-blur-xl safe-bottom safe-x md:hidden"
       >
-        <div className="mx-auto grid max-w-lg grid-cols-4 gap-1 px-2 py-2 sm:gap-2 sm:px-4">
-          {nav.map(({ to, label, icon: Icon }) => {
-            const active = pathname.startsWith(to);
+        <div className="mx-auto grid max-w-lg grid-cols-5 gap-1 px-2 py-2 sm:gap-2 sm:px-4">
+          {nav.map(({ to, label, icon: Icon, exact }) => {
+            const active = exact ? pathname === to : pathname.startsWith(to);
             return (
               <Link
                 key={to}

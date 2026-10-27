@@ -26,7 +26,7 @@ export default defineConfig({
         registerType: "autoUpdate",
         injectRegister: null,
         filename: "sw.js",
-        outDir: ".output/public",
+        outDir: "dist/client",
         devOptions: { enabled: false },
         includeAssets: ["icon.svg", "apple-touch-icon.png", "robots.txt"],
         manifest: false,

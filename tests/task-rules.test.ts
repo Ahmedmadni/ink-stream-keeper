@@ -132,3 +132,13 @@ describe("task checklist semantics", () => {
     expect(localDayKey(advanceTaskDate(new Date(2028, 0, 31), "monthly"))).toBe("2028-02-29");
   });
 });
+
+describe("matchesTask search coverage", () => {
+  const base = { title: "تسوق", done: false, due_at: null, priority: "med" };
+  test("matches description, notes and tags, not only the title", () => {
+    expect(matchesTask({ ...base, description: "شراء حليب وخبز" }, "all", "حليب")).toBe(true);
+    expect(matchesTask({ ...base, notes: "من متجر الحي" }, "all", "متجر")).toBe(true);
+    expect(matchesTask({ ...base, tags: ["بقالة"] }, "all", "بقالة")).toBe(true);
+    expect(matchesTask(base, "all", "حليب")).toBe(false);
+  });
+});

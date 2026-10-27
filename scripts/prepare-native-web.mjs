@@ -1,7 +1,7 @@
 import { copyFile, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-const publicDir = resolve(".output/public");
+const publicDir = resolve("dist/client");
 const shellPath = resolve(publicDir, "_shell.html");
 const indexPath = resolve(publicDir, "index.html");
 
@@ -12,4 +12,4 @@ if (!shell.includes('<script type="module"') || !shell.includes("/assets/")) {
 }
 
 await copyFile(shellPath, indexPath);
-console.log("Prepared bundled Android UI at .output/public/index.html");
+console.log("Prepared bundled Android UI at dist/client/index.html");

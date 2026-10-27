@@ -10,8 +10,12 @@ import { useNotes, useTasks } from "@/lib/data";
 import { plainTextFromHtml } from "@/lib/format";
 
 const NAV = [
+  { to: "/", label: "الرئيسية", icon: Home },
   { to: "/notes", label: "المذكرات", icon: NotebookText },
   { to: "/tasks", label: "المهام", icon: CheckSquare },
+  { to: "/plans", label: "الخطط", icon: Target },
+  { to: "/purchases", label: "المشتريات", icon: ShoppingBag },
+  { to: "/workspaces", label: "مساحات العمل", icon: LayoutGrid },
   { to: "/vault", label: "الخزنة", icon: ShieldCheck },
   { to: "/settings", label: "الإعدادات", icon: Settings },
 ] as const;

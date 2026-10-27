@@ -1,4 +1,12 @@
-export type DatedTask = { title: string; done: boolean; due_at: string | null; priority: string };
+export type DatedTask = {
+  title: string;
+  done: boolean;
+  due_at: string | null;
+  priority: string;
+  description?: string | null;
+  notes?: string | null;
+  tags?: string[];
+};
 export type TaskFilter = "all" | "today" | "upcoming" | "done";
 export type TaskItemSummary = { done: number; total: number; progress: number };
 export type TaskItemPreview = {
@@ -81,7 +89,13 @@ export function matchesTask(
   now = new Date(),
 ): boolean {
   const text = query.trim().toLocaleLowerCase("ar");
-  if (text && !task.title.toLocaleLowerCase("ar").includes(text)) return false;
+  if (text) {
+    const haystack = [task.title, task.description, task.notes, ...(task.tags ?? [])]
+      .filter(Boolean)
+      .join("\n")
+      .toLocaleLowerCase("ar");
+    if (!haystack.includes(text)) return false;
+  }
   if (filter === "done") return task.done;
   if (task.done) return false;
   if (filter === "all") return true;
