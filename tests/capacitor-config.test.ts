@@ -9,7 +9,7 @@ describe("Android bundled app configuration", () => {
   });
 
   test("loads the UI bundled in the APK", () => {
-    expect(config.webDir).toBe(".output/public");
+    expect(config.webDir).toBe("dist/client");
     expect(config.server?.url).toBeUndefined();
   });
 

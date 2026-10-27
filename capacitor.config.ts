@@ -6,7 +6,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 const config: CapacitorConfig = {
   appId: "com.ahmedmadni.memoflow",
   appName: "MemoFlow",
-  webDir: ".output/public",
+  webDir: "dist/client",
   // Plugin calls carry PINs and encrypted backup payloads; never mirror their
   // arguments into Android logcat, including in test/debug APKs.
   loggingBehavior: "none",

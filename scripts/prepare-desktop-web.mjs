@@ -1,7 +1,7 @@
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-const source = resolve(".output/public");
+const source = resolve("dist/client");
 const target = resolve("electron/web");
 const shell = await readFile(resolve(source, "index.html"), "utf8");
 if (!shell.includes('<script type="module"') || !shell.includes("/assets/")) {
