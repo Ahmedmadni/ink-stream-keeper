@@ -62,7 +62,14 @@ export async function transcribeBlob(blob: Blob, language?: string): Promise<str
   fd.append("file", blob, `recording.${ext}`);
   fd.append("language", language || "ar");
   fd.append("dialect", getDialect());
-  const res = await fetch(resolveAppEndpoint("/api/transcribe"), { method: "POST", body: fd });
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) throw new Error("يلزم تسجيل الدخول لتفريغ الصوت.");
+  const res = await fetch(resolveAppEndpoint("/api/transcribe"), {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd,
+  });
   const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
   if (!res.ok) throw new Error(data.error || "تعذّر تفريغ الصوت.");
   return (data.text ?? "").trim();
