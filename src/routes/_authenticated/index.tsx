@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  CheckSquare, LayoutGrid, NotebookText, Plus, ShoppingBag, Target,
+  CheckSquare, LayoutGrid, NotebookText, Plus, Settings, ShieldCheck, ShoppingBag, Target,
 } from "lucide-react";
 import { icons, Folder } from "lucide-react";
 import { useCategories, useNotes, useProfile, useTasks } from "@/lib/data";
