@@ -86,9 +86,13 @@ function HomePage() {
         </div>
       </section>
 
-      <section aria-label="أقسام أخرى" className="mt-8 grid grid-cols-2 gap-3 pb-4">
+      <section aria-label="الأقسام الرئيسية" className="mt-8 grid grid-cols-3 gap-3 pb-4">
+        <QuickLink to="/notes" icon={NotebookText} label="المذكرات" />
+        <QuickLink to="/tasks" icon={CheckSquare} label="المهام" />
+        <QuickLink to="/vault" icon={ShieldCheck} label="الخزنة" />
         <QuickLink to="/plans" icon={Target} label="الخطط" />
         <QuickLink to="/purchases" icon={ShoppingBag} label="المشتريات" />
+        <QuickLink to="/settings" icon={Settings} label="الإعدادات" />
       </section>
     </div>
   );
