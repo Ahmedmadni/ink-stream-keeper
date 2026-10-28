@@ -122,7 +122,7 @@ function QuickLink({ to, icon: Icon, label }: { to: string; icon: typeof Target;
   return (
     <Link
       to={to as never}
-      className="glass flex items-center gap-3 rounded-2xl border p-4 text-sm font-medium"
+      className="glass flex flex-col items-center gap-2 rounded-2xl border p-4 text-sm font-medium transition-transform active:scale-[0.98]"
     >
       <Icon className="size-5 text-primary" />
       {label}
