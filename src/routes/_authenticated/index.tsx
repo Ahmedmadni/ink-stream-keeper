@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   CheckSquare, LayoutGrid, NotebookText, Plus, ShoppingBag, Target,
 } from "lucide-react";
+import { icons, Folder } from "lucide-react";
 import { useCategories, useNotes, useProfile, useTasks } from "@/lib/data";
 
 export const Route = createFileRoute("/_authenticated/")({
@@ -73,9 +74,10 @@ function HomePage() {
                 search={{ cat: c.id }}
                 className="glass flex flex-col gap-2 rounded-2xl border p-4 transition-transform active:scale-[0.98]"
               >
-                <span className="text-2xl" aria-hidden>
-                  {c.icon || "🗂️"}
-                </span>
+                {(() => {
+                  const I = (c.icon && ((icons as Record<string, typeof Folder>)[c.icon] ?? (icons as Record<string, typeof Folder>)[c.icon] ?? (c.icon === "CheckSquare" ? CheckSquare : undefined))) || null;
+                  return I ? <I className="h-6 w-6" aria-hidden /> : <span className="text-2xl" aria-hidden>{c.icon || "🗂️"}</span>;
+                })()}
                 <span className="truncate text-sm font-medium">{c.name}</span>
                 <span className="text-xs text-muted-foreground">{count} مذكرة</span>
               </Link>
