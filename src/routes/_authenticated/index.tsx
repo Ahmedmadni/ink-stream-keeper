@@ -75,7 +75,7 @@ function HomePage() {
                 className="glass flex flex-col gap-2 rounded-2xl border p-4 transition-transform active:scale-[0.98]"
               >
                 {(() => {
-                  const I = (c.icon && ((icons as Record<string, typeof Folder>)[c.icon] ?? (icons as Record<string, typeof Folder>)[({ CheckSquare: "SquareCheck" } as Record<string, string>)[c.icon] ?? ""])) || null;
+                  const I = (c.icon && ((icons as Record<string, typeof Folder>)[c.icon] ?? (icons as Record<string, typeof Folder>)[c.icon] ?? (c.icon === "CheckSquare" ? CheckSquare : undefined))) || null;
                   return I ? <I className="h-6 w-6" aria-hidden /> : <span className="text-2xl" aria-hidden>{c.icon || "🗂️"}</span>;
                 })()}
                 <span className="truncate text-sm font-medium">{c.name}</span>
