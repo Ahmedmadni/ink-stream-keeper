@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import DOMPurify from "dompurify";
 import { ExternalLink, X, FileText, CheckSquare, ShoppingBag, Target, LayoutGrid } from "lucide-react";
 import { usePanel, type PanelKind } from "@/hooks/use-panel";
 import { useNote, useTask, useChecklist, useSubtasks } from "@/lib/data";
@@ -156,7 +157,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 function renderPreview(value: string): string {
   if (!value) return "<p class='text-muted-foreground'>لا يوجد محتوى بعد.</p>";
   const trimmed = value.trim();
-  if (trimmed.startsWith("<")) return value;
+  if (trimmed.startsWith("<")) return DOMPurify.sanitize(value);
   return trimmed.split(/\n+/).map((l) => `<p>${escape(l)}</p>`).join("");
 }
 function escape(s: string): string {
