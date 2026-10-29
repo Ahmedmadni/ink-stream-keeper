@@ -35,6 +35,29 @@ The download is a portable folder; it is not an installer.
 The executable has no Windows publisher certificate configured. The Android
 distribution key is separate and is never used as a Windows code-signing key.
 
+## Current-source Android, Windows and macOS packages
+
+Run the `Package current MemoFlow native apps` workflow from the desired source
+revision. Each job rebuilds the shared local SPA from that revision; publishing
+the website does not update an already installed Android or desktop application.
+The workflow is independent of the web-server release job and saves artifacts
+with the source revision in their names. It produces an Android **test APK**,
+Windows x64 ZIP, and macOS Apple Silicon / Intel ZIPs. Desktop packages must pass
+the existing packaged-application smoke checks before their ZIP is uploaded.
+
+The test APK uses a debug certificate and cannot replace a production app signed
+with another key. Use `Build signed MemoFlow release` with the existing protected
+distribution key for production Android updates. Windows packages are unsigned
+unless the existing signing step is configured. macOS packages are unsigned and
+not notarized; trusted public distribution needs an Apple Developer signing and
+notarization identity. No operating-system warning is bypassed.
+
+For a local Mac package, perform the shared native build and desktop preparation
+above, set `MEMOFLOW_MAC_ARCH` to `arm64` or `x64`, then run
+`node scripts/package-macos.mjs` with the same pinned packaging tools.
+`electron/Info.plist` provides the microphone usage description, and packaging
+registers the supported authentication and recovery URL schemes.
+
 ## Floating tasks and notes — 1.2.11
 
 Drag a task or note card outside the main window, or use its floating-card button. Each
