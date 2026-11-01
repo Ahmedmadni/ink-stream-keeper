@@ -5,6 +5,9 @@ import { useProfile } from "@/lib/data";
 import { useTaskReminders } from "@/hooks/use-task-reminders";
 import { CommandPalette } from "@/components/CommandPalette";
 import { PageFade } from "@/components/motion";
+import { BrandMark } from "@/components/BrandMark";
+import { ConnectionStatus } from "@/components/ConnectionStatus";
+import { Button } from "@/components/ui/button";
 
 const nav = [
   { to: "/", label: "الرئيسية", icon: Home, exact: true },
@@ -27,9 +30,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="mx-auto max-w-6xl md:grid md:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="sticky top-0 hidden h-dvh border-e border-border px-4 py-8 md:flex md:flex-col">
           <Link to="/" className="mb-10 flex items-center gap-3 px-3 text-xl font-semibold">
-            <span className="grid size-10 place-items-center rounded-2xl bg-primary text-primary-foreground">
-              <NotebookText className="size-5" />
-            </span>
+            <BrandMark />
             <span dir="ltr">MemoFlow</span>
           </Link>
           <nav aria-label="التنقل الجانبي" className="space-y-2">
@@ -40,7 +41,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   key={to}
                   to={to}
                   aria-current={active ? "page" : undefined}
-                  className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium ${active ? "bg-primary-soft text-primary" : "text-muted-foreground hover:bg-secondary"}`}
+                  className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${active ? "bg-primary-soft text-primary" : "text-muted-foreground hover:bg-secondary"}`}
                 >
                   <Icon className="size-5" />
                   {label}
@@ -56,18 +57,15 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="mx-auto flex max-w-3xl items-center justify-between px-4 pt-[max(env(safe-area-inset-top),0.75rem)] sm:px-5 md:pt-8">
             <Link
               to="/"
-              className="text-sm font-semibold tracking-wide text-muted-foreground"
+              className="flex items-center gap-2 text-sm font-semibold md:hidden"
               dir="ltr"
             >
-              MemoFlow
+              <BrandMark className="size-8" /> MemoFlow
             </Link>
-            <Link
-              to="/settings"
-              aria-label="الإعدادات"
-              className="grid size-11 place-items-center rounded-full text-muted-foreground hover:bg-secondary"
-            >
-              <Settings className="size-5" />
-            </Link>
+            <ConnectionStatus />
+            <Button asChild variant="ghost" size="icon" className="size-11 shrink-0 rounded-lg md:hidden">
+              <Link to="/create" aria-label="إضافة جديدة" title="إضافة جديدة"><span className="text-2xl" aria-hidden="true">+</span></Link>
+            </Button>
           </div>
           <PageFade key={pathname} className="mx-auto max-w-3xl">
             {children}
@@ -111,7 +109,7 @@ export function PageHeader({
   return (
     <header className="flex items-center justify-between gap-3 px-4 pb-4 pt-3 sm:px-5 sm:pb-6 sm:pt-4">
       <div className="min-w-0">
-        <h1 className="text-[clamp(1.4rem,6vw,1.875rem)] font-semibold leading-tight">{title}</h1>
+        <h1 className="break-words text-2xl font-semibold leading-tight sm:text-3xl">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
       </div>
       {action}
