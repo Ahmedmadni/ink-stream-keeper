@@ -11,3 +11,4 @@
 
 - Mobile: Capacitor ships a local SPA bundle (`build:native` promotes TanStack Start's `_shell.html` to `index.html`). Keep `server.url` unset so installed builds cannot silently load an older published UI. Remote-only features must call explicit HTTPS endpoints; native APIs load lazily behind `isNative()`.
 - Desktop: Electron packages the same locally built SPA; publishing never updates an installed bundle. Use the standalone native-apps workflow to rebuild Android, Windows and both Mac architectures from one source revision, and require packaged desktop smoke checks before delivering archives so releases cannot silently carry stale UI.
+- Shared interface: use BrandMark for the in-app identity and keep its paths aligned with public/icon.svg; ConnectionStatus reports network activity, while the note editor's autosave status remains authoritative for saved drafts.
