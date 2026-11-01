@@ -360,6 +360,15 @@
 }
 
 /* Tables */
+.task-progress {
+  appearance: none;
+  background: var(--secondary);
+  color: var(--primary);
+}
+.task-progress::-webkit-progress-bar { background: var(--secondary); border-radius: 1rem; }
+.task-progress::-webkit-progress-value { background: var(--primary); border-radius: 1rem; }
+.task-progress::-moz-progress-bar { background: var(--primary); border-radius: 1rem; }
+
 .prose-mf table,
 .prose-mf .mf-table {
   border-collapse: collapse;

@@ -113,17 +113,18 @@ function TasksPage() {
         />
         <CategoryBar
           action={
+            <Button asChild size="icon" className="size-11 shrink-0 rounded-lg">
             <Link
               to="/create"
               search={{
                 kind: "task",
                 category: categoryId !== "all" && categoryId !== "none" ? categoryId : undefined,
               }}
-              className="grid size-12 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground"
               aria-label="مهمة جديدة"
             >
               <Plus className="size-6" />
             </Link>
+            </Button>
           }
         >
           <CategoryChip
@@ -147,14 +148,15 @@ function TasksPage() {
             count={(query.data ?? []).filter((task) => !task.category_id).length}
             onClick={() => setCategoryId("none")}
           />
-          <button
+          <Button
+            variant="ghost"
             type="button"
             onClick={() => setAddingCategory(true)}
             className="flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-dashed border-border px-3 text-sm text-muted-foreground hover:text-foreground"
           >
             <FolderPlus className="size-4" />
             تصنيف جديد
-          </button>
+          </Button>
         </CategoryBar>
         <Dialog open={addingCategory} onOpenChange={setAddingCategory}>
           <DialogContent dir="rtl" className="rounded-2xl">
@@ -186,13 +188,13 @@ function TasksPage() {
                 placeholder="مثل: العمل أو تطوير المواقع"
                 className="min-h-12 min-w-0 flex-1 rounded-xl border border-border bg-background px-3 text-sm outline-none"
               />
-              <button
+              <Button
                 type="submit"
                 disabled={!categoryDraft.trim() || addCategory.isPending}
                 className="min-h-11 rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground disabled:opacity-50"
               >
                 حفظ
-              </button>
+              </Button>
             </form>
           </DialogContent>
         </Dialog>
@@ -204,7 +206,8 @@ function TasksPage() {
             <p className="text-xs leading-6 text-destructive">
               تعذر تحميل تقدم البنود. أُوقف الإكمال اليدوي مؤقتًا لحماية حالة المهام.
             </p>
-            <button
+            <Button
+              variant="outline"
               type="button"
               className="min-h-10 shrink-0 rounded-xl bg-card px-3 text-xs font-semibold"
               onClick={() => {
@@ -212,7 +215,7 @@ function TasksPage() {
               }}
             >
               إعادة المحاولة
-            </button>
+            </Button>
           </div>
         )}
         {query.isLoading ? (
@@ -285,7 +288,7 @@ function TaskCard({
       <DesktopFloatingCard
         card={desktopTaskSnapshot(task, summary)}
         disabled={!summariesReady}
-        className="flex min-h-40 items-start gap-2 rounded-2xl border border-border bg-card p-4 shadow-card transition-shadow hover:shadow-elevated"
+        className="flex min-h-40 items-start gap-2 rounded-lg border border-border bg-card p-3 transition-colors hover:bg-secondary/50"
       >
         <Button
           variant="ghost"
@@ -316,7 +319,7 @@ function TaskCard({
         >
           <div className="flex min-w-0 flex-1 flex-col">
             <p
-              className={`line-clamp-3 break-words text-base font-semibold ${task.done ? "text-muted-foreground line-through" : ""}`}
+              className={`line-clamp-2 break-words text-base font-semibold ${task.done ? "text-muted-foreground line-through" : ""}`}
             >
               {task.title}
             </p>
@@ -349,7 +352,7 @@ function TaskCard({
                 )}
               </ul>
             )}
-            {task.description && (
+            {task.description && !summary?.items.length && (
               <p className="mt-2 line-clamp-2 break-words text-sm leading-relaxed text-muted-foreground">
                 {task.description}
               </p>
@@ -374,13 +377,8 @@ function TaskCard({
                 </span>
               )}
             </div>
-            {summary && (
-              <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-secondary">
-                <div
-                  className="h-full rounded-full bg-primary transition-[width]"
-                  style={{ width: `${summary.progress}%` }}
-                />
-              </div>
+            {summary && summary.total > 0 && (
+              <progress aria-label={`تقدم ${task.title}`} value={summary.progress} max={100} className="task-progress mt-3 h-1 w-full overflow-hidden rounded-full" />
             )}
           </div>
           <div className="flex items-center justify-between text-xs text-muted-foreground">
