@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/page-head";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -28,12 +29,7 @@ import { taskRollupPatch } from "@/features/tasks/task-rules";
 import { checkTaskChecklistBackend } from "@/features/tasks/backend-readiness";
 
 export const Route = createFileRoute("/_authenticated/tasks/$id")({
-  head: ({ params }) => ({
-    meta: [
-      { title: `MemoFlow — مهمة ${params.id}` },
-      { name: "description", content: "تفاصيل المهمة، البنود، المهام الفرعية، والوسوم." },
-    ],
-  }),
+  head: () => pageHead("MemoFlow — تفاصيل المهمة", "متابعة مهمة MemoFlow وبنودها الفرعية ومواعيدها."),
   component: TaskDetail,
 });
 

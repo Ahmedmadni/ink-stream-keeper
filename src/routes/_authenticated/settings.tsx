@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/page-head";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Moon, Lock, LogOut, ChevronLeft, Smartphone } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -18,7 +19,7 @@ import { AboutApp } from "@/components/AboutApp";
 import { VaultPinSettings } from "@/components/VaultPinSettings";
 
 export const Route = createFileRoute("/_authenticated/settings")({
-  head: () => ({ meta: [{ title: "MemoFlow — الإعدادات" }] }),
+  head: () => pageHead("MemoFlow — الإعدادات", "إعدادات المظهر والأمان والتذكيرات والنسخ الاحتياطي في MemoFlow."),
   component: SettingsPage,
 });
 

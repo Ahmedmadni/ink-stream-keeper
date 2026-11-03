@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/page-head";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
@@ -13,12 +14,7 @@ import { ProgressCard } from "@/components/items/ProgressCard";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/_authenticated/purchases/")({
-  head: () => ({
-    meta: [
-      { title: "MemoFlow — قوائم المشتريات" },
-      { name: "description", content: "إدارة قوائم المشتريات والميزانية والمتاجر." },
-    ],
-  }),
+  head: () => pageHead("MemoFlow — قوائم المشتريات", "تنظيم مشترياتك وميزانياتك في MemoFlow."),
   component: PurchasesPage,
 });
 

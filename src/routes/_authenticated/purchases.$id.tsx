@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/page-head";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -17,7 +18,7 @@ import { useItemActions } from "@/lib/engine/actions";
 import { buildPurchaseBlocks } from "@/lib/engine/compositions";
 
 export const Route = createFileRoute("/_authenticated/purchases/$id")({
-  head: () => ({ meta: [{ title: "MemoFlow — قائمة مشتريات" }] }),
+  head: () => pageHead("MemoFlow — تفاصيل قائمة المشتريات", "متابعة عناصر قائمة MemoFlow وكمياتها وتكلفتها."),
   component: PurchaseDetail,
 });
 

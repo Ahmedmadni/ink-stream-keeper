@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/page-head";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { ErrorState, LoadingState } from "@/components/feedback";
@@ -35,12 +36,7 @@ import { LectureRecorder } from "@/components/speech/LectureRecorder";
 import { SubItemsTree } from "@/components/subitems/SubItemsTree";
 
 export const Route = createFileRoute("/_authenticated/notes/$id")({
-  head: ({ params }) => ({
-    meta: [
-      { title: `MemoFlow — ملاحظة ${params.id}` },
-      { name: "description", content: "عرض وتحرير الملاحظة." },
-    ],
-  }),
+  head: () => pageHead("MemoFlow — تحرير المذكرة", "تحرير مذكرات MemoFlow ومرفقاتها وبنودها."),
   component: NoteDetail,
 });
 

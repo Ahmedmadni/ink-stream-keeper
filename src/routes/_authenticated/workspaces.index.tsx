@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/page-head";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { FolderKanban, Plus, Star, Archive, Loader2, X } from "lucide-react";
@@ -8,12 +9,7 @@ import {
 } from "@/lib/workspaces";
 
 export const Route = createFileRoute("/_authenticated/workspaces/")({
-  head: () => ({
-    meta: [
-      { title: "MemoFlow — مساحات العمل" },
-      { name: "description", content: "نظّم مهامك وملاحظاتك ومشترياتك داخل مساحات عمل موحّدة." },
-    ],
-  }),
+  head: () => pageHead("MemoFlow — مساحات العمل", "جمع مذكراتك ومهامك ومشترياتك داخل مساحات MemoFlow."),
   component: WorkspacesPage,
 });
 
