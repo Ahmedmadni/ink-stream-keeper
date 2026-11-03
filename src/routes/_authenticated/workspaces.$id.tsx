@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/page-head";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
@@ -19,7 +20,7 @@ import { formatRelative } from "@/lib/format";
 import { ITEM_TYPES, type ItemTypeKey } from "@/lib/item-types";
 
 export const Route = createFileRoute("/_authenticated/workspaces/$id")({
-  head: () => ({ meta: [{ title: "MemoFlow — مساحة عمل" }] }),
+  head: () => pageHead("MemoFlow — تفاصيل مساحة العمل", "متابعة العناصر المرتبطة والنشاط داخل مساحة MemoFlow."),
   component: WorkspaceDetail,
 });
 

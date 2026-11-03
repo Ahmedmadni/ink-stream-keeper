@@ -18,7 +18,7 @@ export function ConnectionStatus() {
     };
   }, []);
   const Icon = !online ? WifiOff : saving ? CloudUpload : fetching ? Loader2 : CloudCheck;
-  const label = !online ? "دون اتصال · استخدام محدود" : saving ? "جارٍ الحفظ" : fetching ? "جارٍ التحديث" : "متصل";
+  const label = !online ? "دون اتصال · استخدام محدود" : saving ? "جارٍ الإرسال" : fetching ? "جارٍ التحديث" : "متصل";
   return (
     <span role="status" aria-live="polite" className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
       <Icon aria-hidden="true" className={`size-4 shrink-0 ${online && fetching && !saving ? "animate-spin" : ""}`} />

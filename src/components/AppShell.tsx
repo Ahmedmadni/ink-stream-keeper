@@ -1,5 +1,5 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { Home, NotebookText, CheckSquare, Settings, ShieldCheck } from "lucide-react";
+import { Home, NotebookText, CheckSquare, Settings, ShieldCheck, Plus } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 import { useProfile } from "@/lib/data";
 import { useTaskReminders } from "@/hooks/use-task-reminders";
@@ -63,9 +63,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               <BrandMark className="size-8" /> MemoFlow
             </Link>
             <ConnectionStatus />
-            <Button asChild variant="ghost" size="icon" className="size-11 shrink-0 rounded-lg md:hidden">
-              <Link to="/create" aria-label="إضافة جديدة" title="إضافة جديدة"><span className="text-2xl" aria-hidden="true">+</span></Link>
-            </Button>
+            {pathname !== "/" && !pathname.startsWith("/notes") && !pathname.startsWith("/tasks") && !pathname.startsWith("/create") && (
+              <Button asChild variant="ghost" size="icon" className="size-11 shrink-0 rounded-lg md:hidden">
+                <Link to="/create" aria-label="إضافة جديدة" title="إضافة جديدة"><Plus aria-hidden="true" /></Link>
+              </Button>
+            )}
           </div>
           <PageFade key={pathname} className="mx-auto max-w-3xl">
             {children}

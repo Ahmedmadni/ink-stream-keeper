@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/page-head";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowRight, NotebookPen, CheckSquare, Loader2, FolderPlus } from "lucide-react";
@@ -13,7 +14,7 @@ export const Route = createFileRoute("/_authenticated/create")({
     kind: search.kind === "note" || search.kind === "task" ? search.kind : undefined,
     category: typeof search.category === "string" ? search.category : undefined,
   }),
-  head: () => ({ meta: [{ title: "MemoFlow — إضافة جديدة" }] }),
+  head: () => pageHead("MemoFlow — إضافة جديدة", "إنشاء مذكرة أو مهمة جديدة في MemoFlow."),
   component: CreatePage,
 });
 

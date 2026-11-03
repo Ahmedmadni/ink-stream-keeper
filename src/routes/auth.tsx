@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/page-head";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ArrowRight, KeyRound, Mail, Lock, Loader2 } from "lucide-react";
@@ -38,15 +39,7 @@ function readableAuthError(reason: unknown): string {
 }
 
 export const Route = createFileRoute("/auth")({
-  head: () => ({
-    meta: [
-      { title: "MemoFlow — تسجيل الدخول" },
-      {
-        name: "description",
-        content: "سجّل دخولك أو أنشئ حسابًا جديدًا في MemoFlow لمزامنة ملاحظاتك ومهامك.",
-      },
-    ],
-  }),
+  head: () => pageHead("MemoFlow — تسجيل الدخول", "سجّل دخولك إلى MemoFlow للوصول إلى مذكراتك ومهامك."),
   component: AuthPage,
 });
 

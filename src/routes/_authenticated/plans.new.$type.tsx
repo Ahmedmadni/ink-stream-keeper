@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/page-head";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -6,7 +7,7 @@ import { getPlanSchema, splitPlanValues } from "@/lib/engine/schemas/plan.schema
 import { useCreatePlan, PLAN_TYPES, type PlanType } from "@/lib/plans";
 
 export const Route = createFileRoute("/_authenticated/plans/new/$type")({
-  head: () => ({ meta: [{ title: "MemoFlow — خطة جديدة" }] }),
+  head: () => pageHead("MemoFlow — خطة جديدة", "إنشاء خطة جديدة للأهداف والتعلم والمشاريع في MemoFlow."),
   component: NewPlanPage,
 });
 

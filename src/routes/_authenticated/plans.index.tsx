@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/page-head";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Loader2, Plus, Star, Target, Calendar, ChevronLeft } from "lucide-react";
@@ -5,12 +6,7 @@ import { AppShell, PageHeader } from "@/components/AppShell";
 import { usePlans, usePlanStats, PLAN_TYPES, type PlanType, useUpdatePlan } from "@/lib/plans";
 
 export const Route = createFileRoute("/_authenticated/plans/")({
-  head: () => ({
-    meta: [
-      { title: "MemoFlow — الخطط" },
-      { name: "description", content: "خطط الأهداف، التعلم، المشاريع، السفر والصيانة في مكان واحد." },
-    ],
-  }),
+  head: () => pageHead("MemoFlow — الخطط", "تنظيم أهدافك وخطط التعلم والمشاريع في MemoFlow."),
   component: PlansListPage,
 });
 

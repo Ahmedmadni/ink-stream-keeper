@@ -1,3 +1,4 @@
+import { pageHead } from "@/lib/page-head";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowRight, ListTree } from "lucide-react";
@@ -12,7 +13,7 @@ import { purchaseValuesToInput } from "@/lib/engine/schemas/purchase.schema";
 import { createSubItemsFromOutline } from "@/lib/subitems";
 
 export const Route = createFileRoute("/_authenticated/items/new/$type")({
-  head: () => ({ meta: [{ title: "MemoFlow — إنشاء عنصر" }] }),
+  head: () => pageHead("MemoFlow — إنشاء عنصر", "إنشاء عناصر منظمة وبنود تفصيلية في MemoFlow."),
   component: NewItemPage,
 });
 
