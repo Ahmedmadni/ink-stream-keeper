@@ -157,10 +157,18 @@ jobs:
         shell: pwsh
         run: ./scripts/windows-signature.ps1
 
-      - name: Verify packaged executable
+      - name: Verify Windows executable
+        if: matrix.target == 'win32'
+        shell: pwsh
+        run: |
+          $path = "desktop-dist/MemoFlow-win32-x64/MemoFlow.exe"
+          if (!(Test-Path -LiteralPath $path -PathType Leaf)) { throw "Packaged executable not found: $path" }
+
+      - name: Verify macOS executable
+        if: matrix.target == 'darwin'
         shell: bash
         run: |
-          test -x "desktop-dist/MemoFlow-${{ matrix.target }}-${{ matrix.arch }}/${{ matrix.executable }}"
+          test -x "desktop-dist/MemoFlow-darwin-${{ matrix.arch }}/MemoFlow.app/Contents/MacOS/MemoFlow"
 
       - name: Exercise the actual packaged application
         env:
