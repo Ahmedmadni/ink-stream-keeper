@@ -21,6 +21,9 @@ export default defineConfig({
     ...(isNativeBuild ? { spa: { enabled: true } } : {}),
   },
   vite: {
+    // Native and Electron packages load the built UI from local files.
+    // Keep hosted web builds on the root-relative default.
+    base: isNativeBuild ? "./" : "/",
     plugins: [
       VitePWA({
         registerType: "autoUpdate",

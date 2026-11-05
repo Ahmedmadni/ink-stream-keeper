@@ -10,7 +10,9 @@ permissions:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    # Playwright 1.58.2 does not yet provide Chromium for Ubuntu 26.04.
+    # Pin the browser-test job to a supported, reproducible runner image.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       TZ: Asia/Riyadh
