@@ -18,8 +18,8 @@ try {
   shell = await readFile(indexPath, "utf8");
 }
 
-const hasModuleEntry = /<script\\b[^>]*type=["']module["']/i.test(shell);
-const hasAssetReferences = /(?:\\.\\/)?assets\\//.test(shell);
+const hasModuleEntry = /<script\b[^>]*type=["']module["']/i.test(shell);
+const hasAssetReferences = /(?:\.\/)?assets\//.test(shell);
 if (!hasModuleEntry || !hasAssetReferences) {
   throw new Error(
     `TanStack Start did not emit a runnable native SPA document at ${sourcePath}`,
