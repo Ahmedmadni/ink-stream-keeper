@@ -304,7 +304,7 @@ const vaultPinWrites = [];
     await page.evaluate(() => document.fonts.ready);
     assert.equal(
       await page.getByRole("navigation", { name: "التنقل الرئيسي" }).getByRole("link").count(),
-      4,
+      5,
     );
     await page.evaluate(() =>
       document.fonts.load('400 16px "IBM Plex Sans Arabic"', "مذكرات MemoFlow"),
