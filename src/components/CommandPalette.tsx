@@ -84,7 +84,7 @@ export function CommandPalette() {
         {visibleTasks.length > 0 && (
           <CommandGroup heading="المهام">
             {visibleTasks.map((t) => (
-              <CommandItem key={t.id} value={`مهمة ${t.title}`} onSelect={() => go("/tasks/$id", { id: t.id })}>
+              <CommandItem key={t.id} value={`مهمة ${t.title} ${t.description ?? ""} ${t.notes ?? ""}`} onSelect={() => go("/tasks/$id", { id: t.id })}>
                 <CheckSquare /> <span className="truncate">{t.title}</span>
               </CommandItem>
             ))}
@@ -95,7 +95,7 @@ export function CommandPalette() {
             {visibleNotes.map((n) => (
               <CommandItem
                 key={n.id}
-                value={`ملاحظة ${n.title} ${plainTextFromHtml(n.content ?? "").slice(0, 60)}`}
+                value={`ملاحظة ${n.title} ${plainTextFromHtml(n.content ?? "")}`}
                 onSelect={() => go("/notes/$id", { id: n.id })}
               >
                 <NotebookText /> <span className="truncate">{n.title || "بدون عنوان"}</span>
