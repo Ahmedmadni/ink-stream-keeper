@@ -206,14 +206,45 @@ const vaultEntries = [
     try {
       await page.getByRole("button", { name: "المتابعة عبر Google", exact: true }).waitFor({ timeout: 15000 });
     } catch (error) {
+      const probe = await page.evaluate(async () => {
+        const src = document.querySelector('script[type="module"][src]')?.src;
+        let entry = null;
+        try {
+          if (src) {
+            const response = await fetch(src);
+            entry = {
+              status: response.status,
+              contentType: response.headers.get("content-type"),
+              bytes: (await response.arrayBuffer()).byteLength,
+            };
+          }
+        } catch (failure) {
+          entry = { error: String(failure) };
+        }
+        return {
+          entry,
+          src,
+          readyState: document.readyState,
+          resources: performance.getEntriesByType("resource")
+            .filter((item) => item.name.startsWith("memoflow://"))
+            .map((item) => ({ name: item.name.slice(-100), duration: Math.round(item.duration) }))
+            .slice(0, 12),
+        };
+      });
       console.error("Desktop resource diagnostics", {
         assetErrors: assetErrors.slice(0, 20),
-        inlineScripts: await page.locator("script[src]").evaluateAll(
-          (nodes) => nodes.map((node) => node.getAttribute("src")).slice(0, 8),
-        ),
+        probe,
         title: await page.title(),
         bodyLength: await page.locator("body").evaluate((body) => body.innerHTML.length),
         runtimeErrors: errors.slice(0, 8),
+      });
+      // Reload only for diagnosis and keep the cold-start failure visible.
+      await page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
+      await page.waitForTimeout(750);
+      console.error("Desktop after diagnostic reload", {
+        assetErrors: assetErrors.slice(-20),
+        runtimeErrors: errors.slice(-10),
+        body: (await page.locator("body").innerText().catch(() => "")).slice(0, 250),
       });
       throw error;
     }
