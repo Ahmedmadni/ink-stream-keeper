@@ -99,6 +99,12 @@ function NotesPage() {
         </CategoryBar>
       </div>
 
+      {notesQuery.isPending && notesQuery.fetchStatus === "paused" && (
+        <p role="status" className="mx-5 rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm">
+          لم تُحمّل المذكرات في هذه الجلسة قبل انقطاع الإنترنت. أعد الاتصال لعرضها؛
+          لم تُحذف أي مذكرات.
+        </p>
+      )}
       {notesQuery.isLoading && <LoadingState />}
       {notesQuery.isError && (
         <ErrorState
@@ -109,7 +115,7 @@ function NotesPage() {
         />
       )}
       <div className="mt-4 grid grid-cols-1 gap-4 px-5 sm:grid-cols-2" aria-label="بطاقات المذكرات">
-        {!notesQuery.isLoading && !notesQuery.isError && filtered.length === 0 && (
+        {!notesQuery.isPending && !notesQuery.isError && filtered.length === 0 && (
           <div className="col-span-full py-8 text-center text-sm text-muted-foreground">
             لا توجد ملاحظات مطابقة.
           </div>
