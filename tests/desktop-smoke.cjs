@@ -363,6 +363,19 @@ const vaultEntries = [
     // and render them even with the Supabase backend entirely unreachable.
     const archivePassphrase = "desktop archive phrase 2026!";
     await page.goto("memoflow://app/settings");
+    // A preceding packaged smoke run can leave UNSAVED FIXTURE drafts in the
+    // same Windows userData profile (notably when MSIX tests run afterward).
+    // Clean only this synthetic CI account to avoid mistaking a legitimate
+    // production safety guard for an offline archive malfunction.
+    await page.evaluate((accountId) => {
+      const prefix = `memoflow.note-draft.v1:${encodeURIComponent(accountId)}:`;
+      const keys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith(prefix)) keys.push(key);
+      }
+      keys.forEach((key) => localStorage.removeItem(key));
+    }, user.id);
     await page.getByRole("heading", { name: "أرشيف محلي اختياري" }).waitFor();
     await page.getByLabel("كلمة مرور النسخة (12 حرفًا على الأقل)").fill(archivePassphrase);
     await page.getByLabel("تأكيد كلمة المرور").fill(archivePassphrase);
