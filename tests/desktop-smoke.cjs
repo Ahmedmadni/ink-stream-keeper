@@ -280,8 +280,16 @@ const vaultEntries = [
           return { result: "unexpected", message: String(reason) };
         }
       });
+      const bootState = await page.evaluate(() => ({
+        streamInitialized: window.$_TSR?.initialized,
+        streamHydrated: window.$_TSR?.hydrated,
+        streamEnded: window.$_TSR?.streamEnded,
+        hasClientOptions: Boolean(window.__TSS_START_OPTIONS__),
+        readyState: document.readyState,
+      }));
       console.error("Desktop module execution diagnostics", {
         moduleExecution,
+        bootState,
         cdpProblems: cdpProblems.slice(0, 20),
         assetErrors: assetErrors.slice(-20),
         runtimeErrors: errors.slice(-10),
