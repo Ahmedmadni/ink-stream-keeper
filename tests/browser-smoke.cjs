@@ -339,6 +339,22 @@ const vaultPinWrites = [];
           parseFloat(getComputedStyle(node.previousElementSibling).fontSize),
       ),
     );
+    // A previously verified tab can navigate among cached lists while offline.
+    await page
+      .getByRole("navigation", { name: "التنقل الرئيسي" })
+      .getByRole("link", { name: "المذكرات" })
+      .click();
+    await page.getByText("أفكار الأسبوع", { exact: true }).waitFor();
+    await context.setOffline(true);
+    assert.equal(await page.evaluate(() => navigator.onLine), false);
+    await page
+      .getByRole("navigation", { name: "التنقل الرئيسي" })
+      .getByRole("link", { name: "المهام" })
+      .click();
+    await page.getByText("مراجعة الحسابات", { exact: true }).waitFor();
+    await page.getByText("وضع دون اتصال:", { exact: false }).waitFor();
+    await context.setOffline(false);
+    await page.getByText("وضع دون اتصال:", { exact: false }).waitFor({ state: "hidden" });
     assert.equal(await page.getByRole("button", { name: "المكتملة", exact: true }).count(), 0);
     const filterButton = page.getByRole("button", { name: "خيارات البحث والتصفية", exact: true });
     await filterButton.click();
