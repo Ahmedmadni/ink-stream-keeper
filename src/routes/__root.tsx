@@ -24,6 +24,7 @@ import { AutoBackupAgent } from "@/features/backup/AutoBackupAgent";
 import { NativeAuthCoordinator } from "@/components/NativeAuthCoordinator";
 import { DesktopFloatingCoordinator } from "@/components/DesktopFloatingCoordinator";
 import { DEVELOPER_NAME } from "@/lib/app-info";
+import { cancelNativeReminders } from "@/lib/native-reminders";
 
 function NotFoundComponent() {
   return (
@@ -174,6 +175,13 @@ function RootComponent() {
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       const nextUser = session?.user.id ?? null;
       vaultSession.setUser(nextUser);
+      // Never clear notifications during the initial restored session. Only
+      // remove them when leaving or switching an account.
+      if (event === "SIGNED_OUT" || (lastUser !== null && nextUser !== lastUser)) {
+        void cancelNativeReminders().catch((error) =>
+          console.warn("[MemoFlow reminders] Could not clear previous account reminders", error),
+        );
+      }
       if (nextUser !== lastUser) {
         lastUser = nextUser;
         void queryClient.cancelQueries();
