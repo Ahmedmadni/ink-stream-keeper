@@ -27,6 +27,16 @@ export const getRouter = () => {
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
+    // SPA shells can have no server-rendered route body while the first
+    // authenticated loader resolves; never leave the native app fully blank.
+    defaultPendingComponent: () => (
+      <main role="status" aria-live="polite" className="grid min-h-dvh place-items-center bg-background px-5">
+        <div className="space-y-3 text-center">
+          <div className="mx-auto size-8 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
+          <p className="text-sm font-medium text-foreground">جار تحميل MemoFlow...</p>
+        </div>
+      </main>
+    ),
     defaultPreloadStaleTime: 0,
   });
 
