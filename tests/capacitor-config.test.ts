@@ -39,6 +39,10 @@ describe("Android security and recovery wiring", () => {
     "utf8",
   );
   const rootRoute = readFileSync(new URL("../src/routes/__root.tsx", import.meta.url), "utf8");
+  const nativeReminders = readFileSync(
+    new URL("../src/lib/native-reminders.ts", import.meta.url),
+    "utf8",
+  );
 
   test("registers app lock and automatic backup plugins", () => {
     expect(mainActivity).toContain("package com.ahmedmadni.memoflow;");
@@ -48,11 +52,21 @@ describe("Android security and recovery wiring", () => {
     expect(mainActivity).toContain("setWebContentsDebuggingEnabled(false)");
   });
 
+  test("declares the native microphone permission for recorded notes", () => {
+    expect(manifest).toContain('android.permission.RECORD_AUDIO');
+  });
+
   test("returns password recovery links to the exact native path", () => {
     expect(manifest).toContain('android:scheme="lovable"');
     expect(manifest).toContain('android:host="oauth-callback"');
     expect(manifest).toContain('android:path="/recovery"');
     expect(manifest).toContain('android:host="auth"');
+  });
+
+  test("cancels account reminders before leaving the authenticated UI", () => {
+    expect(rootRoute).toContain("cancelNativeReminders()");
+    expect(nativeReminders).toContain("export function cancelNativeReminders()");
+    expect(nativeReminders).toContain("pending.notifications.filter((n) => n.extra?.taskId)");
   });
 
   test("keeps the native callback listener mounted above the app lock", () => {

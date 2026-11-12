@@ -71,9 +71,17 @@ export function buildPurchaseBlocks(ctx: PurchaseCtx, opts: PurchaseBuildOpts = 
     defineBlock({
       id: "description", type: "rich_text", priority: 40, title: "الوصف",
       props: {
-        text: [list.description, list.notes].filter(Boolean).join("\n\n"),
+        text: list.description ?? "",
         placeholder: "أضف وصفاً أو ملاحظات...",
         onSave: readonly ? undefined : (v: string) => opts.mutations?.updateList({ description: v }),
+      },
+    }),
+    defineBlock({
+      id: "notes", type: "rich_text", priority: 45, title: "ملاحظات",
+      props: {
+        text: list.notes ?? "",
+        placeholder: "أضف ملاحظات خاصة بالقائمة...",
+        onSave: readonly ? undefined : (v: string) => opts.mutations?.updateList({ notes: v }),
       },
     }),
   ];

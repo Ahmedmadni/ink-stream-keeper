@@ -142,3 +142,44 @@ describe("matchesTask search coverage", () => {
     expect(matchesTask(base, "all", "حليب")).toBe(false);
   });
 });
+
+describe("purchase and planning actions visible to the user", () => {
+  test("purchase description and notes persist independently", async () => {
+    const { readFileSync } = await import("node:fs");
+    const source = readFileSync(
+      new URL("../src/lib/engine/compositions/purchase.blocks.ts", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain('text: list.description ?? ""');
+    expect(source).toContain('text: list.notes ?? ""');
+    expect(source).toContain("updateList({ description: v })");
+    expect(source).toContain("updateList({ notes: v })");
+    expect(source).not.toContain('[list.description, list.notes].filter(Boolean).join');
+  });
+
+  test("unimplemented toolbar actions are not presented as working controls", async () => {
+    const { readFileSync } = await import("node:fs");
+    const source = readFileSync(
+      new URL("../src/components/blocks/Toolbar.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(source).not.toContain('onClick={() => actions.duplicate()}');
+    expect(source).not.toContain('emit("history:undo"');
+    expect(source).not.toContain('emit("history:redo"');
+  });
+});
+
+describe("browser reminder resume safety", () => {
+  test("reschedules suspended timers and rejects invalid reminder dates", async () => {
+    const { readFileSync } = await import("node:fs");
+    const source = readFileSync(
+      new URL("../src/hooks/use-task-reminders.ts", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain('window.addEventListener("focus", onResume)');
+    expect(source).toContain('document.addEventListener("visibilitychange", onResume)');
+    expect(source).toContain('window.removeEventListener("focus", onResume)');
+    expect(source).toContain('document.removeEventListener("visibilitychange", onResume)');
+    expect(source).toContain("!Number.isFinite(delay)");
+  });
+});

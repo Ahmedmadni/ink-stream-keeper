@@ -68,7 +68,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:
-      MEMOFLOW_DESKTOP_TOOLS: ${{ runner.temp }}/memoflow-electron
+      MEMOFLOW_DESKTOP_TOOLS: ${{ github.workspace }}/.memoflow-desktop-tools
       MEMOFLOW_MAC_ARCH: ${{ matrix.arch }}
     steps:
       - uses: actions/checkout@v5
@@ -83,7 +83,7 @@ jobs:
       - run: bun run build:native
       - run: bun run desktop:prepare
       - name: Install pinned desktop packaging tools
-        run: npm install --prefix "${{ runner.temp }}/memoflow-electron" --no-save electron@44.9.0 @electron/packager@19.1.1
+        run: npm install --prefix "${{ env.MEMOFLOW_DESKTOP_TOOLS }}" --no-save electron@44.9.0 @electron/packager@19.1.1
       - run: node scripts/${{ matrix.script }}
       - name: Verify Windows signature status
         if: matrix.target == 'win32'

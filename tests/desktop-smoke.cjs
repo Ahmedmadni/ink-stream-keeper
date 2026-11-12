@@ -127,6 +127,18 @@ const vaultEntries = [
       console.log("PASS: Electron is running with MSIX package identity.");
     }
     page.on("pageerror", (error) => errors.push(error.message));
+    const assetErrors = [];
+    page.on("console", (message) => {
+      if (message.type() === "error") assetErrors.push(message.text().slice(0, 240));
+    });
+    page.on("requestfailed", (request) => {
+      if (request.url().startsWith("memoflow://"))
+        assetErrors.push(`failed ${request.url()} ${request.failure()?.errorText}`);
+    });
+    page.on("response", (response) => {
+      if (response.url().startsWith("memoflow://") && response.status() >= 400)
+        assetErrors.push(`HTTP ${response.status()} ${response.url()}`);
+    });
     const context = desktop.context();
     await context.route(backend + "/**", async (route) => {
       const url = new URL(route.request().url());
@@ -191,7 +203,101 @@ const vaultEntries = [
       };
       return route.fulfill({ json: rows[table] ?? [] });
     });
-    await page.getByRole("button", { name: "المتابعة عبر Google", exact: true }).waitFor();
+    try {
+      await page.getByRole("button", { name: "المتابعة عبر Google", exact: true }).waitFor({ timeout: 15000 });
+    } catch (error) {
+      const probe = await page.evaluate(async () => {
+        const src = document.querySelector('script[type="module"][src]')?.src;
+        let entry = null;
+        try {
+          if (src) {
+            const response = await fetch(src);
+            entry = {
+              status: response.status,
+              contentType: response.headers.get("content-type"),
+              bytes: (await response.arrayBuffer()).byteLength,
+            };
+          }
+        } catch (failure) {
+          entry = { error: String(failure) };
+        }
+        return {
+          entry,
+          src,
+          readyState: document.readyState,
+          resources: performance.getEntriesByType("resource")
+            .filter((item) => item.name.startsWith("memoflow://"))
+            .map((item) => ({ name: item.name.slice(-100), duration: Math.round(item.duration) }))
+            .slice(0, 12),
+        };
+      });
+      console.error("Desktop resource diagnostics", {
+        assetErrors: assetErrors.slice(0, 20),
+        probe,
+        title: await page.title(),
+        bodyLength: await page.locator("body").evaluate((body) => body.innerHTML.length),
+        runtimeErrors: errors.slice(0, 8),
+      });
+      // Verify whether Chromium's module loader can evaluate the bundled
+      // entry at all. fetch() succeeding alone does not prove module loading.
+      const cdp = await context.newCDPSession(page);
+      const cdpProblems = [];
+      cdp.on("Runtime.exceptionThrown", ({ exceptionDetails }) => {
+        cdpProblems.push({
+          type: "exception",
+          text: exceptionDetails.text,
+          description: exceptionDetails.exception?.description?.slice(0, 450),
+        });
+      });
+      cdp.on("Network.loadingFailed", (event) => {
+        cdpProblems.push({
+          type: "network",
+          errorText: event.errorText,
+          blockedReason: event.blockedReason,
+          corsErrorStatus: event.corsErrorStatus,
+        });
+      });
+      await cdp.send("Runtime.enable");
+      await cdp.send("Network.enable");
+      await page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
+      await page.waitForTimeout(1000);
+      const moduleExecution = await page.evaluate(async () => {
+        const url = document.querySelector('script[type="module"][src]')?.src;
+        if (!url) return { result: "missing-entry" };
+        try {
+          return await Promise.race([
+            import(url).then(
+              () => ({ result: "success" }),
+              (reason) => ({
+                result: "failure",
+                message: String(reason),
+                stack: reason?.stack?.slice(0, 600),
+              }),
+            ),
+            new Promise((resolve) => setTimeout(() => resolve({ result: "timed-out" }), 3000)),
+          ]);
+        } catch (reason) {
+          return { result: "unexpected", message: String(reason) };
+        }
+      });
+      const bootState = await page.evaluate(() => ({
+        streamInitialized: window.$_TSR?.initialized,
+        streamHydrated: window.$_TSR?.hydrated,
+        streamEnded: window.$_TSR?.streamEnded,
+        hasClientOptions: Boolean(window.__TSS_START_OPTIONS__),
+        readyState: document.readyState,
+      }));
+      console.error("Desktop module execution diagnostics", {
+        moduleExecution,
+        bootState,
+        cdpProblems: cdpProblems.slice(0, 20),
+        assetErrors: assetErrors.slice(-20),
+        runtimeErrors: errors.slice(-10),
+        body: (await page.locator("body").innerText().catch(() => "")).slice(0, 250),
+      });
+      await cdp.detach();
+      throw error;
+    }
     assert.equal(await page.evaluate(() => location.protocol), "memoflow:");
     assert.equal(await page.evaluate(() => typeof window.require), "undefined");
     assert.equal(await page.evaluate(() => window.memoFlowDesktop.version), "1.2.11");

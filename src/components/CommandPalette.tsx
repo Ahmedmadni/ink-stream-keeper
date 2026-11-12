@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/command";
 import { useNotes, useTasks } from "@/lib/data";
 import { plainTextFromHtml } from "@/lib/format";
+import { filterCommandItems } from "@/lib/command-search";
 
 const NAV = [
   { to: "/", label: "الرئيسية", icon: Home },
@@ -23,9 +24,19 @@ const NAV = [
 /** لوحة الأوامر السريعة — Ctrl/Cmd + K */
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const navigate = useNavigate();
   const { data: notes = [] } = useNotes();
   const { data: tasks = [] } = useTasks();
+
+  const visibleTasks = filterCommandItems(
+    tasks, query,
+    (task) => [task.title, task.description, task.notes].filter(Boolean).join(" "),
+  );
+  const visibleNotes = filterCommandItems(
+    notes, query,
+    (note) => `${note.title} ${plainTextFromHtml(note.content ?? "")}`,
+  );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -43,6 +54,10 @@ export function CommandPalette() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
+
   const go = (to: string, params?: Record<string, string>) => {
     setOpen(false);
     navigate({ to: to as never, params: params as never });
@@ -50,7 +65,7 @@ export function CommandPalette() {
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="ابحث أو نفّذ أمراً… (Ctrl + K)" />
+      <CommandInput value={query} onValueChange={setQuery} placeholder="ابحث أو نفّذ أمراً… (Ctrl + K)" />
       <CommandList>
         <CommandEmpty>لا توجد نتائج.</CommandEmpty>
         <CommandGroup heading="إجراءات سريعة">
@@ -66,21 +81,21 @@ export function CommandPalette() {
             </CommandItem>
           ))}
         </CommandGroup>
-        {tasks.length > 0 && (
+        {visibleTasks.length > 0 && (
           <CommandGroup heading="المهام">
-            {tasks.slice(0, 20).map((t) => (
-              <CommandItem key={t.id} value={`مهمة ${t.title}`} onSelect={() => go("/tasks/$id", { id: t.id })}>
+            {visibleTasks.map((t) => (
+              <CommandItem key={t.id} value={`مهمة ${t.title} ${t.description ?? ""} ${t.notes ?? ""}`} onSelect={() => go("/tasks/$id", { id: t.id })}>
                 <CheckSquare /> <span className="truncate">{t.title}</span>
               </CommandItem>
             ))}
           </CommandGroup>
         )}
-        {notes.length > 0 && (
+        {visibleNotes.length > 0 && (
           <CommandGroup heading="المذكرات">
-            {notes.slice(0, 20).map((n) => (
+            {visibleNotes.map((n) => (
               <CommandItem
                 key={n.id}
-                value={`ملاحظة ${n.title} ${plainTextFromHtml(n.content ?? "").slice(0, 60)}`}
+                value={`ملاحظة ${n.title} ${plainTextFromHtml(n.content ?? "")}`}
                 onSelect={() => go("/notes/$id", { id: n.id })}
               >
                 <NotebookText /> <span className="truncate">{n.title || "بدون عنوان"}</span>
