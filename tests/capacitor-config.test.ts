@@ -48,6 +48,10 @@ describe("Android security and recovery wiring", () => {
     expect(mainActivity).toContain("setWebContentsDebuggingEnabled(false)");
   });
 
+  test("declares the native microphone permission for recorded notes", () => {
+    expect(manifest).toContain('android.permission.RECORD_AUDIO');
+  });
+
   test("returns password recovery links to the exact native path", () => {
     expect(manifest).toContain('android:scheme="lovable"');
     expect(manifest).toContain('android:host="oauth-callback"');
