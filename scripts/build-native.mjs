@@ -2,6 +2,8 @@
 // build finishes. Native packages consume only the generated local SPA, so
 // finish this isolated process after the full build and bundle checks succeed.
 process.env.MEMOFLOW_NATIVE_BUILD = "1";
+// Opt into the client-only React bootstrap for installed local applications.
+process.env.VITE_MEMOFLOW_LOCAL_SPA = "1";
 
 try {
   await import("./clean-native-web.mjs");
