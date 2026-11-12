@@ -1,5 +1,5 @@
 import { pageHead } from "@/lib/page-head";
-import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ArrowRight, KeyRound, Mail, Lock, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -68,7 +68,7 @@ function AuthPage() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("recovery") === "1" || params.get("native_recovery") === "1") return;
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/" });
+      if (data.session && navigator.onLine) navigate({ to: "/" });
     });
   }, [navigate]);
 
@@ -448,6 +448,9 @@ function AuthPage() {
           )}
         </div>
 
+        <Link to="/offline" className="mt-4 block min-h-11 rounded-xl border border-border bg-secondary px-4 py-3 text-center text-sm font-semibold">
+          قراءة النسخ المحلية المشفّرة دون إنترنت
+        </Link>
         <p className="mt-5 text-center text-[11px] text-muted-foreground">
           بالتسجيل، أنت توافق على شروط استخدام MemoFlow وسياسة الخصوصية.
         </p>
