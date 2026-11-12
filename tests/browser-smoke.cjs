@@ -37,7 +37,7 @@ const session = {
 };
 const tasks = [
   {
-    id: "task-a",
+    id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     user_id: user.id,
     title: "مراجعة الحسابات",
     done: false,
@@ -52,7 +52,7 @@ const tasks = [
     updated_at: "2026-10-10T00:00:00Z",
   },
   {
-    id: "task-b",
+    id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     user_id: user.id,
     title: "شراء المستلزمات",
     done: false,
@@ -84,7 +84,7 @@ const taskItems = [
     id: "sub-a",
     user_id: user.id,
     parent_type: "task",
-    parent_id: "task-b",
+    parent_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     parent_item_id: null,
     depth: 0,
     title: "أرشفة الملفات",
@@ -108,7 +108,7 @@ const taskItems = [
     id: "sub-b",
     user_id: user.id,
     parent_type: "task",
-    parent_id: "task-b",
+    parent_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     parent_item_id: null,
     depth: 0,
     title: "إرسال الإيميلات",
@@ -131,7 +131,7 @@ const taskItems = [
 ];
 const notes = [
   {
-    id: "note-a",
+    id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
     user_id: user.id,
     title: "أفكار الأسبوع",
     content: "<p>مساحة هادئة لأفكاري الجديدة</p>",
@@ -250,7 +250,7 @@ const vaultPinWrites = [];
             const index = tasks.findIndex((task) => task.id === id);
             assert.notEqual(index, -1);
             tasks[index] = { ...tasks[index], ...p };
-            if (id === "task-a") {
+            if (id === "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa") {
               assert.equal(p.done, true);
               assert.equal(p.status, "done");
               patchSeen = true;
@@ -462,6 +462,49 @@ const vaultPinWrites = [];
     await page.screenshot({ path: artifacts + "/settings-dark.png", fullPage: true });
     assert.equal(await page.getByRole("button", { name: "تصدير البيانات" }).count(), 0);
     assert.equal(await page.getByText("الأقسام السابقة", { exact: true }).count(), 0);
+    // Encrypted offline archive: actual IndexedDB ciphertext, wrong password,
+    // reload persistence, account-bound content, and read-only access offline.
+    const archivePassword = "safe encrypted offline phrase 2026!";
+    await page.getByRole("heading", { name: "أرشيف محلي اختياري" }).waitFor();
+    await page.getByLabel("كلمة مرور النسخة (12 حرفًا على الأقل)").fill(archivePassword);
+    await page.getByLabel("تأكيد كلمة المرور").fill(archivePassword);
+    await page.getByRole("button", { name: "حفظ نسخة مشفّرة للقراءة دون إنترنت" }).click();
+    await page.getByText("حُفظت نسخة مشفّرة تضم", { exact: false }).waitFor({ timeout: 25000 });
+    const locallyStored = await page.evaluate(() => new Promise((resolve, reject) => {
+      const request = indexedDB.open("memoflow-encrypted-offline-archive");
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result;
+        const transaction = db.transaction("snapshots", "readonly");
+        const get = transaction.objectStore("snapshots").get("11111111-1111-4111-8111-111111111111");
+        get.onsuccess = () => resolve(get.result?.encrypted ?? "");
+        get.onerror = () => reject(get.error);
+        transaction.oncomplete = () => db.close();
+      };
+    }));
+    assert.ok(locallyStored.includes("memoflow-offline-snapshot"));
+    assert.ok(!locallyStored.includes("أفكار الأسبوع"));
+    assert.ok(!locallyStored.includes("مراجعة الحسابات"));
+    await page.getByRole("link", { name: "فتح الأرشيف المشفّر" }).click();
+    await page.getByRole("heading", { name: "الأرشيف المحلي المشفّر" }).waitFor();
+    await page.reload();
+    const passwordField = page.getByLabel("كلمة مرور النسخة المحلية");
+    await passwordField.fill("wrong offline password 2026");
+    await page.getByRole("button", { name: "فتح النسخة المشفّرة" }).click();
+    await page.getByText("كلمة مرور النسخة غير صحيحة أو محتواها تالف.").waitFor({ timeout: 20000 });
+    await context.setOffline(true);
+    await passwordField.fill(archivePassword);
+    await page.getByRole("button", { name: "فتح النسخة المشفّرة" }).click();
+    await page.getByRole("button", { name: /أفكار الأسبوع/ }).click();
+    await page.getByText("مساحة هادئة لأفكاري الجديدة", { exact: true }).waitFor({ timeout: 20000 });
+    await page.getByRole("button", { name: "المهام (2)" }).click();
+    await page.getByRole("button", { name: /مراجعة الحسابات/ }).click();
+    await page.getByRole("heading", { name: "مراجعة الحسابات" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "حفظ التعديل" }).count(), 0);
+    await context.setOffline(false);
+    await page.goto(`${baseUrl}/settings`);
+    await page.getByRole("switch", { name: "الوضع الداكن" }).waitFor();
+
     assert.equal(await page.getByRole("link", { name: "مساحات العمل", exact: true }).count(), 0);
     for (const width of [320, 360, 390, 430]) {
       await page.setViewportSize({ width, height: 844 });
