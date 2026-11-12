@@ -94,7 +94,10 @@ function createWindow() {
     mainWindow = undefined;
     callbackReady = false;
   });
-  void mainWindow.loadURL(`${APP_URL}/`);
+  // Start on the public auth route: the protected home route can wait on a
+  // remote identity check before the first renderer paints. Signed-in users
+  // are redirected to home by AuthPage after restoring their local session.
+  void mainWindow.loadURL(`${APP_URL}/auth`);
 }
 
 if (!app.requestSingleInstanceLock()) {
