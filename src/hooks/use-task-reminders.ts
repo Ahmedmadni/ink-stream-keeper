@@ -75,31 +75,46 @@ export function useTaskReminders() {
       };
     }
 
-    const now = Date.now();
-    for (const task of tasks) {
-      if (task.done || !task.reminder_at) continue;
-      const fireKey = `${task.id}@${task.reminder_at}`;
-      if (firedRef.current.has(fireKey)) continue;
-      const at = new Date(task.reminder_at).getTime();
-      const delay = at - now;
-      if (delay < -60_000) continue; // older than a minute, skip
-      if (delay <= 0) {
-        fireReminder(task);
-        firedRef.current.add(fireKey);
-        saveFired(firedRef.current);
-        continue;
+    const scheduleBrowserReminders = () => {
+      // Browsers suspend timers while the tab is inactive. Always rebuild the
+      // schedule after returning to the app, including far-future reminders
+      // which previously exceeded setTimeout's maximum delay.
+      timersRef.current.forEach((id) => clearTimeout(id));
+      timersRef.current = [];
+      const now = Date.now();
+      for (const task of tasks) {
+        if (task.done || !task.reminder_at) continue;
+        const fireKey = `${task.id}@${task.reminder_at}`;
+        if (firedRef.current.has(fireKey)) continue;
+        const at = new Date(task.reminder_at).getTime();
+        const delay = at - now;
+        if (!Number.isFinite(delay) || delay < -60_000) continue;
+        if (delay <= 0) {
+          fireReminder(task);
+          firedRef.current.add(fireKey);
+          saveFired(firedRef.current);
+          continue;
+        }
+        // Delays longer than ~23 days are refreshed when the tab resumes.
+        if (delay > 2_000_000_000) continue;
+        const id = window.setTimeout(() => {
+          fireReminder(task);
+          firedRef.current.add(fireKey);
+          saveFired(firedRef.current);
+        }, delay);
+        timersRef.current.push(id);
       }
-      // setTimeout caps around 2^31ms (~24.8 days); skip if further
-      if (delay > 2_000_000_000) continue;
-      const id = window.setTimeout(() => {
-        fireReminder(task);
-        firedRef.current.add(fireKey);
-        saveFired(firedRef.current);
-      }, delay);
-      timersRef.current.push(id);
-    }
+    };
+    const onResume = () => {
+      if (!document.hidden) scheduleBrowserReminders();
+    };
+    scheduleBrowserReminders();
+    window.addEventListener("focus", onResume);
+    document.addEventListener("visibilitychange", onResume);
 
     return () => {
+      window.removeEventListener("focus", onResume);
+      document.removeEventListener("visibilitychange", onResume);
       timersRef.current.forEach((id) => clearTimeout(id));
       timersRef.current = [];
     };
