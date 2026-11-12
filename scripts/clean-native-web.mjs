@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 const generatedDirectories = [
   resolve("dist/client"),
+  resolve(".output/public"),
   resolve("android/app/src/main/assets/public"),
 ];
 
