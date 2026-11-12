@@ -111,9 +111,6 @@ function PlanDetailPage() {
         }} />}
       </div>
     ),
-    aiSlot: () => (
-      <p className="text-xs text-muted-foreground">سيتم لاحقًا تفعيل: تلخيص الخطة، اقتراح المراحل والخطوات، تقدير المدة وبناء جدول زمني.</p>
-    ),
   });
 
   return (
