@@ -127,6 +127,18 @@ const vaultEntries = [
       console.log("PASS: Electron is running with MSIX package identity.");
     }
     page.on("pageerror", (error) => errors.push(error.message));
+    const assetErrors = [];
+    page.on("console", (message) => {
+      if (message.type() === "error") assetErrors.push(message.text().slice(0, 240));
+    });
+    page.on("requestfailed", (request) => {
+      if (request.url().startsWith("memoflow://"))
+        assetErrors.push(`failed ${request.url()} ${request.failure()?.errorText}`);
+    });
+    page.on("response", (response) => {
+      if (response.url().startsWith("memoflow://") && response.status() >= 400)
+        assetErrors.push(`HTTP ${response.status()} ${response.url()}`);
+    });
     const context = desktop.context();
     await context.route(backend + "/**", async (route) => {
       const url = new URL(route.request().url());
@@ -191,7 +203,20 @@ const vaultEntries = [
       };
       return route.fulfill({ json: rows[table] ?? [] });
     });
-    await page.getByRole("button", { name: "المتابعة عبر Google", exact: true }).waitFor();
+    try {
+      await page.getByRole("button", { name: "المتابعة عبر Google", exact: true }).waitFor({ timeout: 15000 });
+    } catch (error) {
+      console.error("Desktop resource diagnostics", {
+        assetErrors: assetErrors.slice(0, 20),
+        inlineScripts: await page.locator("script[src]").evaluateAll(
+          (nodes) => nodes.map((node) => node.getAttribute("src")).slice(0, 8),
+        ),
+        title: await page.title(),
+        bodyLength: await page.locator("body").evaluate((body) => body.innerHTML.length),
+        runtimeErrors: errors.slice(0, 8),
+      });
+      throw error;
+    }
     assert.equal(await page.evaluate(() => location.protocol), "memoflow:");
     assert.equal(await page.evaluate(() => typeof window.require), "undefined");
     assert.equal(await page.evaluate(() => window.memoFlowDesktop.version), "1.2.11");
