@@ -238,14 +238,56 @@ const vaultEntries = [
         bodyLength: await page.locator("body").evaluate((body) => body.innerHTML.length),
         runtimeErrors: errors.slice(0, 8),
       });
-      // Reload only for diagnosis and keep the cold-start failure visible.
+      // Verify whether Chromium's module loader can evaluate the bundled
+      // entry at all. fetch() succeeding alone does not prove module loading.
+      const cdp = await context.newCDPSession(page);
+      const cdpProblems = [];
+      cdp.on("Runtime.exceptionThrown", ({ exceptionDetails }) => {
+        cdpProblems.push({
+          type: "exception",
+          text: exceptionDetails.text,
+          description: exceptionDetails.exception?.description?.slice(0, 450),
+        });
+      });
+      cdp.on("Network.loadingFailed", (event) => {
+        cdpProblems.push({
+          type: "network",
+          errorText: event.errorText,
+          blockedReason: event.blockedReason,
+          corsErrorStatus: event.corsErrorStatus,
+        });
+      });
+      await cdp.send("Runtime.enable");
+      await cdp.send("Network.enable");
       await page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
-      await page.waitForTimeout(750);
-      console.error("Desktop after diagnostic reload", {
+      await page.waitForTimeout(1000);
+      const moduleExecution = await page.evaluate(async () => {
+        const url = document.querySelector('script[type="module"][src]')?.src;
+        if (!url) return { result: "missing-entry" };
+        try {
+          return await Promise.race([
+            import(url).then(
+              () => ({ result: "success" }),
+              (reason) => ({
+                result: "failure",
+                message: String(reason),
+                stack: reason?.stack?.slice(0, 600),
+              }),
+            ),
+            new Promise((resolve) => setTimeout(() => resolve({ result: "timed-out" }), 3000)),
+          ]);
+        } catch (reason) {
+          return { result: "unexpected", message: String(reason) };
+        }
+      });
+      console.error("Desktop module execution diagnostics", {
+        moduleExecution,
+        cdpProblems: cdpProblems.slice(0, 20),
         assetErrors: assetErrors.slice(-20),
         runtimeErrors: errors.slice(-10),
         body: (await page.locator("body").innerText().catch(() => "")).slice(0, 250),
       });
+      await cdp.detach();
       throw error;
     }
     assert.equal(await page.evaluate(() => location.protocol), "memoflow:");
