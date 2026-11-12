@@ -496,7 +496,7 @@ const vaultPinWrites = [];
     await passwordField.fill(archivePassword);
     await page.getByRole("button", { name: "فتح النسخة المشفّرة" }).click();
     await page.getByRole("button", { name: /أفكار الأسبوع/ }).click();
-    await page.getByText("مساحة هادئة لأفكاري الجديدة", { exact: true }).waitFor({ timeout: 20000 });
+    await page.locator("article").getByText("مساحة هادئة لأفكاري الجديدة", { exact: true }).waitFor({ timeout: 20000 });
     await page.getByRole("button", { name: "المهام (2)" }).click();
     await page.getByRole("button", { name: /مراجعة الحسابات/ }).click();
     await page.getByRole("heading", { name: "مراجعة الحسابات" }).waitFor();
