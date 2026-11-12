@@ -229,8 +229,12 @@ export function useTaskSubItemSummaries() {
 }
 
 export function useNote(id: string) {
+  const qc = useQueryClient();
   return useQuery({
     queryKey: keys.note(id),
+    // A list already fetched in this authenticated session can supply a
+    // detail view when the device goes offline; it is not persisted to disk.
+    initialData: () => qc.getQueryData<Note[]>(keys.notes)?.find((item) => item.id === id),
     queryFn: async (): Promise<Note | null> => {
       const { data, error } = await supabase.from("notes").select("*").eq("id", id).maybeSingle();
       if (error) throw error;
@@ -266,6 +270,11 @@ export function useNoteAttachments(noteId: string) {
 
 // ----------------- mutations -----------------
 
+function requireOnlineForWrite() {
+  if (typeof navigator !== "undefined" && !navigator.onLine)
+    throw new Error("يلزم الاتصال بالإنترنت لتنفيذ هذا التعديل. لم تُرسل أي تغييرات إلى الخادم.");
+}
+
 async function currentUserId(): Promise<string> {
   const { data } = await supabase.auth.getUser();
   if (!data.user) throw new Error("غير مسجل الدخول");
@@ -281,6 +290,7 @@ export function useAddNote() {
       categoryId: string | null;
       emoji?: string | null;
     }): Promise<Note> => {
+      requireOnlineForWrite();
       const uid = await currentUserId();
       const { data, error } = await supabase
         .from("notes")
@@ -304,6 +314,7 @@ export function useUpdateNote() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: Partial<Note> }) => {
+      requireOnlineForWrite();
       const { error } = await supabase.from("notes").update(patch).eq("id", id);
       if (error) throw error;
     },
@@ -318,6 +329,7 @@ export function useDeleteNote() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      requireOnlineForWrite();
       const { error } = await supabase.from("notes").delete().eq("id", id);
       if (error) throw error;
     },
@@ -336,6 +348,7 @@ export function useAddTask() {
       priority?: "low" | "med" | "high";
       category_id?: string | null;
     }) => {
+      requireOnlineForWrite();
       const uid = await currentUserId();
       const { data, error } = await supabase
         .from("tasks")
@@ -361,6 +374,7 @@ export function useToggleTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, done, task }: { id: string; done: boolean; task?: Task }) => {
+      requireOnlineForWrite();
       // Recurring + completing → advance due_at/reminder_at to next occurrence
       if (done && task && task.recurrence !== "none" && task.due_at) {
         const next = advanceTaskDate(new Date(task.due_at), task.recurrence);
@@ -395,6 +409,7 @@ export function useDeleteTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      requireOnlineForWrite();
       const { error } = await supabase.from("tasks").delete().eq("id", id);
       if (error) throw error;
     },
@@ -406,6 +421,7 @@ export function useAddCategory() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { name: string; icon?: string; color?: string }) => {
+      requireOnlineForWrite();
       const uid = await currentUserId();
       const { data, error } = await supabase
         .from("categories")
@@ -430,6 +446,7 @@ export function useUpdateProfile() {
     mutationFn: async (
       patch: Partial<Pick<Profile, "display_name" | "avatar_url" | "language" | "theme">>,
     ) => {
+      requireOnlineForWrite();
       const uid = await currentUserId();
       const { error } = await supabase.from("profiles").update(patch).eq("id", uid);
       if (error) throw error;
@@ -442,6 +459,7 @@ export function useUploadAttachment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ noteId, file }: { noteId: string; file: File }) => {
+      requireOnlineForWrite();
       const uid = await currentUserId();
       const path = `${uid}/${noteId}/${Date.now()}-${file.name.replace(/[^\w.-]+/g, "_")}`;
       const { error: upErr } = await supabase.storage.from("note-attachments").upload(path, file, {
@@ -483,8 +501,10 @@ export function tsOf(s: string): number {
 // ----------------- task detail / checklist / subtasks -----------------
 
 export function useTask(id: string) {
+  const qc = useQueryClient();
   return useQuery({
     queryKey: keys.task(id),
+    initialData: () => qc.getQueryData<TaskExt[]>(keys.tasks)?.find((item) => item.id === id),
     queryFn: async (): Promise<TaskExt | null> => {
       const { data, error } = await supabase.from("tasks").select("*").eq("id", id).maybeSingle();
       if (error) throw error;
@@ -498,6 +518,7 @@ export function useUpdateTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: Partial<TaskExt> }) => {
+      requireOnlineForWrite();
       const { error } = await supabase.from("tasks").update(patch).eq("id", id);
       if (error) throw error;
     },
