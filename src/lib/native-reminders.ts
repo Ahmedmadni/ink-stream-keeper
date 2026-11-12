@@ -80,6 +80,27 @@ export async function testNativeReminder() {
 }
 
 let syncQueue: Promise<void> = Promise.resolve();
+
+/**
+ * Remove reminders from the previous account before leaving the authenticated UI.
+ * Shares syncQueue with scheduling so an in-flight sync cannot re-add old tasks.
+ * The fixed test notification (without extra.taskId) is left untouched.
+ */
+export function cancelNativeReminders(): Promise<void> {
+  if (!isNative()) return Promise.resolve();
+  syncQueue = syncQueue
+    .catch(() => undefined)
+    .then(async () => {
+      const LN = plugin();
+      const pending = await LN.getPending();
+      const taskReminders = pending.notifications.filter((n) => n.extra?.taskId);
+      if (taskReminders.length) {
+        await LN.cancel({ notifications: taskReminders.map((n) => ({ id: n.id })) });
+      }
+    });
+  return syncQueue;
+}
+
 export function syncNativeReminders(tasks: ReminderTask[]): Promise<void> {
   if (!isNative()) return Promise.resolve();
   syncQueue = syncQueue
