@@ -7,6 +7,7 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { PageFade } from "@/components/motion";
 import { BrandMark } from "@/components/BrandMark";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
+import { OfflineModeNotice } from "@/components/OfflineModeNotice";
 import { Button } from "@/components/ui/button";
 
 const nav = [
@@ -69,6 +70,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </Button>
             )}
           </div>
+          <OfflineModeNotice />
           <PageFade key={pathname} className="mx-auto max-w-3xl">
             {children}
           </PageFade>
