@@ -548,6 +548,16 @@ const vaultPinWrites = [];
     await page.getByRole("button", { name: "استعادة المسودات المشفّرة" }).click();
     await page.getByText("كلمة المرور خاطئة أو بيانات المسودات تالفة.").waitFor({ timeout: 25000 });
     assert.equal(await page.evaluate((key) => localStorage.getItem(key), rescueKey), null);
+    // A distinct local edit must not be silently overwritten by a rescue restore.
+    const conflictingDraft = rescueRaw.replace("محتوى سري لم يُرفع للخادم", "تعديل أحدث محفوظ على الجهاز");
+    await page.evaluate(({ key, raw }) => localStorage.setItem(key, raw), {
+      key: rescueKey, raw: conflictingDraft,
+    });
+    await page.getByLabel("كلمة مرور إنقاذ المسودات").fill(rescuePassword);
+    await page.getByRole("button", { name: "استعادة المسودات المشفّرة" }).click();
+    await page.getByText("توجد مسودة أحدث بالمفتاح نفسه؛ لم نستبدل أي بيانات.").waitFor({ timeout: 25000 });
+    assert.equal(await page.evaluate((key) => localStorage.getItem(key), rescueKey), conflictingDraft);
+    await page.evaluate((key) => localStorage.removeItem(key), rescueKey);
     await page.getByLabel("كلمة مرور إنقاذ المسودات").fill(rescuePassword);
     await page.getByRole("button", { name: "استعادة المسودات المشفّرة" }).click();
     await page.getByText("استُعيدت 1 مسودة", { exact: false }).waitFor({ timeout: 25000 });

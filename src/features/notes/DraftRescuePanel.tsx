@@ -180,6 +180,7 @@ function AccountDraftRescue({ accountId }: { accountId: string }) {
         {message && <p role="status" className="text-sm text-primary">{message}</p>}
         <p className="text-xs leading-6 text-muted-foreground">
           لا يمكن استعادة الحزمة دون كلمة مرورها. لا يحذف هذا الإجراء المذكرات المحفوظة على الخادم.
+          حزمة الإنقاذ تبقى على هذا الجهاز فقط ولا تدخل في النسخ الاحتياطية المعتادة؛ قد تُفقد عند مسح بيانات التطبيق.
         </p>
       </div>
     </section>
