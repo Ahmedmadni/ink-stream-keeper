@@ -25,6 +25,7 @@ import { NativeAuthCoordinator } from "@/components/NativeAuthCoordinator";
 import { DesktopFloatingCoordinator } from "@/components/DesktopFloatingCoordinator";
 import { DEVELOPER_NAME } from "@/lib/app-info";
 import { cancelNativeReminders } from "@/lib/native-reminders";
+import { forgetVerifiedUser } from "@/lib/offline-verified-session";
 
 function NotFoundComponent() {
   return (
@@ -174,6 +175,9 @@ function RootComponent() {
     let lastUser: string | null = null;
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       const nextUser = session?.user.id ?? null;
+      if (event === "SIGNED_OUT" || (lastUser !== null && lastUser !== nextUser)) {
+        if (typeof sessionStorage !== "undefined") forgetVerifiedUser(sessionStorage);
+      }
       vaultSession.setUser(nextUser);
       // Never clear notifications during the initial restored session. Only
       // remove them when leaving or switching an account.
