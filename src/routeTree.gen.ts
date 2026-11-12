@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedCreateRouteImport } from './routes/_authenticated/create'
@@ -37,6 +38,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OfflineRoute = OfflineRouteImport.update({
+  id: '/offline',
+  path: '/offline',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -139,6 +145,7 @@ const AuthenticatedPlansNewTypeRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
+  '/offline': typeof OfflineRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/create': typeof AuthenticatedCreateRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -159,6 +166,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
+  '/offline': typeof OfflineRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/create': typeof AuthenticatedCreateRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -182,6 +190,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/offline': typeof OfflineRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_authenticated/create': typeof AuthenticatedCreateRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
@@ -206,6 +215,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/offline'
     | '/sitemap.xml'
     | '/create'
     | '/settings'
@@ -226,6 +236,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
+    | '/offline'
     | '/sitemap.xml'
     | '/create'
     | '/settings'
@@ -248,6 +259,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authenticated'
     | '/auth'
+    | '/offline'
     | '/sitemap.xml'
     | '/_authenticated/create'
     | '/_authenticated/settings'
@@ -271,6 +283,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  OfflineRoute: typeof OfflineRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
 }
@@ -289,6 +302,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/offline': {
+      id: '/offline'
+      path: '/offline'
+      fullPath: '/offline'
+      preLoaderRoute: typeof OfflineRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sitemap.xml': {
@@ -464,6 +484,7 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  OfflineRoute: OfflineRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
 }
