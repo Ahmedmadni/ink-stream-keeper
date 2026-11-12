@@ -502,8 +502,58 @@ const vaultPinWrites = [];
     await page.getByRole("heading", { name: "مراجعة الحسابات" }).waitFor();
     assert.equal(await page.getByRole("button", { name: "حفظ التعديل" }).count(), 0);
     await context.setOffline(false);
-    await page.goto(`${baseUrl}/settings`);
+    await page.goto(baseUrl + "/settings");
     await page.getByRole("switch", { name: "الوضع الداكن" }).waitFor();
+
+    // Legacy draft rescue: inspect ciphertext, protect only unchanged revisions,
+    // reject wrong passwords and restore exact bytes after a full reload.
+    const rescuePassword = "Safe legacy notes rescue 2026!";
+    const rescueKey = "memoflow.note-draft.v1:" + user.id +
+      ":33333333-3333-4333-8333-333333333333:synthetic-tab:44444444-4444-4444-8444-444444444444";
+    const rescueRaw = JSON.stringify({
+      version: 1, userId: user.id, noteId: "33333333-3333-4333-8333-333333333333",
+      revision: "44444444-4444-4444-8444-444444444444",
+      savedAt: Date.now(),
+      draft: { title: "مسودة إنقاذ", content: "<p>محتوى سري لم يُرفع للخادم</p>" },
+      base: { title: "مسودة", content: "<p>قديم</p>", updated_at: "2026-11-12T10:00:00.000Z" },
+    });
+    await page.evaluate(({ key, raw }) => localStorage.setItem(key, raw), {
+      key: rescueKey, raw: rescueRaw,
+    });
+    await page.reload();
+    await page.getByText("المسودات القديمة على الجهاز: 1", { exact: false }).waitFor();
+    await page.getByLabel("كلمة مرور إنقاذ المسودات").fill(rescuePassword);
+    await page.getByLabel("تأكيد كلمة مرور المسودات").fill(rescuePassword);
+    await page.getByRole("button", { name: "تشفير المسودات القديمة" }).click();
+    await page.getByText("تم تأمين 1 مسودة قديمة", { exact: false }).waitFor({ timeout: 25000 });
+    assert.equal(await page.evaluate((key) => localStorage.getItem(key), rescueKey), null);
+    const archivedDraft = await page.evaluate((accountId) => new Promise((resolve, reject) => {
+      const request = indexedDB.open("memoflow-encrypted-draft-rescue");
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result;
+        const tx = db.transaction("rescue", "readonly");
+        const get = tx.objectStore("rescue").get(accountId);
+        get.onsuccess = () => resolve(get.result?.encrypted ?? "");
+        get.onerror = () => reject(get.error);
+        tx.oncomplete = () => db.close();
+      };
+    }), user.id);
+    assert.ok(archivedDraft.includes("memoflow-draft-rescue"));
+    assert.ok(!archivedDraft.includes("محتوى سري"));
+    assert.ok(!archivedDraft.includes("مسودة إنقاذ"));
+    await page.reload();
+    await page.getByRole("button", { name: "استعادة المسودات المشفّرة" }).waitFor();
+    await page.getByLabel("كلمة مرور إنقاذ المسودات").fill("Wrong rescue password 2026");
+    await page.getByRole("button", { name: "استعادة المسودات المشفّرة" }).click();
+    await page.getByText("كلمة المرور خاطئة أو بيانات المسودات تالفة.").waitFor({ timeout: 25000 });
+    assert.equal(await page.evaluate((key) => localStorage.getItem(key), rescueKey), null);
+    await page.getByLabel("كلمة مرور إنقاذ المسودات").fill(rescuePassword);
+    await page.getByRole("button", { name: "استعادة المسودات المشفّرة" }).click();
+    await page.getByText("استُعيدت 1 مسودة", { exact: false }).waitFor({ timeout: 25000 });
+    assert.equal(await page.evaluate((key) => localStorage.getItem(key), rescueKey), rescueRaw);
+    // This is synthetic fixture data, not a real user draft.
+    await page.evaluate((key) => localStorage.removeItem(key), rescueKey);
 
     assert.equal(await page.getByRole("link", { name: "مساحات العمل", exact: true }).count(), 0);
     for (const width of [320, 360, 390, 430]) {
