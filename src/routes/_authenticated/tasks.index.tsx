@@ -218,7 +218,12 @@ function TasksPage() {
             </Button>
           </div>
         )}
-        {query.isLoading ? (
+        {query.isPending && query.fetchStatus === "paused" ? (
+          <p role="status" className="rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm">
+            لم تُحمّل المهام في هذه الجلسة قبل انقطاع الإنترنت. أعد الاتصال لعرضها؛
+            لم تُحذف أي مهام.
+          </p>
+        ) : query.isLoading ? (
           <LoadingState />
         ) : query.isError ? (
           <ErrorState
