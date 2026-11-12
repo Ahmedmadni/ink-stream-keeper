@@ -21,6 +21,8 @@ export default defineConfig({
     ...(isNativeBuild ? { spa: { enabled: true } } : {}),
   },
   vite: {
+    // Electron must load assets from a bundled local HTML document.
+    base: isNativeBuild ? "./" : "/",
     plugins: [
       VitePWA({
         registerType: "autoUpdate",
