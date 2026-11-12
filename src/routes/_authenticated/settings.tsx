@@ -10,6 +10,7 @@ import { usePwaInstall } from "@/hooks/use-pwa-install";
 import { lockVault } from "@/lib/vault";
 import { toast } from "sonner";
 import { BackupPanel } from "@/features/backup/BackupPanel";
+import { OfflineArchivePanel } from "@/features/offline-archive/OfflineArchivePanel";
 import { AppLockSettings } from "@/components/AppLockSettings";
 import { FloatingCardsSettings } from "@/components/FloatingCardsSettings";
 import { ReminderSettings } from "@/components/ReminderSettings";
@@ -95,6 +96,7 @@ function SettingsPage() {
         <FloatingCardsSettings />
       </Group>
       <BackupPanel />
+      <OfflineArchivePanel />
       <Group title="التطبيق والحساب">
         {!isNative() && !isDesktop() && !pwa.installed && (
           <button

@@ -29,7 +29,7 @@ const jwt = [
   )
   .join(".");
 const task = {
-  id: "task-desktop",
+  id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
   user_id: user.id,
   title: "تطوير الموقع",
   done: false,
@@ -56,7 +56,7 @@ const items = [
   created_at: task.created_at,
 }));
 const note = {
-  id: "note-desktop",
+  id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
   user_id: user.id,
   title: "مذكرة العمل",
   content: "<p>أرشفة الملفات</p><p>إرسال البريد</p><p>&lt;img src=x onerror=alert(1)&gt;</p>",
@@ -70,7 +70,7 @@ const note = {
 };
 let notes = [
   note,
-  { ...note, id: "note-second", title: "مذكرة المتابعة", content: "<p>متابعة الأعمال</p>" },
+  { ...note, id: "ffffffff-ffff-4fff-8fff-ffffffffffff", title: "مذكرة المتابعة", content: "<p>متابعة الأعمال</p>" },
 ];
 const { pbkdf2Sync, randomBytes, createCipheriv } = require("node:crypto");
 const vaultSalt = randomBytes(16);
@@ -359,6 +359,38 @@ const vaultEntries = [
       );
     }
     await page.getByRole("navigation", { name: "التنقل الجانبي" }).waitFor();
+    // The packaged custom protocol must persist encrypted IndexedDB archives
+    // and render them even with the Supabase backend entirely unreachable.
+    const archivePassphrase = "desktop archive phrase 2026!";
+    await page.goto("memoflow://app/settings");
+    // A preceding packaged smoke run can leave UNSAVED FIXTURE drafts in the
+    // same Windows userData profile (notably when MSIX tests run afterward).
+    // Clean only this synthetic CI account to avoid mistaking a legitimate
+    // production safety guard for an offline archive malfunction.
+    await page.evaluate((accountId) => {
+      const prefix = `memoflow.note-draft.v1:${encodeURIComponent(accountId)}:`;
+      const keys = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith(prefix)) keys.push(key);
+      }
+      keys.forEach((key) => localStorage.removeItem(key));
+    }, user.id);
+    await page.getByRole("heading", { name: "أرشيف محلي اختياري" }).waitFor();
+    await page.getByLabel("كلمة مرور النسخة (12 حرفًا على الأقل)").fill(archivePassphrase);
+    await page.getByLabel("تأكيد كلمة المرور").fill(archivePassphrase);
+    await page.getByRole("button", { name: "حفظ نسخة مشفّرة للقراءة دون إنترنت" }).click();
+    await page.getByText("حُفظت نسخة مشفّرة تضم", { exact: false }).waitFor({ timeout: 25000 });
+    await page.goto("memoflow://app/offline");
+    const blockBackend = (route) => route.abort();
+    await page.route(`${backend}/**`, blockBackend);
+    await page.reload();
+    await page.getByLabel("كلمة مرور النسخة المحلية").fill(archivePassphrase);
+    await page.getByRole("button", { name: "فتح النسخة المشفّرة" }).click();
+    await page.getByRole("button", { name: /مذكرة العمل/ }).click();
+    await page.locator("article").getByText("أرشفة الملفات إرسال البريد", { exact: false }).waitFor({ timeout: 25000 });
+    await page.unroute(`${backend}/**`, blockBackend);
+    console.log("PASS: Electron encrypted offline archive persists across reload without backend.");
     await page.goto("memoflow://app/tasks");
     await page.getByText(task.title, { exact: true }).waitFor();
     const preview = page.getByRole("list", { name: `بنود ${task.title}`, exact: true });
@@ -504,7 +536,7 @@ const vaultEntries = [
     await detached.getByRole("button", { name: "إعادة المذكرة إلى التطبيق", exact: true }).click();
     await page.getByRole("textbox", { name: "عنوان الملاحظة", exact: true }).waitFor();
     await page.goto("memoflow://app/notes");
-    const source = page.locator('[data-note-card="note-second"]');
+    const source = page.locator('[data-note-card="ffffffff-ffff-4fff-8fff-ffffffffffff"]');
     await source.waitFor();
     await source.evaluate((el) =>
       el.addEventListener(
