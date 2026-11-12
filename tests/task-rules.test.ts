@@ -168,3 +168,18 @@ describe("purchase and planning actions visible to the user", () => {
     expect(source).not.toContain('emit("history:redo"');
   });
 });
+
+describe("browser reminder resume safety", () => {
+  test("reschedules suspended timers and rejects invalid reminder dates", async () => {
+    const { readFileSync } = await import("node:fs");
+    const source = readFileSync(
+      new URL("../src/hooks/use-task-reminders.ts", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain('window.addEventListener("focus", onResume)');
+    expect(source).toContain('document.addEventListener("visibilitychange", onResume)');
+    expect(source).toContain('window.removeEventListener("focus", onResume)');
+    expect(source).toContain('document.removeEventListener("visibilitychange", onResume)');
+    expect(source).toContain("!Number.isFinite(delay)");
+  });
+});
