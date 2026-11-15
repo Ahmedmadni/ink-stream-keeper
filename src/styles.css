@@ -510,3 +510,20 @@ select:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* Notebook paper is a light, physical writing surface in BOTH light/dark app themes.
+   Keep typing ink readable and make the caret independent from global text colors. */
+[data-notebook-paper] .prose-mf {
+  color: #17263b;
+  caret-color: #17263b;
+}
+[data-notebook-paper] .prose-mf a { color: #205eb7; }
+[data-notebook-paper] .prose-mf blockquote {
+  color: #17263b;
+  background: rgba(214, 228, 246, .68);
+}
+[data-notebook-paper] .prose-mf p.is-editor-empty:first-child::before {
+  color: #667b90;
+  opacity: 1;
+}
