@@ -24,6 +24,7 @@ async function checkInk(page) {
   await page.getByRole("button", { name: "تراجع الرسم", exact: true }).click();
   assert.equal(await marks.first().getAttribute("d"), first);
   await page.getByRole("button", { name: "ممحاة", exact: true }).click();
+  await page.getByRole("button", { name: "مسح المسار كاملًا", exact: true }).click();
   await marks.first().scrollIntoViewIfNeeded();
   bounds = await marks.first().boundingBox();
   await page.mouse.move(bounds.x - 20, bounds.y + bounds.height / 2);
@@ -61,6 +62,60 @@ async function checkInk(page) {
   await page.setViewportSize({ width: 1024, height: 768 });
 }
 
+async function checkSegmentEraser(page, artifacts) {
+  const canvas = page.getByRole("img", { name: "مساحة الرسم بالقلم" });
+  const marks = canvas.locator("[data-stroke-id]");
+  const count = await marks.count();
+  await page.getByRole("button", { name: "قلم", exact: true }).click();
+  await canvas.evaluate((e) => e.scrollIntoView({ block: "center" }));
+  let bounds = await canvas.boundingBox();
+  const y = Math.max(190, Math.min(page.viewportSize().height - 210, bounds.y + bounds.height * .55));
+  const x = bounds.x + bounds.width * .2, length = bounds.width * .5;
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", buttons: 1, pointerType: "pen", force: .3 });
+  for (let i = 1; i <= 12; i++) await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: x + length * i / 12,
+    y, button: "left", buttons: 1, pointerType: "pen", force: .3 + .05 * i });
+  await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: x + length, y, button: "left", pointerType: "pen" });
+  await cdp.detach();
+  assert.equal(await marks.count(), count + 1);
+  const mark = marks.last(), id = await mark.getAttribute("data-stroke-id"), before = await mark.getAttribute("d");
+  assert.notEqual(await mark.getAttribute("fill"), "none");
+  await page.getByRole("button", { name: "ممحاة", exact: true }).click();
+  await page.getByRole("button", { name: "مسح جزء من المسار", exact: true }).click();
+  await mark.scrollIntoViewIfNeeded();
+  bounds = await mark.boundingBox();
+  const middleX = bounds.x + bounds.width / 2, middleY = bounds.y + bounds.height / 2;
+  await page.mouse.move(middleX, middleY - 30); await page.mouse.down();
+  await page.mouse.move(middleX, middleY + 30, { steps: 5 }); await page.mouse.up();
+  assert.equal(await marks.count(), count + 1, "a middle erase preserves the original stroke identity");
+  const after = await mark.getAttribute("d");
+  assert.notEqual(after, before);
+  assert.equal((after.match(/M /g) || []).length, 2, "the visible pressure outline has two separate pieces");
+  await page.getByRole("button", { name: "تراجع الرسم", exact: true }).click();
+  assert.equal(await mark.getAttribute("d"), before, "one undo restores the entire erase gesture");
+  await page.getByRole("button", { name: "إعادة الرسم", exact: true }).click();
+  assert.equal(await mark.getAttribute("d"), after);
+  await mark.scrollIntoViewIfNeeded(); bounds = await mark.boundingBox();
+  await canvas.evaluate((el) => el.addEventListener("pointerdown", (event) => { el.dataset.qaPointer = String(event.pointerId); }, { once: true }));
+  await page.mouse.move(bounds.x + bounds.width * .2, bounds.y - 25); await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width * .2, bounds.y + bounds.height + 25, { steps: 3 });
+  assert.notEqual(await mark.getAttribute("d"), after, "a held eraser gesture previews its cut");
+  const pointerId = Number(await canvas.getAttribute("data-qa-pointer"));
+  await canvas.dispatchEvent("pointercancel", { pointerId, pointerType: "mouse", isPrimary: true });
+  await page.mouse.up();
+  assert.equal(await mark.getAttribute("d"), after, "cancelling a gesture restores all its preview cuts");
+  await page.getByRole("button", { name: "تحديد وتحريك", exact: true }).click();
+  await mark.scrollIntoViewIfNeeded(); bounds = await mark.boundingBox();
+  const pickX = bounds.x + bounds.width * .2, pickY = bounds.y + bounds.height / 2;
+  await page.mouse.move(pickX, pickY); await page.mouse.down();
+  await page.mouse.move(pickX + 15, pickY + 10, { steps: 4 }); await page.mouse.up();
+  assert.notEqual(await mark.getAttribute("d"), after, "remaining pieces move together");
+  await page.getByRole("button", { name: "تراجع الرسم", exact: true }).click();
+  assert.equal(await mark.getAttribute("d"), after);
+  await page.screenshot({ path: artifacts + "/notebook-segment-eraser.png", fullPage: true });
+  return { id, path: after };
+}
+
 async function checkPdf(page, artifacts) {
   let securePreviewRequests = 0;
   const watch = (request) => { if (request.url().includes("unavailable.fixture.test/leak")) securePreviewRequests++; };
@@ -78,6 +133,8 @@ async function checkPdf(page, artifacts) {
     first.stickers = [{ id: crypto.randomUUID(), kind: "calculator", x: .8, y: .65, scale: .12, color: "#2244ff" }];
     first.strokes = [{ id: crypto.randomUUID(), tool: "pen", color: "#112233", width: 4,
       points: [[300, 700], [400, 750], [600, 700]], pressures: [.2, 1, .4], smoothing: true }];
+    first.strokes.push({ id: crypto.randomUUID(), tool: "pen", color: "#ef7800", width: 8,
+      points: [[100, 900], [700, 900]], pressures: [.5, .5], smoothing: false, cuts: [[.45, .55]] });
     const second = createPage({ size: "letter", paper: "ledger" });
     second.html = '<p><span style="font-family:Aref Ruqaa">الصفحة الثانية — كتابة عربية بخط رقعة</span></p>';
     second.stickers = [{ id: crypto.randomUUID(), kind: "sci-neuron", x: .5, y: .5, scale: .24, color: "#224466", rotation: 25, presentation: "cutout" }];
@@ -124,6 +181,17 @@ async function checkPdf(page, artifacts) {
   assert.ok(red > 1000, "formatted table cell must be visible in PDF");
   assert.ok(green > 1000, "embedded image must be visible in PDF");
   assert.ok(blue > 1000, "accounting sticker must be visible in PDF");
+  const width = Number(header[1]), height = Number(header[2]);
+  let visibleOrange = 0, gapOrange = 0;
+  for (let y = Math.floor(height * .89); y <= Math.ceil(height * .91); y++)
+    for (let x = Math.floor(width * .15); x <= Math.ceil(width * .41); x++) {
+      const offset = (y * width + x) * 3;
+      if (pixels[offset] > 210 && pixels[offset + 1] > 80 && pixels[offset + 1] < 160 && pixels[offset + 2] < 40) {
+        if (x < width * .3) visibleOrange++; else if (x > width * .39) gapOrange++;
+      }
+    }
+  assert.ok(visibleOrange > 100, "surviving pressure-ink pieces remain visible in PDF");
+  assert.equal(gapOrange, 0, "PDF preserves the erased middle instead of reconnecting the captured samples");
   const images = [...pdf.toString("latin1").matchAll(/\/Subtype \/Image \/Width (\d+) \/Height (\d+)[\s\S]*?\/Filter \/FlateDecode \/Length (\d+) >>\nstream\n/g)];
   assert.equal(images.length, 2);
   const artImage = images[1], artStart = artImage.index + artImage[0].length;
@@ -189,4 +257,4 @@ async function checkStudy(page, artifacts) {
   await page.getByRole("dialog").getByText("هذه النسخة لا توفر محرك التعرف المحلي.", { exact: false }).waitFor();
   await page.getByRole("button", { name: "إغلاق التعرف على الخط", exact: true }).click();
 }
-module.exports = { checkInk, checkPdf, checkStudy };
+module.exports = { checkInk, checkPdf, checkStudy, checkSegmentEraser };

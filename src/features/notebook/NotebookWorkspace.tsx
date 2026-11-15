@@ -14,6 +14,7 @@ import { STICKER_GROUPS, stickerIcon, searchStickers } from "./sticker-packs";
 import { InkMark } from "./InkMark";
 import { StickerArtwork, stickerStyle, ScienceAttribution } from "./StickerArtwork";
 import { shapePoints, type ShapeTool, hitStroke, inkBounds, InkHistory, moveInk as translateInk, type Point, type InkBounds } from "./ink";
+import { eraseInkSegments } from "./ink-segments";
 import { pageLayout, paperStyle } from "./page-layout";
 import { PaperGuides, PAPER_LABELS, TEXTURE_LABELS, paperTextStyle } from "./PaperGuides";
 import { HandwritingPanel } from "./HandwritingPanel";
@@ -23,7 +24,9 @@ const SIZE_LABELS = { a4: "A4", a5: "A5", letter: "Letter", square: "مربعة"
 const TINT_LABELS = { white: "أبيض", ivory: "كريمي", mint: "نعناعي", blue: "أزرق هادئ", rose: "وردي" };
 type PaletteGroup = "text" | "draw" | "shapes" | "stickers" | "paper";
 type InkMode = "pen" | "highlighter" | "eraser" | "select";
-type InkGesture = { pointerId: number; pageId: string; mode: InkMode; start: Point; last: Point; erased: Set<string>; moving: boolean };
+type EraserKind = "segment" | "stroke";
+type InkGesture = { pointerId: number; pageId: string; mode: InkMode; start: Point; last: Point; erased: Set<string>; moving: boolean;
+  eraserKind: EraserKind; partialStrokes?: InkStroke[]; error?: string };
 type PaperFineSettings = Pick<NotebookPage, "lineSpacing" | "fontSize" | "texture">;
 function PaperFineControls({ value, onChange }: { value: PaperFineSettings; onChange: (value: Partial<PaperFineSettings>) => void }) {
   return <div className="grid grid-cols-1 gap-3 rounded-xl bg-secondary/40 p-3 text-sm sm:grid-cols-3">
@@ -119,6 +122,9 @@ export function NotebookWorkspace({
   const [pressureEnabled, setPressureEnabled] = useState(true);
   const [sensitivity, setSensitivity] = useState(1);
   const [eraserWidth, setEraserWidth] = useState(16);
+  const [eraserKind, setEraserKind] = useState<EraserKind>("segment");
+  const [erasePreview, setErasePreview] = useState<InkStroke[] | null>(null);
+  const [eraserPoint, setEraserPoint] = useState<Point | null>(null);
   const [erased, setErased] = useState<Set<string>>(new Set());
   const [selection, setSelection] = useState<Set<string>>(new Set());
   const [selectionBox, setSelectionBox] = useState<InkBounds | null>(null);
@@ -173,7 +179,7 @@ export function NotebookWorkspace({
     setWarning("");
     history.current.clear();
     gesture.current = null; liveRef.current = null;
-    setLive(null); setErased(new Set()); setSelection(new Set()); setSelectionBox(null); setOffset(null);
+    setLive(null); setErased(new Set()); setErasePreview(null); setEraserPoint(null); setSelection(new Set()); setSelectionBox(null); setOffset(null);
     setIndex((prev) => Math.min(prev, Math.max(0, (next.book?.pages.length ?? 1) - 1)));
   }, [content]);
 
@@ -276,8 +282,8 @@ export function NotebookWorkspace({
   const layout = pageLayout(page);
   const aspect = pageH / pageW;
   const displayScale = zoom ?? Math.min(1, Math.max(1, viewportWidth) / layout.width);
-  const shownStrokes = offset ? translateInk(page.strokes, selection, offset[0], offset[1]) : page.strokes;
-  const selectedBounds = inkBounds(shownStrokes.filter((s) => selection.has(s.id)));
+  const shownStrokes = erasePreview ?? (offset ? translateInk(page.strokes, selection, offset[0], offset[1]) : page.strokes);
+  const selectedBounds = inkBounds(shownStrokes.filter((s) => selection.has(s.id)), aspect);
   const isDrawing = group === "draw" || group === "shapes";
   const selected = page.stickers.find((s) => s.id === selectedSticker) ?? null;
   const coords = (event: PointerEvent<SVGSVGElement>) => {
@@ -289,27 +295,42 @@ export function NotebookWorkspace({
   };
   const clearGesture = () => {
     gesture.current = null;
-    liveRef.current = null; setLive(null); setErased(new Set()); setSelectionBox(null); setOffset(null);
+    liveRef.current = null; setLive(null); setErased(new Set()); setErasePreview(null); setEraserPoint(null); setSelectionBox(null); setOffset(null);
   };
   const finish = () => {
     const activeGesture = gesture.current;
     const stroke = liveRef.current;
     if (!activeGesture) return;
+    if (activeGesture.error) { clearGesture(); return; }
     const current = bookRef.current;
     if (!current) { clearGesture(); return; }
     const next = { ...current, pages: current.pages.map((p) => {
       if (p.id !== activeGesture.pageId) return p;
       if (stroke?.points.length) return { ...p, strokes: [...p.strokes, stroke] };
+      if (activeGesture.mode === "eraser" && activeGesture.partialStrokes && activeGesture.partialStrokes !== p.strokes)
+        return { ...p, strokes: activeGesture.partialStrokes };
       if (activeGesture.mode === "eraser" && activeGesture.erased.size)
         return { ...p, strokes: p.strokes.filter((s) => !activeGesture.erased.has(s.id)) };
       if (activeGesture.mode === "select" && activeGesture.moving)
         return { ...p, strokes: translateInk(p.strokes, selection, activeGesture.last[0] - activeGesture.start[0], activeGesture.last[1] - activeGesture.start[1]) };
       return p;
     }) };
-    if (next.pages.some((p, i) => p !== current.pages[i]) && !commit(next)) return;
+    if (next.pages.some((p, i) => p !== current.pages[i]) && !commit(next)) { clearGesture(); return; }
     clearGesture();
   };
   const eraseAt = (from: Point, to: Point, active: InkGesture) => {
+    if (active.error) return;
+    if (active.eraserKind === "segment") {
+      try {
+        const current = active.partialStrokes ?? page.strokes;
+        const next = eraseInkSegments(current, from, to, eraserWidth / 2, aspect);
+        if (next !== current) { active.partialStrokes = next; setErasePreview(next); }
+      } catch (error) {
+        active.error = error instanceof Error ? error.message : "تعذر حفظ حركة الممحاة؛ بقي الحبر الأصلي كما هو.";
+        active.partialStrokes = undefined; setErasePreview(null); setWarning(active.error);
+      }
+      return;
+    }
     for (const stroke of page.strokes)
       if (hitStroke(stroke, from, to, eraserWidth / 2, aspect)) active.erased.add(stroke.id);
     setErased(new Set(active.erased));
@@ -326,9 +347,10 @@ export function NotebookWorkspace({
     }
     event.currentTarget.setPointerCapture(event.pointerId);
     const position = coords(event);
-    const active: InkGesture = { pointerId: event.pointerId, pageId: page.id, mode, start: position, last: position, erased: new Set(), moving: false };
+    const active: InkGesture = { pointerId: event.pointerId, pageId: page.id, mode, start: position, last: position,
+      erased: new Set(), moving: false, eraserKind };
     gesture.current = active;
-    if (mode === "eraser") { eraseAt(position, position, active); return; }
+    if (mode === "eraser") { setEraserPoint(position); eraseAt(position, position, active); return; }
     if (mode === "select") {
       const hit = [...page.strokes].reverse().find((s) => hitStroke(s, position, position, 10, aspect));
       if (hit) {
@@ -350,6 +372,7 @@ export function NotebookWorkspace({
     setLive(liveRef.current);
   };
   const moveInk = (event: PointerEvent<SVGSVGElement>) => {
+    if (isDrawing && (inkMode === "eraser" || (event.buttons & 32))) setEraserPoint(coords(event));
     const active = gesture.current;
     if (!active || active.pointerId !== event.pointerId) return;
     event.preventDefault();
@@ -363,8 +386,8 @@ export function NotebookWorkspace({
           const box = { x: Math.min(active.start[0], next[0]), y: Math.min(active.start[1], next[1]), width: Math.abs(next[0] - active.start[0]), height: Math.abs(next[1] - active.start[1]) };
           setSelectionBox(box);
           setSelection(new Set(page.strokes.filter((s) => {
-            const b = inkBounds([s])!;
-            return b.x >= box.x && b.y >= box.y && b.x + b.width <= box.x + box.width && b.y + b.height <= box.y + box.height;
+            const b = inkBounds([s], aspect);
+            return !!b && b.x >= box.x && b.y >= box.y && b.x + b.width <= box.x + box.width && b.y + b.height <= box.y + box.height;
           }).map((s) => s.id)));
         }
       } else if (liveRef.current && group === "shapes") {
@@ -536,6 +559,15 @@ export function NotebookWorkspace({
                 onChange={(e) => setEraserWidth(Number(e.target.value))}/>
             </label>}
           </div>
+          {inkMode === "eraser" && <div className="space-y-2 rounded-xl bg-secondary/50 p-3">
+            <div className="flex flex-wrap gap-2" role="group" aria-label="نوع ممحاة الحبر">
+              <button type="button" aria-label="مسح جزء من المسار" aria-pressed={eraserKind === "segment"}
+                className={controlCls(eraserKind === "segment")} onClick={() => { finish(); setEraserKind("segment"); }}>جزء من المسار</button>
+              <button type="button" aria-label="مسح المسار كاملًا" aria-pressed={eraserKind === "stroke"}
+                className={controlCls(eraserKind === "stroke")} onClick={() => { finish(); setEraserKind("stroke"); }}>المسار كاملًا</button>
+            </div>
+            <p className="text-xs leading-6 text-muted-foreground">المسح الجزئي يزيل مقاطع من الضربة بعرضها الكامل. تتحرك الأجزاء المتبقية معًا عند تحديد الضربة، ويمكن التراجع عن حركة المسح كاملة بخطوة واحدة.</p>
+          </div>}
           {inkMode === "select" && <div className="flex flex-wrap items-center gap-2">
             <button type="button" className={controlCls(false)} onClick={() => setSelection(new Set(page.strokes.map((s) => s.id)))}><ScanLine className="size-4"/>تحديد كل الرسم</button>
             <button type="button" className={controlCls(false)} disabled={!selection.size} onClick={() => {
@@ -543,7 +575,7 @@ export function NotebookWorkspace({
             }}><Trash2 className="size-4"/>حذف المحدد ({selection.size})</button>
           </div>}
           <p className="text-xs leading-6 text-muted-foreground">
-            الضغط يعمل مع الأقلام التي ترسل بيانات ضغط. الممحاة تمسح المسار كاملًا بالسحب ويمكن التراجع عنها.
+            الضغط يعمل مع الأقلام التي ترسل بيانات ضغط. اختر للممحاة مسح مقطع أو ضربة كاملة، وكلاهما قابل للتراجع.
             للتحديد اسحب إطارًا حول الرسم، ثم اسحب أي خط محدد لتحريكه. تنعيم المسار لا يتعرف على الحروف العربية.
           </p>
         </div>
@@ -703,12 +735,15 @@ export function NotebookWorkspace({
               onPointerUp={(e) => { if (gesture.current?.pointerId === e.pointerId) { moveInk(e); finish(); } }}
               onPointerCancel={(e) => { if (gesture.current?.pointerId === e.pointerId) clearGesture(); }}
               onLostPointerCapture={(e) => { if (gesture.current?.pointerId === e.pointerId) finish(); }}
+              onPointerLeave={() => { if (!gesture.current) setEraserPoint(null); }}
               className={"absolute inset-0 z-20 size-full " + (isDrawing ? "cursor-crosshair" : "pointer-events-none")}
               style={{ touchAction: isDrawing && !penOnly ? "none" : "pan-x pan-y" }}>
               {shownStrokes.filter((s) => !erased.has(s.id)).map((stroke) => (
                 <InkMark key={stroke.id} stroke={stroke} aspect={aspect} selected={isDrawing && selection.has(stroke.id)} />
               ))}
               {live && <InkMark stroke={live} aspect={aspect} />}
+              {isDrawing && eraserPoint && <circle cx={eraserPoint[0]} cy={eraserPoint[1] * aspect} r={eraserWidth / 2}
+                fill="#4488ff12" stroke="#3275ba" strokeWidth={1.5} strokeDasharray="3 3" pointerEvents="none"/>}
               {isDrawing && inkMode === "select" && (selectionBox || selectedBounds) && (() => {
                 const b = selectionBox || selectedBounds!;
                 return <rect x={b.x - 5} y={(b.y - 5) * aspect} width={b.width + 10} height={(b.height + 10) * aspect}
@@ -786,6 +821,11 @@ export function NotebookWorkspace({
         {group === "draw" && <div className="mb-2 flex gap-1 overflow-x-auto border-b border-border pb-2" role="group" aria-label="أدوات القلم السريعة">
           <button type="button" className={controlCls(inkMode === "pen")} aria-label="القلم السريع" onClick={() => { finish(); setInkMode("pen"); }}><PenLine className="size-4"/></button>
           <button type="button" className={controlCls(inkMode === "eraser")} aria-label="الممحاة السريعة" onClick={() => { finish(); setInkMode("eraser"); }}><Eraser className="size-4"/></button>
+          {inkMode === "eraser" && <select aria-label="نوع الممحاة السريعة" value={eraserKind}
+            onChange={(e) => { finish(); setEraserKind(e.target.value as EraserKind); }}
+            className="min-h-11 shrink-0 rounded-xl border border-border bg-background px-2 text-xs">
+            <option value="segment">مسح جزء</option><option value="stroke">مسار كامل</option>
+          </select>}
           <button type="button" className={controlCls(inkMode === "select")} aria-label="التحديد السريع" onClick={() => { finish(); setInkMode("select"); }}><MousePointer2 className="size-4"/></button>
           <button type="button" className={controlCls(false)} aria-label="تراجع سريع" disabled={!history.current.canUndo(page.id)} onClick={() => historyStep(false)}><Undo2 className="size-4"/></button>
           <button type="button" className={controlCls(false)} aria-label="إعادة سريعة" disabled={!history.current.canRedo(page.id)} onClick={() => historyStep(true)}><Redo2 className="size-4"/></button>

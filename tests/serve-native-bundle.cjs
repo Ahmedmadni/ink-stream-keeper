@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const root = path.resolve(__dirname, "../dist/client");
 const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".woff2": "font/woff2",
-  ".json": "application/json", ".png": "image/png", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json" };
+  ".ttf": "font/ttf", ".json": "application/json", ".png": "image/png", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json" };
 http.createServer((req, res) => {
   try {
     const requested = path.resolve(root, "." + decodeURIComponent(new URL(req.url, "http://local").pathname));
@@ -17,6 +17,7 @@ http.createServer((req, res) => {
     }
     res.setHeader("Content-Type", types[path.extname(file)] || "application/octet-stream");
     res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-MemoFlow-Test-Server", process.env.MEMOFLOW_BROWSER_SERVER_TOKEN || "standalone");
     fs.createReadStream(file).pipe(res);
   } catch { res.writeHead(500); res.end(); }
-}).listen(4173, "127.0.0.1");
+}).listen(4174, "127.0.0.1");

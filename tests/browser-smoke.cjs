@@ -6,7 +6,8 @@ const assert = require("node:assert/strict");
 const root = resolve(__dirname, "..");
 const artifacts = resolve(root, ".qa-results");
 mkdirSync(artifacts, { recursive: true });
-const baseUrl = "http://127.0.0.1:4173";
+const nativeBundle = process.env.MEMOFLOW_BROWSER_NATIVE_BUNDLE === "1";
+const baseUrl = "http://127.0.0.1:" + (nativeBundle ? 4174 : 4173);
 const env = readFileSync(root + "/.env", "utf8");
 const url = env.match(/^VITE_SUPABASE_URL=["']?([^"'\n]+)/m)[1];
 const origin = new URL(url).origin;
@@ -179,6 +180,7 @@ let failVaultPinWrite = false;
 const vaultPinWrites = [];
 
 (async () => {
+  const serverToken = require("node:crypto").randomUUID();
   const server = spawn(
     process.execPath,
     process.env.MEMOFLOW_BROWSER_NATIVE_BUNDLE === "1" ? [resolve(root, "tests/serve-native-bundle.cjs")] : [
@@ -190,7 +192,7 @@ const vaultPinWrites = [];
       "4173",
       "--strictPort",
     ],
-    { cwd: root, stdio: ["ignore", "pipe", "pipe"] },
+    { cwd: root, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, MEMOFLOW_BROWSER_SERVER_TOKEN: serverToken } },
   );
   let logs = "";
   server.stdout.on("data", (chunk) => (logs += chunk));
@@ -199,13 +201,15 @@ const vaultPinWrites = [];
   try {
     const deadline = Date.now() + 30000;
     while (true) {
+      if (server.exitCode !== null) throw Error("Acceptance server exited: " + logs);
       try {
         const response = await fetch(baseUrl);
-        if (response.ok) break;
+        if (response.ok && (!nativeBundle || response.headers.get("X-MemoFlow-Test-Server") === serverToken)) break;
       } catch {}
       if (Date.now() > deadline) throw Error("Dev server did not start");
       await new Promise((r) => setTimeout(r, 250));
     }
+    if (nativeBundle) console.log("Verified generated native SPA server identity on port 4174.");
     browser = await chromium.launch({
       headless: true,
       executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
@@ -232,7 +236,7 @@ const vaultPinWrites = [];
     await context.route("**/*", async (route) => {
       const req = route.request(),
         u = new URL(req.url());
-      if (u.origin === "http://127.0.0.1:4173") return route.continue();
+      if (u.origin === baseUrl) return route.continue();
       if (u.origin !== origin) return route.abort();
       if (u.pathname.startsWith("/auth/v1/"))
         return route.fulfill({ json: u.pathname.endsWith("/user") ? user : session });
@@ -324,7 +328,7 @@ const vaultPinWrites = [];
     page = await context.newPage();
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
-    await page.goto("http://127.0.0.1:4173/notes");
+    await page.goto(`${baseUrl}/notes`);
     await page.getByText("أفكار الأسبوع", { exact: true }).waitFor();
     await page.evaluate(() => document.fonts.ready);
     assert.equal(
@@ -600,7 +604,7 @@ const vaultPinWrites = [];
       );
     }
     await page.setViewportSize({ width: 1024, height: 768 });
-    await page.goto("http://127.0.0.1:4173/notes");
+    await page.goto(`${baseUrl}/notes`);
     await page.getByText("أفكار الأسبوع", { exact: true }).waitFor();
     assert.ok(await page.getByRole("navigation", { name: "التنقل الجانبي" }).isVisible());
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
@@ -635,6 +639,7 @@ const vaultPinWrites = [];
     await page.mouse.move(bounds.x + bounds.width * .47, bounds.y + bounds.height * .61, { steps: 8 });
     await page.mouse.up();
     await require("./notebook-browser-checks.cjs").checkInk(page);
+    const partialInk = await require("./notebook-browser-checks.cjs").checkSegmentEraser(page, artifacts);
     await require("./notebook-browser-checks.cjs").checkStudy(page, artifacts);
     await page.getByRole("button", { name: "إضافة صفحة", exact: true }).click();
     await page.getByRole("tab", { name: "صفحة 2", exact: true }).waitFor();
@@ -667,6 +672,8 @@ const vaultPinWrites = [];
     await page.getByRole("tab", { name: "صفحة 2", exact: true }).waitFor();
     await page.getByRole("tab", { name: "صفحة 1", exact: true }).click();
     await page.getByRole("tab", { name: "ملصقات", exact: true }).click();
+    assert.equal(await page.locator(`[data-notebook-paper] [data-stroke-id="${partialInk.id}"]`).getAttribute("d"), partialInk.path,
+      "partial erasing survives autosave and a complete reload");
     assert.equal(await page.getByRole("button", { name: "ملصق calculator" }).count(), 1);
     const paperInk = await page.locator("[data-notebook-paper] .prose-mf").evaluate((element) => getComputedStyle(element).color);
     assert.equal(paperInk, "rgb(23, 38, 59)", "paper must have dark legible ink even in dark app theme");

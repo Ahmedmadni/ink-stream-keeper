@@ -1,4 +1,5 @@
 import { inkPath, type InkStroke, type NotebookPage } from "./model";
+import { cutInkPath, inkOutline, visibleInkRuns } from "./ink-segments";
 
 export type Point = [number, number];
 export type ShapeTool = "line" | "rectangle" | "ellipse" | "arrow";
@@ -22,41 +23,10 @@ const f = (n: number) => Math.round(n * 1000) / 1000;
  * tips stay circular on portrait, landscape and square paper. Never rewrite
  * captured points when smoothing or applying pressure. */
 export function inkShape(stroke: InkStroke, aspect = 1): { d: string; fill: boolean } {
-  const points: Point[] = stroke.points.map(([x, y]) => [x, y * aspect]);
-  if (!stroke.pressures || stroke.tool === "highlighter")
-    return { d: inkPath(points, stroke.smoothing ?? true), fill: false };
-  const samples = points.map(([x, y], i) => ({ x, y, r: stroke.width * (.25 + .75 * stroke.pressures![i]) / 2 }));
-  // The same midpoint quadratic as inkPath, with pressure interpolated along it.
-  const centers = [samples[0]];
-  if (stroke.smoothing !== false && samples.length > 2) {
-    let start = samples[0];
-    for (let i = 1; i < samples.length - 1; i++) {
-      const control = samples[i], next = samples[i + 1];
-      const end = { x: (control.x + next.x) / 2, y: (control.y + next.y) / 2, r: (control.r + next.r) / 2 };
-      for (const t of [.25, .5, .75, 1]) {
-        const a = (1 - t) ** 2, b = 2 * (1 - t) * t, c = t * t;
-        centers.push({ x: a * start.x + b * control.x + c * end.x,
-          y: a * start.y + b * control.y + c * end.y, r: a * start.r + b * control.r + c * end.r });
-      }
-      start = end;
-    }
-    centers.push(samples[samples.length - 1]);
-  } else centers.push(...samples.slice(1));
-  if (centers.length === 1) {
-    const { x, y, r } = centers[0];
-    return { d: `M ${f(x - r)} ${f(y)} a ${f(r)} ${f(r)} 0 1 0 ${f(r * 2)} 0 a ${f(r)} ${f(r)} 0 1 0 ${f(-r * 2)} 0`, fill: true };
-  }
-  const left: Point[] = [], right: Point[] = [];
-  centers.forEach((p, i) => {
-    const before = centers[Math.max(0, i - 1)], after = centers[Math.min(centers.length - 1, i + 1)];
-    const length = Math.hypot(after.x - before.x, after.y - before.y) || 1;
-    const nx = -(after.y - before.y) / length, ny = (after.x - before.x) / length;
-    left.push([p.x + nx * p.r, p.y + ny * p.r]);
-    right.push([p.x - nx * p.r, p.y - ny * p.r]);
-  });
-  const str = ([x, y]: Point) => `${f(x)} ${f(y)}`;
-  const first = centers[0], last = centers[centers.length - 1];
-  return { d: `M ${left.map(str).join(" L ")} A ${f(last.r)} ${f(last.r)} 0 0 1 ${str(right[right.length - 1])} L ${right.reverse().map(str).join(" L ")} A ${f(first.r)} ${f(first.r)} 0 0 1 ${str(left[0])} Z`, fill: true };
+  if (stroke.pressures && stroke.tool === "pen")
+    return { d: visibleInkRuns(stroke, aspect).map(inkOutline).join(" "), fill: true };
+  return { d: stroke.cuts?.length ? cutInkPath(stroke, aspect)
+    : inkPath(stroke.points.map(([x, y]) => [x, y * aspect]), stroke.smoothing ?? true), fill: false };
 }
 
 function distanceToSegment(point: Point, start: Point, end: Point): number {
@@ -68,10 +38,10 @@ function distanceToSegment(point: Point, start: Point, end: Point): number {
 /** Swept eraser, including between sparse pointer events. */
 export function hitStroke(stroke: InkStroke, from: Point, to: Point, radius: number, aspect = 1): boolean {
   const a: Point = [from[0], from[1] * aspect], b: Point = [to[0], to[1] * aspect];
-  const points: Point[] = stroke.points.map(([x, y]) => [x, y * aspect]);
-  const limit = radius + stroke.width / 2;
-  for (let i = 0; i < points.length; i++) {
-    const c = points[Math.max(0, i - 1)], d = points[i];
+  for (const points of visibleInkRuns(stroke, aspect)) for (let i = 0; i < points.length; i++) {
+    const prev = points[Math.max(0, i - 1)], next = points[i];
+    const c: Point = [prev.x, prev.y], d: Point = [next.x, next.y];
+    const limit = radius + Math.max(prev.r, next.r);
     if (Math.min(distanceToSegment(c, a, b), distanceToSegment(d, a, b),
       distanceToSegment(a, c, d), distanceToSegment(b, c, d)) <= limit) return true;
     // Intersecting segments can have all endpoints outside the brush radius.
@@ -81,17 +51,19 @@ export function hitStroke(stroke: InkStroke, from: Point, to: Point, radius: num
   return false;
 }
 
-export function inkBounds(strokes: InkStroke[]): InkBounds | null {
+export function inkBounds(strokes: InkStroke[], aspect = 1): InkBounds | null {
   if (!strokes.length) return null;
   let left = 1000, top = 1000, right = 0, bottom = 0;
-  for (const stroke of strokes) for (const [x, y] of stroke.points) {
+  for (const stroke of strokes) for (const [x, y] of stroke.cuts?.length
+    ? visibleInkRuns(stroke, aspect).flatMap((run) => run.map((p): Point => [p.x, p.y / aspect])) : stroke.points) {
     left = Math.min(left, x); top = Math.min(top, y); right = Math.max(right, x); bottom = Math.max(bottom, y);
   }
-  return { x: left, y: top, width: right - left, height: bottom - top };
+  return right < left ? null : { x: left, y: top, width: right - left, height: bottom - top };
 }
 
 export function moveInk(strokes: InkStroke[], ids: Set<string>, dx: number, dy: number): InkStroke[] {
-  const bounds = inkBounds(strokes.filter((s) => ids.has(s.id)));
+  // Even hidden captured points must stay within the serializable sheet bounds.
+  const bounds = inkBounds(strokes.filter((s) => ids.has(s.id)).map((s) => ({ ...s, cuts: undefined })));
   if (!bounds) return strokes;
   dx = Math.max(-bounds.x, Math.min(1000 - bounds.x - bounds.width, dx));
   dy = Math.max(-bounds.y, Math.min(1000 - bounds.y - bounds.height, dy));

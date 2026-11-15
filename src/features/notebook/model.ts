@@ -19,13 +19,16 @@ const strokeSchema = z.object({
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   width: z.number().finite().min(1).max(40),
   points: z.array(point).min(1).max(4000),
+  cuts: z.array(z.tuple([z.number().finite().min(0).max(1), z.number().finite().min(0).max(1)]))
+    .min(1).max(128).optional(),
   times: z.array(z.number().finite().int().nonnegative().max(Number.MAX_SAFE_INTEGER)).min(1).max(4000).optional(),
   // Optional fields preserve every existing v1 notebook and its original samples.
   pressures: z.array(z.number().finite().min(0).max(1)).min(1).max(4000).optional(),
   smoothing: z.boolean().optional(),
 }).strict().refine((stroke) => (!stroke.pressures || stroke.pressures.length === stroke.points.length) &&
-  (!stroke.times || (stroke.times.length === stroke.points.length && stroke.times.every((t, i) => i === 0 || t >= stroke.times![i - 1]))), {
-  message: "عينات ضغط القلم أو وقت الكتابة لا تطابق نقاط المسار.",
+  (!stroke.times || (stroke.times.length === stroke.points.length && stroke.times.every((t, i) => i === 0 || t >= stroke.times![i - 1]))) &&
+  (!stroke.cuts || (stroke.points.length > 1 && stroke.cuts.every(([a, b], i) => a < b && (i === 0 || a > stroke.cuts![i - 1][1])))), {
+  message: "عينات القلم أو مقاطع المسح غير متطابقة مع المسار.",
 });
 const stickerSchema = z.object({
   id: z.string().uuid(),
