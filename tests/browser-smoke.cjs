@@ -174,6 +174,7 @@ const vaultEntries = [
     password_ct: secret.ct,
   },
 ];
+let allowNoteCopy = false;
 let failVaultPinWrite = false;
 const vaultPinWrites = [];
 
@@ -299,8 +300,21 @@ const vaultPinWrites = [];
           } else result = vaultSettings;
         }
         if (table === "vault_entries") {
-          if (req.method() === "POST")
-            return route.fulfill({ status: 500, json: { message: "Fixture write failure" } });
+          if (req.method() === "POST") {
+            if (!allowNoteCopy)
+              return route.fulfill({ status: 500, json: { message: "Fixture write failure" } });
+            allowNoteCopy = false;
+            const row = req.postDataJSON();
+            assert.equal(row.user_id, user.id);
+            assert.ok(!row.notes.includes("data-mf-notebook-v1"));
+            assert.ok(!row.notes.includes("أفكار الأسبوع"));
+            vaultEntries.push({
+              ...row, id: "77777777-7777-4777-8777-777777777777",
+              created_at: "2026-11-15T04:00:00.000Z",
+              updated_at: "2026-11-15T04:00:00.000Z",
+            });
+            return route.fulfill({ status: 201, json: [] });
+          }
           result = vaultEntries;
         }
         return route.fulfill({ json: result });
@@ -663,6 +677,19 @@ const vaultPinWrites = [];
     for (const digit of "123456")
       await page.getByRole("button", { name: digit, exact: true }).click();
     await page.getByText("حساب تجريبي", { exact: true }).waitFor();
+    // Copy the paged note to the encrypted vault; the normal note is preserved.
+    await page.goto(baseUrl + "/notes/" + notes[0].id);
+    await page.getByRole("button", { name: "نسخ المذكرة إلى الخزنة" }).waitFor();
+    allowNoteCopy = true;
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.getByRole("button", { name: "نسخ المذكرة إلى الخزنة" }).click();
+    await page.getByText("حُفظت نسخة مشفّرة في الخزنة.", { exact: false }).waitFor();
+    assert.ok(notes[0].content.includes("data-mf-notebook-v1"));
+    await page.goto(baseUrl + "/vault");
+    await page.getByRole("button", { name: "عرض المذكرة المحمية" }).click();
+    await page.getByRole("tab", { name: "صفحة 2", exact: true }).waitFor();
+    await page.getByRole("tab", { name: "صفحة 1", exact: true }).click();
+    await page.getByText("مساحة هادئة لأفكاري الجديدة", { exact: false }).waitFor();
     await page.getByRole("button", { name: "حساب جديد", exact: true }).click();
     await page.getByLabel("العنوان", { exact: true }).fill("حساب محفوظ في النموذج");
     await page.getByPlaceholder("••••••••", { exact: true }).fill("Fixture-New-Secret");
