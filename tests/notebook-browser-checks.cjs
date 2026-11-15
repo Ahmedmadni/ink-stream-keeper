@@ -113,6 +113,19 @@ async function checkSegmentEraser(page, artifacts) {
   await page.getByRole("button", { name: "تراجع الرسم", exact: true }).click();
   assert.equal(await mark.getAttribute("d"), after);
   await page.screenshot({ path: artifacts + "/notebook-segment-eraser.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "ممحاة", exact: true }).click();
+  await canvas.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const pageBar = await page.getByRole("navigation", { name: "شريط صفحات المذكرة", exact: true }).boundingBox();
+  const appBar = await page.getByRole("navigation", { name: "التنقل الرئيسي", exact: true }).boundingBox();
+  assert.ok(pageBar.y >= 0 && pageBar.y + pageBar.height <= appBar.y - 6,
+    "mobile page/pen controls must stay above the application navigation bar");
+  await page.getByLabel("نوع الممحاة السريعة", { exact: true }).selectOption("stroke");
+  assert.equal(await page.getByRole("button", { name: "مسح المسار كاملًا", exact: true }).getAttribute("aria-pressed"), "true");
+  await page.getByLabel("نوع الممحاة السريعة", { exact: true }).selectOption("segment");
+  await page.screenshot({ path: artifacts + "/notebook-eraser-mobile.png" });
+  await page.setViewportSize({ width: 1024, height: 768 });
   return { id, path: after };
 }
 

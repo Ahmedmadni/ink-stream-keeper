@@ -472,7 +472,9 @@
 /* Global scrollbar polish */
 html,
 body {
-  overflow-x: hidden;
+  /* Clip horizontal spill without creating a nested scroll container that
+     prevents notebook/desktop sticky controls from following the viewport. */
+  overflow-x: clip;
 }
 
 /* Frosting is reserved for transient surfaces and explicit navigation. */

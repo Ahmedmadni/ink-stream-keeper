@@ -816,7 +816,7 @@ export function NotebookWorkspace({
           setIndex(current.pages.length); setGroup("text"); setSelection(new Set());
           return true;
         }}/>}
-      <nav className="sticky bottom-2 z-40 rounded-2xl border border-border bg-card/95 p-3 shadow-lg backdrop-blur"
+      <nav className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-40 rounded-2xl border border-border bg-card/95 p-3 shadow-lg backdrop-blur md:bottom-2"
         aria-label="شريط صفحات المذكرة">
         {group === "draw" && <div className="mb-2 flex gap-1 overflow-x-auto border-b border-border pb-2" role="group" aria-label="أدوات القلم السريعة">
           <button type="button" className={controlCls(inkMode === "pen")} aria-label="القلم السريع" onClick={() => { finish(); setInkMode("pen"); }}><PenLine className="size-4"/></button>
