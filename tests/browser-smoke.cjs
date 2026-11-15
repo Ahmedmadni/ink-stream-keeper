@@ -680,14 +680,19 @@ const vaultPinWrites = [];
       await page.getByRole("button", { name: digit, exact: true }).click();
     await page.getByText("حساب تجريبي", { exact: true }).waitFor();
     // Copy the paged note to the encrypted vault; the normal note is preserved.
-    await page.goto(baseUrl + "/notes/" + notes[0].id);
+    // Use in-app navigation: a full browser reload intentionally locks the
+    // ephemeral vault key, which must never be persisted to storage.
+    await page.getByRole("navigation", { name: "التنقل الرئيسي" })
+      .getByRole("link", { name: "المذكرات" }).click();
+    await page.getByRole("link", { name: /أفكار الأسبوع/ }).click();
     await page.getByRole("button", { name: "نسخ المذكرة إلى الخزنة" }).waitFor();
     allowNoteCopy = true;
     page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("button", { name: "نسخ المذكرة إلى الخزنة" }).click();
     await page.getByText("حُفظت نسخة مشفّرة في الخزنة.", { exact: false }).waitFor();
     assert.ok(notes[0].content.includes("data-mf-notebook-v1"));
-    await page.goto(baseUrl + "/vault");
+    await page.getByRole("navigation", { name: "التنقل الرئيسي" })
+      .getByRole("link", { name: "الخزنة" }).click();
     await page.getByRole("button", { name: "عرض المذكرة المحمية" }).click();
     await page.getByRole("tab", { name: "صفحة 2", exact: true }).waitFor();
     await page.getByRole("tab", { name: "صفحة 1", exact: true }).click();
