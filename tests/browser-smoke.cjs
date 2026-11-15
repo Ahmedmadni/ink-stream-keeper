@@ -649,6 +649,8 @@ const vaultPinWrites = [];
     await page.getByRole("tab", { name: "صفحة 1", exact: true }).click();
     await page.getByRole("tab", { name: "ملصقات", exact: true }).click();
     assert.equal(await page.getByRole("button", { name: "ملصق calculator" }).count(), 1);
+    const paperInk = await page.locator("[data-notebook-paper] .prose-mf").evaluate((element) => getComputedStyle(element).color);
+    assert.equal(paperInk, "rgb(23, 38, 59)", "paper must have dark legible ink even in dark app theme");
     await page.screenshot({ path: artifacts + "/notebook-studio-tablet.png", fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
     await page
