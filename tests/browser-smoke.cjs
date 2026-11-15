@@ -219,6 +219,7 @@ const vaultPinWrites = [];
         : [],
     });
     const context = await browser.newContext({
+      acceptDownloads: true,
       viewport: { width: 390, height: 844 },
       deviceScaleFactor: 1,
       timezoneId: "Asia/Riyadh",
@@ -241,7 +242,17 @@ const vaultPinWrites = [];
           if (req.method() === "PATCH") profile = { ...profile, ...req.postDataJSON() };
           result = profile;
         }
-        if (table === "notes") result = u.searchParams.has("id") ? notes[0] : notes;
+        if (table === "notes") {
+          if (req.method() === "PATCH") {
+            const patch = req.postDataJSON();
+            if (u.searchParams.get("updated_at") !== "eq." + notes[0].updated_at)
+              return route.fulfill({ json: null });
+            Object.assign(notes[0], patch, {
+              updated_at: new Date(Date.parse(notes[0].updated_at) + 1000).toISOString(),
+            });
+            result = { title: notes[0].title, content: notes[0].content, updated_at: notes[0].updated_at };
+          } else result = u.searchParams.has("id") ? notes[0] : notes;
+        }
         if (table === "categories") result = categories;
         if (table === "tasks") {
           if (req.method() === "PATCH") {
@@ -588,6 +599,43 @@ const vaultPinWrites = [];
       await page.getByRole("textbox", { name: "عنوان الملاحظة" }).inputValue(),
       "أفكار الأسبوع",
     );
+    // Notebook Studio: paper, pen, licensed accounting stickers, PDF and reload.
+    await page.getByRole("button", { name: "إنشاء دفتر بالصفحات" }).click();
+    await page.getByRole("tab", { name: "ورق", exact: true }).click();
+    await page.getByRole("button", { name: "مربعات", exact: true }).click();
+    await page.getByRole("tab", { name: "ملصقات", exact: true }).click();
+    await page.getByRole("button", { name: "محاسبة وأعمال", exact: true }).click();
+    await page.getByRole("button", { name: "إضافة ملصق آلة حاسبة" }).click();
+    await page.getByRole("tab", { name: "أقلام", exact: true }).click();
+    const drawing = page.getByRole("img", { name: "مساحة الرسم بالقلم" });
+    await drawing.waitFor();
+    const bounds = await drawing.boundingBox();
+    assert.ok(bounds);
+    await page.mouse.move(bounds.x + bounds.width * .42, bounds.y + bounds.height * .57);
+    await page.mouse.down();
+    await page.mouse.move(bounds.x + bounds.width * .47, bounds.y + bounds.height * .61, { steps: 8 });
+    await page.mouse.up();
+    await page.getByRole("button", { name: "إضافة صفحة", exact: true }).click();
+    await page.getByRole("tab", { name: "صفحة 2", exact: true }).waitFor();
+    assert.equal(await page.getByRole("tab", { name: /^صفحة [12]$/ }).count(), 2);
+    await page.getByRole("tab", { name: "صفحة 1", exact: true }).click();
+    const downloadPending = page.waitForEvent("download", { timeout: 25000 });
+    await page.getByRole("button", { name: "تصدير صفحات الدفتر PDF" }).click();
+    const pdf = await downloadPending;
+    const pdfBytes = readFileSync(await pdf.path());
+    assert.equal(pdfBytes.subarray(0, 8).toString("utf8"), "%PDF-1.4");
+    assert.ok(pdfBytes.includes(Buffer.from("/Count 2")));
+    const notebookDeadline = Date.now() + 20000;
+    while (!notes[0].content.includes("data-mf-notebook-v1")) {
+      if (Date.now() > notebookDeadline) throw Error("Notebook was not saved remotely");
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    await page.reload();
+    await page.getByRole("tab", { name: "صفحة 2", exact: true }).waitFor();
+    await page.getByRole("tab", { name: "صفحة 1", exact: true }).click();
+    await page.getByRole("tab", { name: "ملصقات", exact: true }).click();
+    assert.equal(await page.getByRole("button", { name: "ملصق calculator" }).count(), 1);
+    await page.screenshot({ path: artifacts + "/notebook-studio-tablet.png", fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
     await page
       .getByRole("navigation", { name: "التنقل الرئيسي" })
