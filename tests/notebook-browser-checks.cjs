@@ -86,13 +86,16 @@ async function checkPdf(page, artifacts) {
     const blob = await createNotebookPdf({ version: 1, pages: [first, second] });
     const bytes = new Uint8Array(await blob.arrayBuffer()); let binary = "";
     for (let i = 0; i < bytes.length; i += 16384) binary += String.fromCharCode(...bytes.subarray(i, i + 16384));
+    const referenceBlob = await createNotebookPdf({ version: 1, pages: [second] });
+    const referenceBytes = new Uint8Array(await referenceBlob.arrayBuffer()); let referenceBinary = "";
+    for (let i = 0; i < referenceBytes.length; i += 16384) referenceBinary += String.fromCharCode(...referenceBytes.subarray(i, i + 16384));
     let overflow = false, missingImage = false;
     try { await createNotebookPdf({ version: 1, pages: [{ ...first, html: "<p>نص طويل</p>".repeat(100) }] }); }
     catch (error) { overflow = String(error).includes("حدود الورقة"); }
     try { await createNotebookPdf({ version: 1, pages: [{ ...second, html: '<img src="https://unavailable.fixture.test/x.png">' }] }); }
     catch (error) { missingImage = String(error).includes("تضمين"); }
     const safe = safePageHtml('<p style="background-image:url(https://unavailable.fixture.test/leak)">سري</p><img src="https://unavailable.fixture.test/leak"><script>window.leak=1</script>');
-    return { pdf: btoa(binary), overflow, missingImage, safe };
+    return { pdf: btoa(binary), referencePdf: btoa(referenceBinary), overflow, missingImage, safe };
   });
   // Removing a URL from returned HTML is insufficient: a detached element can
   // already have started a request before sanitization finishes.
@@ -125,6 +128,12 @@ async function checkPdf(page, artifacts) {
   assert.equal(images.length, 2);
   const artImage = images[1], artStart = artImage.index + artImage[0].length;
   const artPixels = inflateSync(pdf.subarray(artStart, artStart + Number(artImage[3])));
+  const referencePdf = Buffer.from(result.referencePdf, "base64");
+  const referenceImage = /\/Subtype \/Image \/Width (\d+) \/Height (\d+)[\s\S]*?\/Filter \/FlateDecode \/Length (\d+) >>\nstream\n/.exec(referencePdf.toString("latin1"));
+  assert.ok(referenceImage);
+  const referenceStart = referenceImage.index + referenceImage[0].length;
+  const referencePixels = inflateSync(referencePdf.subarray(referenceStart, referenceStart + Number(referenceImage[3])));
+  assert.ok(artPixels.equals(referencePixels), "a later page must retain its Arabic font exactly as when exported alone");
   let coloredArt = 0;
   for (let i = 0; i < artPixels.length; i += 3) {
     const r = artPixels[i], g = artPixels[i + 1], b = artPixels[i + 2];

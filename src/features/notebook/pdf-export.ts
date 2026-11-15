@@ -39,7 +39,7 @@ async function embedPageImages(sheet: HTMLElement, signal: AbortSignal) {
 /** Browser text shaping and the very same sheet geometry/CSS as the editor.
  * Never flatten rich HTML to textContent: tables, inline styles, Arabic joining,
  * lists and embedded images are rendered together before the ink/sticker layers. */
-export async function renderNotebookPage(page: NotebookPage, fontCss?: string) {
+export async function renderNotebookPage(page: NotebookPage) {
   const layout = pageLayout(page);
   const host = document.createElement("div");
   host.setAttribute("aria-hidden", "true");
@@ -67,7 +67,10 @@ export async function renderNotebookPage(page: NotebookPage, fontCss?: string) {
     // Reject both vertical and horizontal overflow rather than cropping content.
     if (content.scrollHeight > content.clientHeight + 2 || content.scrollWidth > content.clientWidth + 2)
       throw new Error("محتوى الصفحة يتجاوز حدود الورقة. وزّع النص أو الجدول على صفحات إضافية ثم أعد تصدير PDF.");
-    const fontEmbedCSS = fontCss ?? await getFontEmbedCSS(sheet);
+    // html-to-image includes only fonts used by this sheet. Reusing the first
+    // page's CSS silently drops a different Arabic font on later pages. Font
+    // resource bytes are already cached internally; collect each page's set.
+    const fontEmbedCSS = await getFontEmbedCSS(sheet);
     if (!fontEmbedCSS.includes("data:")) throw new Error("تعذر تضمين خط العربية في PDF. أعد فتح التطبيق وحاول مجددًا.");
     canvas = await toCanvas(sheet, { width: layout.width, height: layout.height,
       pixelRatio: PDF_DPI / 25.4 / (780 / 210), fontEmbedCSS,
@@ -137,12 +140,10 @@ export async function createNotebookPdf(book: Notebook): Promise<Blob> {
     throw new Error("تصدير PDF عالي الدقة يحتاج إصدارًا أحدث من المتصفح أو Android System WebView.");
   const valid = validateNotebook(book);
   const pages: RasterPage[] = [];
-  let fontCss: string | undefined;
   let totalBytes = 0;
   for (let i = 0; i < valid.pages.length; i++) {
     try {
-      const page = await renderNotebookPage(valid.pages[i], fontCss);
-      fontCss = page.fontEmbedCSS;
+      const page = await renderNotebookPage(valid.pages[i]);
       totalBytes += page.bytes.length;
       if (totalBytes > MAX_EXPORT_BYTES) throw new Error("حجم PDF كبير جدًا للجهاز. صدّر الدفتر على أجزاء أصغر.");
       pages.push(page);
