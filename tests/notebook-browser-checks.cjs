@@ -192,6 +192,15 @@ async function checkPdf(page, artifacts) {
     }
   assert.ok(visibleOrange > 100, "surviving pressure-ink pieces remain visible in PDF");
   assert.equal(gapOrange, 0, "PDF preserves the erased middle instead of reconnecting the captured samples");
+  for (const [left, right] of [[.098, .0995], [.7005, .702]]) {
+    let capOrange = 0;
+    for (let y = Math.floor(height * .9) - 1; y <= Math.ceil(height * .9) + 1; y++)
+      for (let x = Math.floor(width * left); x <= Math.ceil(width * right); x++) {
+        const offset = (y * width + x) * 3;
+        if (pixels[offset] > 210 && pixels[offset + 1] > 80 && pixels[offset + 1] < 160 && pixels[offset + 2] < 40) capOrange++;
+      }
+    assert.ok(capOrange > 2, "pressure ink must have round caps extending beyond both endpoints, without inward notches");
+  }
   const images = [...pdf.toString("latin1").matchAll(/\/Subtype \/Image \/Width (\d+) \/Height (\d+)[\s\S]*?\/Filter \/FlateDecode \/Length (\d+) >>\nstream\n/g)];
   assert.equal(images.length, 2);
   const artImage = images[1], artStart = artImage.index + artImage[0].length;

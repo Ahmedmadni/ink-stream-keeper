@@ -121,7 +121,9 @@ export function inkOutline(centers: Center[]): string {
   });
   const str = ([x, y]: Point) => `${f(x)} ${f(y)}`;
   const first = centers[0], last = centers[centers.length - 1];
-  return `M ${left.map(str).join(" L ")} A ${f(last.r)} ${f(last.r)} 0 0 1 ${str(right[right.length - 1])} L ${right.reverse().map(str).join(" L ")} A ${f(first.r)} ${f(first.r)} 0 0 1 ${str(left[0])} Z`;
+  // SVG y grows downward: sweep 0 follows the outside of each round cap.
+  // Sweep 1 folds inward and leaves a semicircular notch at the tip.
+  return `M ${left.map(str).join(" L ")} A ${f(last.r)} ${f(last.r)} 0 0 0 ${str(right[right.length - 1])} L ${right.reverse().map(str).join(" L ")} A ${f(first.r)} ${f(first.r)} 0 0 0 ${str(left[0])} Z`;
 }
 
 function capsuleRange(p: Center, q: Center, a: Point, b: Point, radius: number): InkRange | null {
