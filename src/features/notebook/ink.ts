@@ -1,6 +1,20 @@
 import { inkPath, type InkStroke, type NotebookPage } from "./model";
 
 export type Point = [number, number];
+export type ShapeTool = "line" | "rectangle" | "ellipse" | "arrow";
+export function shapePoints(from: Point, to: Point, tool: ShapeTool, aspect = 1): Point[] {
+  if (tool === "line") return [from, to];
+  if (tool === "rectangle") return [from, [to[0], from[1]], to, [from[0], to[1]], from];
+  if (tool === "ellipse") {
+    const cx = (from[0] + to[0]) / 2, cy = (from[1] + to[1]) / 2;
+    return Array.from({ length: 49 }, (_, i) => [cx + (to[0] - from[0]) / 2 * Math.cos(i * Math.PI / 24),
+      cy + (to[1] - from[1]) / 2 * Math.sin(i * Math.PI / 24)] as Point);
+  }
+  const angle = Math.atan2((to[1] - from[1]) * aspect, to[0] - from[0]);
+  const length = Math.min(35, Math.hypot(to[0] - from[0], (to[1] - from[1]) * aspect) / 3);
+  const tip = (delta: number): Point => [to[0] - length * Math.cos(angle + delta), to[1] - length * Math.sin(angle + delta) / aspect];
+  return [from, to, tip(-.55), to, tip(.55)].map(([x, y]) => [Math.max(0, Math.min(1000, x)), Math.max(0, Math.min(1000, y))] as Point);
+}
 export type InkBounds = { x: number; y: number; width: number; height: number };
 const f = (n: number) => Math.round(n * 1000) / 1000;
 

@@ -79,7 +79,10 @@ async function checkPdf(page, artifacts) {
     first.strokes = [{ id: crypto.randomUUID(), tool: "pen", color: "#112233", width: 4,
       points: [[300, 700], [400, 750], [600, 700]], pressures: [.2, 1, .4], smoothing: true }];
     const second = createPage({ size: "letter", paper: "ledger" });
-    second.html = "<p>الصفحة الثانية</p>";
+    second.html = '<p><span style="font-family:Aref Ruqaa">الصفحة الثانية — كتابة عربية بخط رقعة</span></p>';
+    second.stickers = [{ id: crypto.randomUUID(), kind: "sci-neuron", x: .5, y: .5, scale: .24, color: "#224466", rotation: 25, presentation: "cutout" }];
+    await document.fonts.load('20px "Aref Ruqaa"', "كتابة عربية");
+    if (!document.fonts.check('20px "Aref Ruqaa"', "كتابة عربية")) throw new Error("Local Ruqaa font failed to load");
     const blob = await createNotebookPdf({ version: 1, pages: [first, second] });
     const bytes = new Uint8Array(await blob.arrayBuffer()); let binary = "";
     for (let i = 0; i < bytes.length; i += 16384) binary += String.fromCharCode(...bytes.subarray(i, i + 16384));
@@ -118,5 +121,63 @@ async function checkPdf(page, artifacts) {
   assert.ok(red > 1000, "formatted table cell must be visible in PDF");
   assert.ok(green > 1000, "embedded image must be visible in PDF");
   assert.ok(blue > 1000, "accounting sticker must be visible in PDF");
+  const images = [...pdf.toString("latin1").matchAll(/\/Subtype \/Image \/Width (\d+) \/Height (\d+)[\s\S]*?\/Filter \/FlateDecode \/Length (\d+) >>\nstream\n/g)];
+  assert.equal(images.length, 2);
+  const artImage = images[1], artStart = artImage.index + artImage[0].length;
+  const artPixels = inflateSync(pdf.subarray(artStart, artStart + Number(artImage[3])));
+  let coloredArt = 0;
+  for (let i = 0; i < artPixels.length; i += 3) {
+    const r = artPixels[i], g = artPixels[i + 1], b = artPixels[i + 2];
+    if (b > r + 25 && b > g + 8) coloredArt++;
+  }
+  assert.ok(coloredArt > 1000, "colored science SVG must survive PDF rasterization");
 }
-module.exports = { checkInk, checkPdf };
+async function checkStudy(page, artifacts) {
+  await page.getByRole("tab", { name: "ورق", exact: true }).click();
+  for (const [label, value] of [["عمودان", "two-column"], ["مخطط أسبوعي", "weekly"], ["بطاقات مذاكرة", "flashcards"], ["موسيقى", "music"], ["رسم هندسي", "isometric"], ["شبكة سداسية", "hex"]]) {
+    await page.getByRole("button", { name: label, exact: true }).click();
+    assert.equal(await page.locator("[data-notebook-paper]").getAttribute("data-notebook-paper"), value);
+  }
+  await page.getByRole("button", { name: "مربعات", exact: true }).click();
+  await page.getByLabel("ملمس الورقة", { exact: true }).selectOption("grain");
+  const spacing = page.getByLabel("تباعد سطور الورقة", { exact: true });
+  const increase = await spacing.evaluate((e) => getComputedStyle(e).direction === "rtl" ? "ArrowLeft" : "ArrowRight");
+  const decrease = increase === "ArrowLeft" ? "ArrowRight" : "ArrowLeft";
+  await spacing.focus(); await spacing.press("Home");
+  for (let i = 0; i < 4; i++) await spacing.press(increase);
+  assert.equal(await spacing.inputValue(), "40");
+  assert.equal(await page.locator("[data-notebook-paper] .prose-mf").evaluate((e) => getComputedStyle(e).lineHeight), "40px");
+  await page.screenshot({ path: artifacts + "/notebook-paper-library.png", fullPage: true });
+  await spacing.press(decrease); await spacing.press(decrease);
+  await page.getByRole("tab", { name: "ملصقات", exact: true }).click();
+  await page.getByLabel("بحث الملصقات", { exact: true }).fill("neuron");
+  await page.getByRole("button", { name: "إضافة ملصق خلية عصبية", exact: true }).click();
+  const neuron = page.getByRole("button", { name: "ملصق sci-neuron", exact: true });
+  assert.ok(await neuron.locator("svg path").count() > 5);
+  const rotation = page.getByLabel("دوران الملصق", { exact: true });
+  const rotateIncrease = await rotation.evaluate((e) => getComputedStyle(e).direction === "rtl" ? "ArrowLeft" : "ArrowRight");
+  await rotation.focus(); for (let i = 0; i < 3; i++) await rotation.press(rotateIncrease);
+  assert.equal(await rotation.inputValue(), "15");
+  assert.equal(await neuron.evaluate((e) => e.style.transform), "rotate(15deg)");
+  assert.equal(await page.locator('[data-sticker-attribution="scisvg"]').count(), 1);
+  await page.screenshot({ path: artifacts + "/notebook-science-library.png", fullPage: true });
+  await page.getByRole("tab", { name: "رسم", exact: true }).click();
+  await page.getByRole("button", { name: "مستطيل", exact: true }).click();
+  const canvas = page.getByRole("img", { name: "مساحة الرسم بالقلم" });
+  await canvas.scrollIntoViewIfNeeded();
+  const bounds = await canvas.boundingBox();
+  const y = Math.max(190, Math.min(page.viewportSize().height - 200, bounds.y + bounds.height * .4));
+  const count = await canvas.locator("[data-stroke-id]").count();
+  await page.mouse.move(bounds.x + bounds.width * .16, y); await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width * .32, y + 40, { steps: 5 }); await page.mouse.up();
+  assert.equal(await canvas.locator("[data-stroke-id]").count(), count + 1);
+  await page.getByRole("button", { name: "تراجع الشكل", exact: true }).click();
+  assert.equal(await canvas.locator("[data-stroke-id]").count(), count);
+  await page.getByRole("button", { name: "إعادة الشكل", exact: true }).click();
+  assert.equal(await canvas.locator("[data-stroke-id]").count(), count + 1);
+  await page.getByRole("tab", { name: "أقلام", exact: true }).click();
+  await page.getByRole("button", { name: "تحسين الخط والتعرف العربي", exact: true }).click();
+  await page.getByRole("dialog").getByText("هذه النسخة لا توفر محرك التعرف المحلي.", { exact: false }).waitFor();
+  await page.getByRole("button", { name: "إغلاق التعرف على الخط", exact: true }).click();
+}
+module.exports = { checkInk, checkPdf, checkStudy };

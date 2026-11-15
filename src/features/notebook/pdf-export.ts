@@ -67,7 +67,7 @@ export async function renderNotebookPage(page: NotebookPage, fontCss?: string) {
     // Reject both vertical and horizontal overflow rather than cropping content.
     if (content.scrollHeight > content.clientHeight + 2 || content.scrollWidth > content.clientWidth + 2)
       throw new Error("محتوى الصفحة يتجاوز حدود الورقة. وزّع النص أو الجدول على صفحات إضافية ثم أعد تصدير PDF.");
-    const fontEmbedCSS = fontCss ?? await getFontEmbedCSS(sheet, { preferredFontFormat: "woff2" });
+    const fontEmbedCSS = fontCss ?? await getFontEmbedCSS(sheet);
     if (!fontEmbedCSS.includes("data:")) throw new Error("تعذر تضمين خط العربية في PDF. أعد فتح التطبيق وحاول مجددًا.");
     canvas = await toCanvas(sheet, { width: layout.width, height: layout.height,
       pixelRatio: PDF_DPI / 25.4 / (780 / 210), fontEmbedCSS,

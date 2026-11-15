@@ -15,6 +15,8 @@
   --color-primary-soft: #e3efff; --color-muted: #e9eef4; --color-secondary: #edf2f7; }
 .notebook-sheet .prose-mf mark { background: #ffeb96; }
 .notebook-sheet .prose-mf img { box-shadow: none; }
+.notebook-sheet[style*="--notebook-line-height"] .prose-mf { font-size: var(--notebook-font-size); line-height: var(--notebook-line-height); }
+.notebook-sheet[style*="--notebook-line-height"] .prose-mf p { margin: 0; }
 
 /*
  * MemoFlow Design System — Arabic-first, RTL, professional blue identity.

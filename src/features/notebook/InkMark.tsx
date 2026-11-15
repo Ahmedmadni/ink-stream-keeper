@@ -1,7 +1,8 @@
+import { memo } from "react";
 import { inkShape } from "./ink";
 import type { InkStroke } from "./model";
 
-export function InkMark({ stroke, aspect = 1, selected = false }: {
+export const InkMark = memo(function InkMark({ stroke, aspect = 1, selected = false }: {
   stroke: InkStroke; aspect?: number; selected?: boolean;
 }) {
   const shape = inkShape(stroke, aspect);
@@ -10,4 +11,4 @@ export function InkMark({ stroke, aspect = 1, selected = false }: {
     strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round"
     opacity={stroke.tool === "highlighter" ? .34 : 1}
     style={{ pointerEvents: "none", filter: selected ? "drop-shadow(0 0 3px #4c96ff)" : undefined }} />;
-}
+});

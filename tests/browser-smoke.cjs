@@ -635,6 +635,7 @@ const vaultPinWrites = [];
     await page.mouse.move(bounds.x + bounds.width * .47, bounds.y + bounds.height * .61, { steps: 8 });
     await page.mouse.up();
     await require("./notebook-browser-checks.cjs").checkInk(page);
+    await require("./notebook-browser-checks.cjs").checkStudy(page, artifacts);
     await page.getByRole("button", { name: "إضافة صفحة", exact: true }).click();
     await page.getByRole("tab", { name: "صفحة 2", exact: true }).waitFor();
     const secondPageEditor = page.locator("[data-notebook-paper] .ProseMirror");
@@ -808,6 +809,7 @@ const vaultPinWrites = [];
         MemoFlowAppLock: ["getStatus", "lock", "unlock", "configure", "changePin"],
         MemoFlowAuth: ["getLaunchUrl", "addListener", "removeListener"],
         MemoFlowBackup: ["getStatus"],
+        MemoFlowHandwriting: ["getStatus", "downloadModel", "deleteModel", "recognize", "cancel"],
         Filesystem: ["rmdir", "writeFile"],
         Share: ["canShare", "share"],
         MemoFlowFloating: ["checkPermission", "show", "hide"],
@@ -831,6 +833,17 @@ const vaultPinWrites = [];
         nativePromise: async (plugin, method, options) => {
           window.__nativeCalls.push({ plugin, method, options });
           const state = window.__nativeState;
+          if (plugin === "MemoFlowHandwriting") {
+            if (method === "getStatus") return { supported: true, ready: state.inkReady || false, experimental: true, language: "ar" };
+            if (method === "downloadModel") { state.inkReady = true; return {}; }
+            if (method === "deleteModel") { state.inkReady = false; return {}; }
+            if (method === "recognize") {
+              if (state.holdInk) return new Promise((resolve) => { state.finishInk = resolve; });
+              return { candidates: ["قيد محاسبي ١٥٠٠ ريال", "قيد محاسبي 1500 ريال"], language: "ar" };
+            }
+            if (method === "cancel" && state.finishInk) { state.finishInk({ candidates: ["نتيجة متأخرة"], language: "ar" }); state.finishInk = null; }
+            return {};
+          }
           if (plugin === "Share" && method === "canShare") return { value: true };
           if (plugin === "Filesystem" && method === "writeFile") return { uri: "content://fixture/notebook.pdf" };
           if (plugin === "MemoFlowAppLock" && method === "changePin") {
@@ -952,6 +965,31 @@ const vaultPinWrites = [];
     assert.equal(pdfDelivery.file.encoding, undefined, "binary PDF must not be written as UTF-8 text");
     assert.deepEqual(pdfDelivery.share.files, ["content://fixture/notebook.pdf"]);
     assert.ok(!pdfDelivery.share.text.includes("مشفّرة"), "an ordinary exported PDF must not be described as encrypted");
+    await page.getByRole("tab", { name: "أقلام", exact: true }).click();
+    const originalStrokes = await page.locator("[data-notebook-paper] [data-stroke-id]").count();
+    await page.getByRole("button", { name: "تحسين الخط والتعرف العربي", exact: true }).click();
+    const handwritingDialog = page.getByRole("dialog");
+    await handwritingDialog.getByRole("button", { name: "تنزيل نموذج العربية", exact: true }).click();
+    await handwritingDialog.getByRole("button", { name: "اقتراح نص من الحبر", exact: true }).click();
+    await handwritingDialog.getByLabel("النص المقترح للكتابة", { exact: true }).fill("قيد محاسبي ١٥٠٠ ريال بعد المراجعة");
+    await handwritingDialog.getByRole("button", { name: "حفظ صفحة بالنص المنسق", exact: true }).click();
+    await page.getByRole("tab", { name: "صفحة 3", exact: true }).waitFor();
+    await page.locator("[data-notebook-paper] .ProseMirror").getByText("قيد محاسبي ١٥٠٠ ريال بعد المراجعة", { exact: true }).waitFor();
+    assert.ok(await page.locator("[data-notebook-paper] .ProseMirror span").evaluate((e) => getComputedStyle(e).fontFamily.includes("Aref Ruqaa")));
+    await page.screenshot({ path: artifacts + "/handwriting-reviewed-native.png", fullPage: true });
+    await page.getByRole("tab", { name: "صفحة 1", exact: true }).click();
+    assert.equal(await page.locator("[data-notebook-paper] [data-stroke-id]").count(), originalStrokes, "reviewed text must preserve original ink");
+    await page.getByRole("tab", { name: "أقلام", exact: true }).click();
+    await page.getByRole("button", { name: "تحسين الخط والتعرف العربي", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "إزالة نموذج العربية من الجهاز", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "تنزيل نموذج العربية", exact: true }).click();
+    await page.evaluate(() => { window.__nativeState.holdInk = true; });
+    await page.getByRole("dialog").getByRole("button", { name: "اقتراح نص من الحبر", exact: true }).click();
+    await page.getByRole("button", { name: "إغلاق التعرف على الخط", exact: true }).click();
+    await page.getByRole("dialog").waitFor({ state: "hidden" });
+    assert.equal(await page.getByRole("tab", { name: /^صفحة [123]$/ }).count(), 3, "late recognition output cannot add a page after cancellation");
+    await page.screenshot({ path: artifacts + "/handwriting-ink-preserved-native.png", fullPage: true });
+
     // This fixture changes a web SSR page into Android on the client. React's
     // expected SSR mismatch is absent from the real Android build (local SPA).
     assert.deepEqual(

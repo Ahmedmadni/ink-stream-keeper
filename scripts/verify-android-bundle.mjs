@@ -34,6 +34,12 @@ const fontNames = assetNames.filter((name) =>
 if (fontNames.length !== 8) {
   throw new Error(`Expected 8 bundled IBM Plex Sans Arabic fonts, found ${fontNames.length}`);
 }
+for (const weight of ["Regular", "Bold"]) {
+  if (!assetNames.some((name) => name.startsWith("ArefRuqaa-" + weight + "-") && name.endsWith(".ttf")))
+    throw new Error("Bundled Arabic handwriting font is missing: " + weight);
+}
+for (const name of ["Aref-Ruqaa-OFL.txt", "SciSVG-CC-BY-4.0.txt", "html-to-image-MIT.txt", "Lucide-ISC-MIT.txt"])
+  await readFile(resolve(publicAssets, "licenses", name));
 
 const javascript = (
   await Promise.all(
@@ -50,6 +56,7 @@ for (const marker of [
   "MemoFlowAutofill",
   "MemoFlowDeviceSettings",
   "MemoFlowFloating",
+  "MemoFlowHandwriting",
 ]) {
   if (!javascript.includes(marker)) throw new Error(`Native bundle is missing ${marker}`);
 }
@@ -109,6 +116,7 @@ for (const marker of [
   "WindowManager.LayoutParams.FLAG_SECURE",
   "setTextZoom(100)",
   "registerPlugin(MemoFlowDeviceSettingsPlugin.class)",
+  "registerPlugin(MemoFlowHandwritingPlugin.class)",
 ]) {
   if (!activity.includes(marker)) throw new Error(`MainActivity is missing ${marker}`);
 }

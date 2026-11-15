@@ -14,7 +14,7 @@ import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
 import Typography from "@tiptap/extension-typography";
 import CharacterCount from "@tiptap/extension-character-count";
-import { TextStyle } from "@tiptap/extension-text-style";
+import { TextStyle, FontFamily } from "@tiptap/extension-text-style";
 import { Color } from "@tiptap/extension-color";
 import Subscript from "@tiptap/extension-subscript";
 import Superscript from "@tiptap/extension-superscript";
@@ -69,6 +69,7 @@ export function RichEditor({
       Typography,
       CharacterCount,
       TextStyle,
+      FontFamily,
       Color,
       Subscript,
       Superscript,
@@ -151,6 +152,11 @@ export function CompactToolbar({ editor, onAddAttachment }: { editor: Editor; on
       <div className="mt-2 flex flex-wrap items-center gap-1" role="tabpanel" aria-label="أدوات الكتابة">
         {group === "text" && (
           <>
+            <select aria-label="خط الكتابة" value={editor.getAttributes("textStyle").fontFamily || "IBM Plex Sans Arabic"}
+              onChange={(e) => editor.chain().focus().setFontFamily(e.target.value).run()}
+              className="min-h-11 max-w-40 rounded-xl border border-border bg-background px-2 text-xs">
+              <option value="IBM Plex Sans Arabic">IBM عربي</option><option value="Aref Ruqaa">عارف رقعة</option>
+            </select>
             <Btn label="عريض" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}><Bold className="size-4" /></Btn>
             <Btn label="مائل" active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic className="size-4" /></Btn>
             <Btn label="تسطير" active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()}><UIcon className="size-4" /></Btn>

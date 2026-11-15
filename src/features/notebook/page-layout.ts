@@ -14,6 +14,15 @@ export function pageLayout(page: NotebookPage) {
 export function paperStyle(page: NotebookPage): CSSProperties {
   const color = "rgba(80,119,177,.17)";
   const style: CSSProperties = { backgroundColor: TINT_COLORS[page.tint] };
+  if (page.lineSpacing !== undefined) {
+    if (page.texture === "grain") {
+      style.backgroundImage = "radial-gradient(circle,rgba(99,80,60,.07) .7px,transparent 1px)";
+      style.backgroundSize = "5px 7px";
+    } else if (page.texture === "linen") {
+      style.backgroundImage = "repeating-linear-gradient(0deg,transparent 0 3px,rgba(90,80,65,.035) 3px 4px),repeating-linear-gradient(90deg,transparent 0 4px,rgba(90,80,65,.035) 4px 5px)";
+    }
+    return style;
+  }
   if (page.paper === "lined" || page.paper === "cornell") {
     style.backgroundImage = `repeating-linear-gradient(to bottom,transparent 0px,transparent 29px,${color} 30px,transparent 31px)`;
   } else if (page.paper === "grid" || page.paper === "ledger") {

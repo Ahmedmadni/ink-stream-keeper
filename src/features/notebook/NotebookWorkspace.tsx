@@ -2,28 +2,58 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent } from "rea
 import type { Editor } from "@tiptap/react";
 import {
   BookOpen, Brush, Eraser, FileDown, Layers, PenLine, Plus,
-  Copy, Trash2, Highlighter, Undo2, Redo2, Sticker, MousePointer2, ScanLine, ZoomIn,
+  Copy, Trash2, Highlighter, Undo2, Redo2, Sticker, MousePointer2, ScanLine, ZoomIn, Shapes, Minus, Square, Circle, ArrowUpRight, Search, ScanText,
 } from "lucide-react";
 import { RichEditor, CompactToolbar } from "@/components/RichEditor";
 import {
   createPage, dimensionsMm, fromLegacyNote, notebookPlainText, parseNotebook,
-  serializeNotebook, PAPER_SIZES, PAPER_TINTS, PAPER_TYPES,
+  serializeNotebook, PAPER_SIZES, PAPER_TINTS, PAPER_TYPES, PAPER_TEXTURES,
   type Notebook, type NotebookPage, type InkStroke, type PageSticker,
 } from "./model";
-import { STICKER_GROUPS, stickerIcon } from "./sticker-packs";
+import { STICKER_GROUPS, stickerIcon, searchStickers } from "./sticker-packs";
 import { InkMark } from "./InkMark";
-import { hitStroke, inkBounds, InkHistory, moveInk as translateInk, type Point, type InkBounds } from "./ink";
+import { StickerArtwork, stickerStyle, ScienceAttribution } from "./StickerArtwork";
+import { shapePoints, type ShapeTool, hitStroke, inkBounds, InkHistory, moveInk as translateInk, type Point, type InkBounds } from "./ink";
 import { pageLayout, paperStyle } from "./page-layout";
+import { PaperGuides, PAPER_LABELS, TEXTURE_LABELS, paperTextStyle } from "./PaperGuides";
+import { HandwritingPanel } from "./HandwritingPanel";
+import { recognizedTextPage } from "./handwriting";
 
-const PAPER_LABELS = {
-  plain: "سادة", lined: "مسطرة", grid: "مربعات", dots: "منقّطة",
-  cornell: "كورنيل", ledger: "جدول محاسبي",
-} as const;
 const SIZE_LABELS = { a4: "A4", a5: "A5", letter: "Letter", square: "مربعة" };
 const TINT_LABELS = { white: "أبيض", ivory: "كريمي", mint: "نعناعي", blue: "أزرق هادئ", rose: "وردي" };
-type PaletteGroup = "text" | "draw" | "stickers" | "paper";
+type PaletteGroup = "text" | "draw" | "shapes" | "stickers" | "paper";
 type InkMode = "pen" | "highlighter" | "eraser" | "select";
 type InkGesture = { pointerId: number; pageId: string; mode: InkMode; start: Point; last: Point; erased: Set<string>; moving: boolean };
+type PaperFineSettings = Pick<NotebookPage, "lineSpacing" | "fontSize" | "texture">;
+function PaperFineControls({ value, onChange }: { value: PaperFineSettings; onChange: (value: Partial<PaperFineSettings>) => void }) {
+  return <div className="grid grid-cols-1 gap-3 rounded-xl bg-secondary/40 p-3 text-sm sm:grid-cols-3">
+    <label className="space-y-2">تباعد السطور · {value.lineSpacing ?? 32}
+      <input type="range" className="block w-full" aria-label="تباعد سطور الورقة" min={24} max={56} step={4}
+        value={value.lineSpacing ?? 32} onChange={(e) => onChange({ lineSpacing: Number(e.target.value) })}/>
+    </label>
+    <label>حجم النص الأساسي
+      <select aria-label="حجم نص الورقة" value={value.fontSize ?? 16} onChange={(e) => onChange({ fontSize: Number(e.target.value) })}
+        className="mt-1 min-h-11 w-full rounded-xl border border-border bg-background px-2">
+        {[12, 14, 16, 18, 20, 22, 24].map((size) => <option key={size} value={size}>{size}</option>)}
+      </select>
+    </label>
+    <label>ملمس الورقة
+      <select aria-label="ملمس الورقة" value={value.texture ?? "smooth"}
+        onChange={(e) => onChange({ texture: e.target.value as NotebookPage["texture"] })}
+        className="mt-1 min-h-11 w-full rounded-xl border border-border bg-background px-2">
+        {PAPER_TEXTURES.map((texture) => <option key={texture} value={texture}>{TEXTURE_LABELS[texture]}</option>)}
+      </select>
+    </label>
+  </div>;
+}
+function SetupPreview({ page }: { page: NotebookPage }) {
+  const [w, h] = dimensionsMm(page.size, page.orientation);
+  return <div className="mt-4 flex items-center gap-4 rounded-xl bg-secondary/40 p-3">
+    <div className="relative shrink-0 overflow-hidden rounded-sm border border-[#d2d8dc] shadow-sm"
+      style={{ ...paperStyle(page), width: w > h ? 170 : 100, aspectRatio: w + " / " + h }}><PaperGuides page={page} preview/></div>
+    <div className="text-sm"><strong>معاينة الورقة</strong><p className="mt-1 text-xs leading-6 text-muted-foreground">{PAPER_LABELS[page.paper]} · {w} × {h} مم<br/>{TEXTURE_LABELS[page.texture ?? "smooth"]} · تباعد {page.lineSpacing}</p></div>
+  </div>;
+}
 
 function PageMiniature({ page }: { page: NotebookPage }) {
   // The real page's initial lines and ink marks, not a generic blank rectangle.
@@ -32,6 +62,7 @@ function PageMiniature({ page }: { page: NotebookPage }) {
   return (
     <span className="relative block h-16 w-12 overflow-hidden rounded border border-[#d1d8df] shadow-sm"
       style={{ ...paperStyle(page), backgroundSize: "10px 10px" }}>
+      <PaperGuides page={page} preview/>
       <span dir="rtl" className="absolute inset-x-1 top-1 line-clamp-4 break-words text-right text-[5px] leading-[7px] text-[#263b53]">
         {preview}
       </span>
@@ -71,8 +102,11 @@ export function NotebookWorkspace({
   const lastContent = useRef(content);
   const [fatal, setFatal] = useState(initial.error);
   const [warning, setWarning] = useState("");
+  const [recognitionSource, setRecognitionSource] = useState<{ page: NotebookPage; selection: Set<string> } | null>(null);
+  const closeRecognition = useCallback(() => setRecognitionSource(null), []);
   const [index, setIndex] = useState(0);
   const [group, setGroup] = useState<PaletteGroup>("text");
+  const [shapeTool, setShapeTool] = useState<ShapeTool>("line");
   const [inkMode, setInkMode] = useState<InkMode>("pen");
   const [penColor, setPenColor] = useState("#293648");
   const [penWidth, setPenWidth] = useState(4);
@@ -100,6 +134,7 @@ export function NotebookWorkspace({
     return () => observer.disconnect();
   }, [!!book]);
   const lastPen = useRef(0);
+  const [stickerQuery, setStickerQuery] = useState("");
   const [stickerGroup, setStickerGroup] = useState<string>("medical");
   const [selectedSticker, setSelectedSticker] = useState<string | null>(null);
   const [moving, setMoving] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -109,6 +144,9 @@ export function NotebookWorkspace({
   const [startingSize, setStartingSize] = useState<NotebookPage["size"]>("a4");
   const [startingOrientation, setStartingOrientation] = useState<NotebookPage["orientation"]>("portrait");
   const [startingTint, setStartingTint] = useState<NotebookPage["tint"]>("ivory");
+  const [startingSpacing, setStartingSpacing] = useState(32);
+  const [startingFontSize, setStartingFontSize] = useState(16);
+  const [startingTexture, setStartingTexture] = useState<NotebookPage["texture"]>("smooth");
   const [exporting, setExporting] = useState(false);
   const [activeTextEditor, setActiveTextEditor] = useState<Editor | null>(null);
   const [textOverflow, setTextOverflow] = useState(false);
@@ -211,10 +249,18 @@ export function NotebookWorkspace({
             </select>
           </label>
         </div>
+        <PaperFineControls value={{ lineSpacing: startingSpacing, fontSize: startingFontSize, texture: startingTexture }}
+          onChange={(value) => {
+            if (value.lineSpacing !== undefined) setStartingSpacing(value.lineSpacing);
+            if (value.fontSize !== undefined) setStartingFontSize(value.fontSize);
+            if (value.texture !== undefined) setStartingTexture(value.texture);
+          }}/>
+        <SetupPreview page={{ id: "preview", html: "", paper: startingPaper, size: startingSize, orientation: startingOrientation,
+          tint: startingTint, texture: startingTexture, fontSize: startingFontSize, lineSpacing: startingSpacing, strokes: [], stickers: [] }}/>
         <button type="button"
           onClick={() => { commit(fromLegacyNote(content, {
             paper: startingPaper, size: startingSize,
-            orientation: startingOrientation, tint: startingTint,
+            orientation: startingOrientation, tint: startingTint, lineSpacing: startingSpacing, texture: startingTexture, fontSize: startingFontSize,
           })); }}
           className="mt-4 min-h-12 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground">
           إنشاء دفتر بالصفحات
@@ -232,7 +278,7 @@ export function NotebookWorkspace({
   const displayScale = zoom ?? Math.min(1, Math.max(1, viewportWidth) / layout.width);
   const shownStrokes = offset ? translateInk(page.strokes, selection, offset[0], offset[1]) : page.strokes;
   const selectedBounds = inkBounds(shownStrokes.filter((s) => selection.has(s.id)));
-  const isDrawing = group === "draw";
+  const isDrawing = group === "draw" || group === "shapes";
   const selected = page.stickers.find((s) => s.id === selectedSticker) ?? null;
   const coords = (event: PointerEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -274,7 +320,7 @@ export function NotebookWorkspace({
     if (event.pointerType === "touch" && (penOnly || Date.now() - lastPen.current < 800)) return;
     event.preventDefault();
     event.currentTarget.focus({ preventScroll: true });
-    const mode = event.button === 5 || (event.buttons & 32) ? "eraser" : inkMode;
+    const mode = event.button === 5 || (event.buttons & 32) ? "eraser" : group === "shapes" ? "pen" : inkMode;
     if ((mode === "pen" || mode === "highlighter") && page.strokes.length >= 350) {
       setWarning("وصلت هذه الصفحة إلى حد 350 مسارًا. أضف صفحة أخرى للحفاظ على سرعة الدفتر."); return;
     }
@@ -292,12 +338,13 @@ export function NotebookWorkspace({
       return;
     }
     setSelection(new Set());
-    const pressured = mode === "pen" && pressureEnabled && event.pointerType === "pen";
+    const pressured = group === "draw" && mode === "pen" && pressureEnabled && event.pointerType === "pen";
     liveRef.current = {
       id: crypto.randomUUID(),
       tool: mode, color: mode === "highlighter" ? "#f2c94c" : penColor,
       width: mode === "highlighter" ? penWidth * 4 : penWidth,
-      points: [position], smoothing: smooth,
+      points: [position], smoothing: group === "shapes" ? false : smooth,
+      ...(group === "draw" ? { times: [Math.round(performance.timeOrigin + event.nativeEvent.timeStamp)] } : {}),
       ...(pressured ? { pressures: [Math.pow(Math.max(.05, event.pressure), sensitivity)] } : {}),
     };
     setLive(liveRef.current);
@@ -320,6 +367,8 @@ export function NotebookWorkspace({
             return b.x >= box.x && b.y >= box.y && b.x + b.width <= box.x + box.width && b.y + b.height <= box.y + box.height;
           }).map((s) => s.id)));
         }
+      } else if (liveRef.current && group === "shapes") {
+        liveRef.current = { ...liveRef.current, points: shapePoints(active.start, next, shapeTool, aspect) };
       } else if (liveRef.current) {
         const prev = liveRef.current.points[liveRef.current.points.length - 1];
         if (Math.hypot(next[0] - prev[0], (next[1] - prev[1]) * aspect) >= .35) {
@@ -328,6 +377,7 @@ export function NotebookWorkspace({
           }
           const stroke = liveRef.current;
           liveRef.current = { ...stroke, points: [...stroke.points, next],
+            ...(stroke.times ? { times: [...stroke.times, Math.max(stroke.times[stroke.times.length - 1], Math.round(performance.timeOrigin + sample.timeStamp))] } : {}),
             ...(stroke.pressures ? { pressures: [...stroke.pressures, Math.pow(Math.max(.05, sample.pressure), sensitivity)] } : {}) };
         }
       }
@@ -350,6 +400,7 @@ export function NotebookWorkspace({
       if (p.stickers.length >= 120) { setWarning("الصفحة تحتوي الحد الأقصى من الملصقات."); return p; }
       const stamp: PageSticker = {
         id: crypto.randomUUID(), kind, color: "#3275ba",
+        presentation: kind.startsWith("sci-") ? "cutout" : "badge", rotation: 0,
         x: 0.35 + ((p.stickers.length % 5) * 0.08), y: 0.35 + ((p.stickers.length % 4) * 0.07),
         scale: 0.12,
       };
@@ -361,7 +412,7 @@ export function NotebookWorkspace({
     finish();
     const current = bookRef.current;
     if (!current || current.pages.length >= 36) { setWarning("الحد الأقصى 36 صفحة لكل دفتر."); return; }
-    const next = createPage({ paper: page.paper, size: page.size, orientation: page.orientation, tint: page.tint });
+    const next = createPage({ paper: page.paper, size: page.size, orientation: page.orientation, tint: page.tint, texture: page.texture, lineSpacing: page.lineSpacing, fontSize: page.fontSize });
     if (!commit({ ...current, pages: [...current.pages, next] })) return;
     setIndex(current.pages.length);
     setGroup("text"); setSelectedSticker(null);
@@ -409,7 +460,7 @@ export function NotebookWorkspace({
           event.preventDefault(); historyStep(key === "y" || event.shiftKey);
         }
       }}>
-      <header className="rounded-2xl border border-border bg-card p-3 shadow-sm">
+      <header className="sticky top-2 z-40 rounded-2xl border border-border bg-card/95 p-3 shadow-sm backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-base font-bold">دفتر المذاكرة</h2>
@@ -420,16 +471,17 @@ export function NotebookWorkspace({
             <FileDown className="size-4" /> {exporting ? "تصدير..." : "تصدير PDF"}
           </button>
         </div>
-        <div className="mt-3 grid grid-cols-4 gap-1" role="tablist" aria-label="مجموعات أدوات الدفتر">
+        <div className="mt-3 grid grid-cols-5 gap-1" role="tablist" aria-label="مجموعات أدوات الدفتر">
           {([
             ["text", "كتابة", PenLine],
             ["draw", "أقلام", Brush],
+            ["shapes", "رسم", Shapes],
             ["stickers", "ملصقات", Sticker],
             ["paper", "ورق", Layers],
           ] as const).map(([key, label, Icon]) => (
             <button type="button" role="tab" key={key} aria-selected={group === key}
               onClick={() => { finish(); setGroup(key); setSelectedSticker(null); }}
-              className={controlCls(group === key) + " px-1"}>
+              className={"flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 font-semibold sm:flex-row sm:gap-2 " + (group === key ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground hover:bg-accent")}>
               <Icon className="size-4 shrink-0" /><span className="text-xs">{label}</span>
             </button>
           ))}
@@ -439,6 +491,10 @@ export function NotebookWorkspace({
       {group === "draw" && (
         <div className="space-y-2 rounded-2xl border border-border bg-card p-3">
           <div className="flex flex-wrap gap-2" role="group" aria-label="أدوات الرسم">
+            <button type="button" className={controlCls(false)} aria-label="تحسين الخط والتعرف العربي"
+              onClick={() => { finish(); setRecognitionSource({ page: bookRef.current!.pages[index], selection: new Set(selection) }); }}>
+              <ScanText className="size-4"/>تعرف عربي · تجريبي
+            </button>
             <button type="button" className={controlCls(inkMode === "pen")}
               aria-pressed={inkMode === "pen"} onClick={() => { finish(); setInkMode("pen"); }}><PenLine className="size-4"/>قلم</button>
             <button type="button" className={controlCls(inkMode === "highlighter")}
@@ -492,32 +548,50 @@ export function NotebookWorkspace({
           </p>
         </div>
       )}
+      {group === "shapes" && <div className="space-y-3 rounded-2xl border border-border bg-card p-3">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="أشكال الرسم الهندسي">
+          {([["line", "خط", Minus], ["arrow", "سهم", ArrowUpRight], ["rectangle", "مستطيل", Square], ["ellipse", "دائرة وبيضاوي", Circle]] as const).map(([key, label, Icon]) =>
+            <button type="button" key={key} className={controlCls(shapeTool === key)} aria-pressed={shapeTool === key}
+              onClick={() => { finish(); setShapeTool(key); }}><Icon className="size-4"/>{label}</button>)}
+        </div>
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <label className="flex items-center gap-2">لون الرسم<input type="color" aria-label="لون الرسم الهندسي" value={penColor} onChange={(e) => setPenColor(e.target.value)}/></label>
+          <label className="flex items-center gap-2">السمك<input type="range" aria-label="سمك الرسم الهندسي" min={1} max={10} value={penWidth} onChange={(e) => setPenWidth(Number(e.target.value))}/></label>
+          <button type="button" className={controlCls(false)} disabled={!history.current.canUndo(page.id)} onClick={() => historyStep(false)}><Undo2 className="size-4"/>تراجع الشكل</button>
+          <button type="button" className={controlCls(false)} disabled={!history.current.canRedo(page.id)} onClick={() => historyStep(true)}><Redo2 className="size-4"/>إعادة الشكل</button>
+        </div>
+        <p className="text-xs text-muted-foreground">اسحب على الورقة لرسم الشكل. يمكنك تحديده وتحريكه أو مسحه من مجموعة الأقلام.</p>
+      </div>}
       {group === "stickers" && (
         <div className="space-y-3 rounded-2xl border border-border bg-card p-3">
           <div className="flex flex-wrap gap-2">
             {STICKER_GROUPS.map((pack) => (
               <button type="button" key={pack.id} aria-pressed={stickerGroup === pack.id}
-                onClick={() => setStickerGroup(pack.id)}
+                onClick={() => { setStickerGroup(pack.id); setStickerQuery(""); }}
                 className={controlCls(stickerGroup === pack.id)}>{pack.label}</button>
             ))}
           </div>
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-7" aria-label="مكتبة الملصقات">
-            {STICKER_GROUPS.filter((pack) => pack.id === stickerGroup).flatMap((pack) =>
-              pack.items.map(([kind, label]) => {
-                const Icon = stickerIcon(kind);
-                return (
-                  <button type="button" key={kind} title={label} aria-label={"إضافة ملصق " + label}
-                    onClick={() => addSticker(kind)}
-                    className="flex min-h-20 flex-col items-center justify-center gap-1 rounded-xl border border-border bg-secondary/60 p-2 hover:border-primary">
-                    <span className="grid size-9 place-items-center rounded-xl bg-[#e3efff] text-[#2564ad]">
-                      <Icon size={22} strokeWidth={1.9} />
-                    </span>
-                    <span className="text-center text-[10px] leading-4">{label}</span>
-                  </button>
-                );
-              }),
-            )}
+          <label className="flex min-h-11 items-center gap-2 rounded-xl border border-border bg-background px-3">
+            <Search className="size-4 text-muted-foreground"/>
+            <input type="search" aria-label="بحث الملصقات" value={stickerQuery} onChange={(e) => setStickerQuery(e.target.value)}
+              placeholder="ابحث: عظام، محاسبة، neuron..." className="min-h-11 w-full bg-transparent text-sm outline-none"/>
+          </label>
+          <div className="grid max-h-80 grid-cols-4 gap-2 overflow-y-auto sm:grid-cols-7" aria-label="مكتبة الملصقات">
+            {searchStickers(stickerQuery, stickerGroup).map(([kind, label]) => {
+              const Icon = stickerIcon(kind);
+              return <button type="button" key={kind} title={label} aria-label={"إضافة ملصق " + label}
+                onClick={() => addSticker(kind)}
+                className="flex min-h-24 flex-col items-center justify-center gap-1 rounded-xl border border-border bg-secondary/60 p-2 hover:border-primary">
+                <span className="grid size-12 place-items-center rounded-xl bg-[#f6faff] text-[#2564ad]"><Icon size={kind.startsWith("sci-") ? 42 : 25} strokeWidth={1.9}/></span>
+                <span className="text-center text-[10px] leading-4">{label}</span>
+              </button>;
+            })}
           </div>
+          {searchStickers(stickerQuery, stickerGroup).length === 0 && <p role="status" className="text-sm text-muted-foreground">لا توجد ملصقات مطابقة. جرّب كلمة أخرى.</p>}
+          <details className="text-xs leading-6 text-muted-foreground"><summary className="cursor-pointer">مصادر الملصقات وترخيص استخدامها</summary>
+            <p>Lucide: ISC/MIT. الرسومات العلمية: SciSVG — Saveena Solanki، بترخيص CC BY 4.0. تظهر نسبة الرسومات لمصدرها في الصفحات وملفات PDF التي تستخدمها.</p>
+            <a href="https://github.com/SaveenaSolanki/SciSVG" target="_blank" rel="noopener noreferrer" className="underline">مصدر SciSVG</a>
+          </details>
           {selected && (
             <div className="flex flex-wrap items-center gap-3 border-t border-border pt-3">
               <span className="text-xs">الملصق المحدد:</span>
@@ -529,13 +603,24 @@ export function NotebookWorkspace({
                   }))} />
               </label>
               <input type="color" aria-label="لون الملصق" value={selected.color}
+                disabled={selected.kind.startsWith("sci-") && (selected.presentation ?? "cutout") === "cutout"}
+                title={selected.kind.startsWith("sci-") ? "لتغيير لون خلفية الرسم فعّل خلفية الختم أولًا" : "لون الملصق"}
                 onChange={(e) => updatePage((p) => ({
                   ...p, stickers: p.stickers.map((s) => s.id === selected.id ? { ...s, color: e.target.value } : s),
                 }))} />
+              <label className="flex items-center gap-2 text-xs">الدوران
+                <input type="range" aria-label="دوران الملصق" min={-180} max={180} step={5} value={selected.rotation ?? 0}
+                  onChange={(e) => updatePage((p) => ({ ...p, stickers: p.stickers.map((s) => s.id === selected.id ? { ...s, rotation: Number(e.target.value) } : s) }))}/>
+                <span dir="ltr">{selected.rotation ?? 0}°</span>
+              </label>
+              <button type="button" className={controlCls(false)} onClick={() => updatePage((p) => ({ ...p,
+                stickers: p.stickers.map((s) => s.id === selected.id ? { ...s, presentation: (s.presentation ?? (s.kind.startsWith("sci-") ? "cutout" : "badge")) === "badge" ? "cutout" : "badge" } : s),
+              }))}>تبديل خلفية الملصق</button>
               <button type="button" className={controlCls(false)} onClick={() => {
                 updatePage((p) => ({ ...p, stickers: p.stickers.filter((s) => s.id !== selected.id) }));
                 setSelectedSticker(null);
               }}><Trash2 className="size-4"/>حذف الملصق</button>
+              {selected.kind.startsWith("sci-") && <p className="w-full text-xs text-muted-foreground">ألوان الرسم العلمي الأصلية محفوظة. يمكنك تلوين خلفيته بعد تفعيل الختم.</p>}
             </div>
           )}
           <p className="text-xs text-muted-foreground">اضغط لإضافة الملصق، واسحبه على الصفحة لتحريك موضعه.</p>
@@ -543,11 +628,16 @@ export function NotebookWorkspace({
       )}
       {group === "paper" && (
         <div className="space-y-3 rounded-2xl border border-border bg-card p-3">
-          <div className="flex flex-wrap gap-2" role="group" aria-label="خلفيات الورق">
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6" role="group" aria-label="خلفيات الورق">
             {PAPER_TYPES.map((p) => (
               <button type="button" key={p} aria-pressed={page.paper === p}
-                onClick={() => updatePage((old) => ({ ...old, paper: p }))}
-                className={controlCls(page.paper === p)}>{PAPER_LABELS[p]}</button>
+                onClick={() => updatePage((old) => ({ ...old, paper: p, lineSpacing: old.lineSpacing ?? 32, fontSize: old.fontSize ?? 16, texture: old.texture ?? "smooth" }))}
+                className={"flex min-h-28 flex-col items-center gap-2 rounded-xl border-2 p-2 text-xs " + (page.paper === p ? "border-primary bg-primary/10" : "border-border bg-background")}>
+                <span className="relative block h-16 w-12 overflow-hidden rounded border border-[#d2d8dc]" style={paperStyle({ ...page, paper: p })}>
+                  <PaperGuides page={{ ...page, paper: p, lineSpacing: page.lineSpacing ?? 32 }} preview/>
+                </span>
+                {PAPER_LABELS[p]}
+              </button>
             ))}
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -573,7 +663,8 @@ export function NotebookWorkspace({
               </select>
             </label>
           </div>
-          <p className="text-xs text-muted-foreground">تُحفظ أبعاد الورقة وخلفيتها مع كل صفحة على حدة.</p>
+          <PaperFineControls value={page} onChange={(value) => updatePage((p) => ({ ...p, lineSpacing: p.lineSpacing ?? 32, fontSize: p.fontSize ?? 16, texture: p.texture ?? "smooth", ...value }))}/>
+          <p className="text-xs leading-6 text-muted-foreground">تُحفظ إعدادات كل صفحة. تباعد السطور يضبط ارتفاع سطور النص الأساسي أيضًا. التقسيمات خلفيات للكتابة والرسم، ويمكن وضع النص والملصقات فوقها.</p>
         </div>
       )}
 
@@ -593,14 +684,9 @@ export function NotebookWorkspace({
         <div className="relative mx-auto" style={{ width: layout.width * displayScale, height: layout.height * displayScale }}>
         <div data-notebook-paper={page.paper} dir="rtl"
           className="notebook-sheet absolute left-0 top-0 isolate overflow-hidden shadow-md"
-          style={{ ...paperStyle(page), width: layout.width, height: layout.height,
+          style={{ ...paperStyle(page), ...paperTextStyle(page), width: layout.width, height: layout.height,
             transform: `scale(${displayScale})`, transformOrigin: "top left" }}>
-          {(page.paper === "cornell") && (
-            <>
-              <div className="pointer-events-none absolute bottom-[15%] right-[28%] top-[8%] z-0 w-px bg-[#c8aeb5]" />
-              <div className="pointer-events-none absolute bottom-[15%] inset-x-0 z-0 h-px bg-[#c8aeb5]" />
-            </>
-          )}
+          <PaperGuides page={page}/>
           <div className="notebook-content absolute z-10">
             <RichEditor key={page.id} value={page.html}
               onChange={(html) => updatePage((p) => ({ ...p, html }))}
@@ -630,8 +716,8 @@ export function NotebookWorkspace({
               })()}
             </svg>
           )}
+          <ScienceAttribution page={page}/>
           {page.stickers.map((sticker) => {
-            const Icon = stickerIcon(sticker.kind);
             const position = moving?.id === sticker.id ? moving : sticker;
             return (
               <button type="button" key={sticker.id} aria-label={"ملصق " + sticker.kind}
@@ -649,7 +735,8 @@ export function NotebookWorkspace({
                   if (drag?.id !== sticker.id || drag.pointerId !== e.pointerId) return;
                   const bounds = e.currentTarget.parentElement?.getBoundingClientRect();
                   if (!bounds) return;
-                  const halfX = sticker.scale / 2, halfY = halfX / aspect;
+                  const radians = (sticker.rotation ?? 0) * Math.PI / 180;
+                  const halfX = sticker.scale * (Math.abs(Math.cos(radians)) + Math.abs(Math.sin(radians))) / 2, halfY = halfX / aspect;
                   movingRef.current = { id: sticker.id,
                     x: Math.max(halfX, Math.min(1 - halfX, drag.x + (e.clientX - drag.startX) / bounds.width)),
                     y: Math.max(halfY, Math.min(1 - halfY, drag.y + (e.clientY - drag.startY) / bounds.height)),
@@ -671,11 +758,10 @@ export function NotebookWorkspace({
                   (group === "stickers" ? "cursor-grab touch-none active:cursor-grabbing " : "pointer-events-none ") +
                   (selectedSticker === sticker.id ? "ring-2 ring-primary" : "")}
                 style={{
+                  ...stickerStyle(sticker),
                   left: String(position.x * 100) + "%", top: String(position.y * 100) + "%",
-                  width: String(sticker.scale * 100) + "%", aspectRatio: "1 / 1",
-                  backgroundColor: sticker.color, color: "#fff",
                 }}>
-                <Icon size="67%" strokeWidth={2.2}/>
+                <StickerArtwork sticker={sticker}/>
               </button>
             );
           })}
@@ -686,9 +772,18 @@ export function NotebookWorkspace({
         النص يتجاوز مساحة هذه الورقة. محتواك محفوظ داخل المذكرة؛ انقل الجزء الزائد إلى صفحة إضافية ليظهر كاملًا ويُصدّر إلى PDF.
       </p>}
       {warning && <p role="alert" className="rounded-xl bg-warning/15 p-3 text-sm">{warning}</p>}
+      {recognitionSource && <HandwritingPanel page={recognitionSource.page} selection={recognitionSource.selection}
+        onClose={closeRecognition} onAddPage={(text, font) => {
+          const current = bookRef.current;
+          if (!current || current.pages.length >= 36 || !current.pages.some((p) => p.id === recognitionSource.page.id)) return false;
+          const added = recognizedTextPage(recognitionSource.page, text, font);
+          if (!commit({ ...current, pages: [...current.pages, added] })) return false;
+          setIndex(current.pages.length); setGroup("text"); setSelection(new Set());
+          return true;
+        }}/>}
       <nav className="sticky bottom-2 z-40 rounded-2xl border border-border bg-card/95 p-3 shadow-lg backdrop-blur"
         aria-label="شريط صفحات المذكرة">
-        {isDrawing && <div className="mb-2 flex gap-1 overflow-x-auto border-b border-border pb-2" role="group" aria-label="أدوات القلم السريعة">
+        {group === "draw" && <div className="mb-2 flex gap-1 overflow-x-auto border-b border-border pb-2" role="group" aria-label="أدوات القلم السريعة">
           <button type="button" className={controlCls(inkMode === "pen")} aria-label="القلم السريع" onClick={() => { finish(); setInkMode("pen"); }}><PenLine className="size-4"/></button>
           <button type="button" className={controlCls(inkMode === "eraser")} aria-label="الممحاة السريعة" onClick={() => { finish(); setInkMode("eraser"); }}><Eraser className="size-4"/></button>
           <button type="button" className={controlCls(inkMode === "select")} aria-label="التحديد السريع" onClick={() => { finish(); setInkMode("select"); }}><MousePointer2 className="size-4"/></button>

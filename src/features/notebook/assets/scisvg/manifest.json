@@ -1,0 +1,149 @@
+{
+  "source": "https://github.com/SaveenaSolanki/SciSVG",
+  "revision": "b8a2b60a3a5b2d9b717b1065fbcb8de9f1faf72b",
+  "author": "Saveena Solanki",
+  "license": "CC-BY-4.0",
+  "modifications": "No SVG artwork changes; displayed at user-selected sizes and rotations. Runtime IDs are scoped per instance.",
+  "assets": [
+    {
+      "kind": "sci-animal-cell",
+      "file": "animal-cell.svg",
+      "title": "خلية حيوانية",
+      "sourcePath": "assets/biology/cells/animal-cell.svg",
+      "sourceBlobSha": "3297ad88430b4363783c7d761ed6ce69c8526ea2"
+    },
+    {
+      "kind": "sci-cell-membrane",
+      "file": "cell-membrane.svg",
+      "title": "غشاء الخلية",
+      "sourcePath": "assets/biology/cells/cell-membrane.svg",
+      "sourceBlobSha": "78f3ffc3cc018d62ed3ad28ef8479b9ebdf85901"
+    },
+    {
+      "kind": "sci-neuron",
+      "file": "neuron.svg",
+      "title": "خلية عصبية",
+      "sourcePath": "assets/biology/cells/neuron.svg",
+      "sourceBlobSha": "bbea715bc2da47b08340d05bc0bb5bccc6756a65"
+    },
+    {
+      "kind": "sci-chromosome",
+      "file": "chromosome.svg",
+      "title": "كروموسوم",
+      "sourcePath": "assets/biology/dna-rna/chromosome.svg",
+      "sourceBlobSha": "ceb17b23f9037611ebe6938158dc5934696c863f"
+    },
+    {
+      "kind": "sci-dna-double-helix",
+      "file": "dna-double-helix.svg",
+      "title": "لولب الحمض النووي",
+      "sourcePath": "assets/biology/dna-rna/dna-double-helix.svg",
+      "sourceBlobSha": "8bd5b9c1b76a5b8cc26d4282038c3328fd92cc1c"
+    },
+    {
+      "kind": "sci-plasmid",
+      "file": "plasmid.svg",
+      "title": "بلازميد",
+      "sourcePath": "assets/biology/dna-rna/plasmid.svg",
+      "sourceBlobSha": "58196af55bcd448cc8f4d8366085ad451d1e7b1e"
+    },
+    {
+      "kind": "sci-mitochondrion",
+      "file": "mitochondrion.svg",
+      "title": "ميتوكوندريا",
+      "sourcePath": "assets/biology/organelles/mitochondrion.svg",
+      "sourceBlobSha": "297ca4a50753fc90889fb9eb05172fe28dd5ac82"
+    },
+    {
+      "kind": "sci-ribosome",
+      "file": "ribosome.svg",
+      "title": "ريبوسوم",
+      "sourcePath": "assets/biology/organelles/ribosome.svg",
+      "sourceBlobSha": "c8262607d342bd6eb019d08ab8536e660d139c8c"
+    },
+    {
+      "kind": "sci-erlenmeyer-flask",
+      "file": "erlenmeyer-flask.svg",
+      "title": "دورق مخروطي",
+      "sourcePath": "assets/chemistry/glassware/erlenmeyer-flask.svg",
+      "sourceBlobSha": "b4bc8e54edfed00ccd4de967cec6793204bcee28"
+    },
+    {
+      "kind": "sci-benzene-ring",
+      "file": "benzene-ring.svg",
+      "title": "حلقة البنزين",
+      "sourcePath": "assets/chemistry/molecules/benzene-ring.svg",
+      "sourceBlobSha": "3ff8405362649aa55096a6d875adb097ee66ee4b"
+    },
+    {
+      "kind": "sci-peptide-bond",
+      "file": "peptide-bond.svg",
+      "title": "رابطة ببتيدية",
+      "sourcePath": "assets/chemistry/molecules/peptide-bond.svg",
+      "sourceBlobSha": "3ef6b2012767c98d00fb5912a85247daec8267b9"
+    },
+    {
+      "kind": "sci-protein-ligand-binding",
+      "file": "protein-ligand-binding.svg",
+      "title": "ارتباط بروتين",
+      "sourcePath": "assets/chemistry/molecules/protein-ligand-binding.svg",
+      "sourceBlobSha": "b870f3afcd1e314a39a01d617e6c9b807c3a35ca"
+    },
+    {
+      "kind": "sci-petri-dish",
+      "file": "petri-dish.svg",
+      "title": "طبق بتري",
+      "sourcePath": "assets/laboratory/consumables/petri-dish.svg",
+      "sourceBlobSha": "3945afcc0d5d6fed43916bf4c3bd472dd236d8d3"
+    },
+    {
+      "kind": "sci-micropipette",
+      "file": "micropipette.svg",
+      "title": "ماصة دقيقة",
+      "sourcePath": "assets/laboratory/equipment/micropipette.svg",
+      "sourceBlobSha": "5fc4175ff833331f8234c3e79c1f268ea7c3e561"
+    },
+    {
+      "kind": "sci-microscope",
+      "file": "microscope.svg",
+      "title": "مجهر علمي",
+      "sourcePath": "assets/laboratory/equipment/microscope.svg",
+      "sourceBlobSha": "d2ff5010c20db47a77bb7d12deabe3e455575769"
+    },
+    {
+      "kind": "sci-test-tube-rack",
+      "file": "test-tube-rack.svg",
+      "title": "حامل أنابيب",
+      "sourcePath": "assets/laboratory/equipment/test-tube-rack.svg",
+      "sourceBlobSha": "d22dd35769358f94c0385d5d56d47edc17130aeb"
+    },
+    {
+      "kind": "sci-96-well-plate",
+      "file": "96-well-plate.svg",
+      "title": "صفيحة مختبر",
+      "sourcePath": "assets/laboratory/consumables/96-well-plate.svg",
+      "sourceBlobSha": "99e8f4ab2ba9be453148c980715dd4c35c04482a"
+    },
+    {
+      "kind": "sci-neural-network",
+      "file": "neural-network.svg",
+      "title": "شبكة عصبية",
+      "sourcePath": "assets/bioinformatics/machine-learning/neural-network.svg",
+      "sourceBlobSha": "e5f623fe006b8e960c83390c3456194c92760a67"
+    },
+    {
+      "kind": "sci-phylogenetic-tree",
+      "file": "phylogenetic-tree.svg",
+      "title": "شجرة تطورية",
+      "sourcePath": "assets/bioinformatics/networks/phylogenetic-tree.svg",
+      "sourceBlobSha": "9a6a4f9a2315d82b7a9467b824a7cda27f1811cd"
+    },
+    {
+      "kind": "sci-heatmap",
+      "file": "heatmap.svg",
+      "title": "خريطة حرارية",
+      "sourcePath": "assets/bioinformatics/genomics/heatmap.svg",
+      "sourceBlobSha": "9a36e0284b74ee636cea4cd6a55080b9bbb1451c"
+    }
+  ]
+}

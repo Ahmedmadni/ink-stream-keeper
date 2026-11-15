@@ -13,12 +13,14 @@ export function safePageHtml(html: string, remoteImages = false): string {
   // content is inert: strip resource URLs before anything can join the live DOM.
   const template = document.createElement("template"); template.innerHTML = clean;
   const root = template.content;
-  const styleProperties = new Set(["color", "background-color", "text-align", "font-weight", "font-style",
+  const styleProperties = new Set(["color", "background-color", "text-align", "font-weight", "font-style", "font-family",
     "text-decoration", "font-size", "vertical-align", "width", "height"]);
   for (const node of root.querySelectorAll<HTMLElement>("[style]")) {
     for (const property of Array.from(node.style)) {
       const value = node.style.getPropertyValue(property);
-      if (!styleProperties.has(property) || /url\s*\(|var\s*\(|expression/i.test(value)) node.style.removeProperty(property);
+      if (!styleProperties.has(property) || /url\s*\(|var\s*\(|expression/i.test(value) ||
+        (property === "font-family" && !["Aref Ruqaa", "IBM Plex Sans Arabic"].includes(value.replace(/["']/g, ""))))
+        node.style.removeProperty(property);
     }
   }
   for (const image of root.querySelectorAll("img")) {

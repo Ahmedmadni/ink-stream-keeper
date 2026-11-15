@@ -1,13 +1,15 @@
 import { z } from "zod";
 
-export const PAPER_TYPES = ["plain", "lined", "grid", "dots", "cornell", "ledger"] as const;
+export const PAPER_TYPES = ["plain", "lined", "grid", "dots", "cornell", "ledger", "two-column", "weekly", "flashcards", "music", "isometric", "hex"] as const;
 export const PAPER_SIZES = ["a4", "a5", "letter", "square"] as const;
 export const PAPER_TINTS = ["white", "ivory", "mint", "blue", "rose"] as const;
+export const PAPER_TEXTURES = ["smooth", "grain", "linen"] as const;
 export const STICKER_TYPES = [
   "stethoscope", "heart-pulse", "pill", "microscope", "flask-conical",
   "dna", "atom", "book-open", "graduation-cap", "lightbulb", "pencil-ruler",
   "calculator", "chart-no-axes-combined", "wallet", "receipt", "landmark",
   "coins", "circle-check-big", "calendar-check", "notebook-pen", "star", "target",
+  "brain", "bone", "syringe", "thermometer", "hospital", "bandage", "scan-eye", "ear", "file-spreadsheet", "scale", "piggy-bank", "credit-card", "briefcase-business", "badge-dollar-sign", "hand-coins", "chart-pie", "trending-down", "circle-dollar-sign", "sticky-note", "alarm-clock", "bookmark", "flag", "list-checks", "notebook-tabs", "book-marked", "presentation", "clipboard-list", "ruler", "sci-animal-cell", "sci-cell-membrane", "sci-neuron", "sci-chromosome", "sci-dna-double-helix", "sci-plasmid", "sci-mitochondrion", "sci-ribosome", "sci-erlenmeyer-flask", "sci-benzene-ring", "sci-peptide-bond", "sci-protein-ligand-binding", "sci-petri-dish", "sci-micropipette", "sci-microscope", "sci-test-tube-rack", "sci-96-well-plate", "sci-neural-network", "sci-phylogenetic-tree", "sci-heatmap",
 ] as const;
 
 const point = z.tuple([z.number().finite().min(0).max(1000), z.number().finite().min(0).max(1000)]);
@@ -17,11 +19,13 @@ const strokeSchema = z.object({
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   width: z.number().finite().min(1).max(40),
   points: z.array(point).min(1).max(4000),
+  times: z.array(z.number().finite().int().nonnegative().max(Number.MAX_SAFE_INTEGER)).min(1).max(4000).optional(),
   // Optional fields preserve every existing v1 notebook and its original samples.
   pressures: z.array(z.number().finite().min(0).max(1)).min(1).max(4000).optional(),
   smoothing: z.boolean().optional(),
-}).strict().refine((stroke) => !stroke.pressures || stroke.pressures.length === stroke.points.length, {
-  message: "عدد عينات الضغط لا يطابق نقاط القلم.",
+}).strict().refine((stroke) => (!stroke.pressures || stroke.pressures.length === stroke.points.length) &&
+  (!stroke.times || (stroke.times.length === stroke.points.length && stroke.times.every((t, i) => i === 0 || t >= stroke.times![i - 1]))), {
+  message: "عينات ضغط القلم أو وقت الكتابة لا تطابق نقاط المسار.",
 });
 const stickerSchema = z.object({
   id: z.string().uuid(),
@@ -30,6 +34,8 @@ const stickerSchema = z.object({
   x: z.number().finite().min(0).max(1),
   y: z.number().finite().min(0).max(1),
   scale: z.number().finite().min(0.045).max(0.24),
+  rotation: z.number().finite().min(-180).max(180).optional(),
+  presentation: z.enum(["badge", "cutout"]).optional(),
 }).strict();
 const pageSchema = z.object({
   id: z.string().uuid(),
@@ -38,6 +44,9 @@ const pageSchema = z.object({
   size: z.enum(PAPER_SIZES),
   orientation: z.enum(["portrait", "landscape"]),
   tint: z.enum(PAPER_TINTS),
+  texture: z.enum(PAPER_TEXTURES).optional(),
+  lineSpacing: z.number().int().min(20).max(56).optional(),
+  fontSize: z.number().int().min(12).max(24).optional(),
   strokes: z.array(strokeSchema).max(350),
   stickers: z.array(stickerSchema).max(120),
 }).strict();
@@ -135,13 +144,14 @@ export function parseNotebook(content: string): Notebook | null {
     throw new Error("غلاف الدفتر غير مكتمل أو يحتوي نصًا خارج الصفحات. احتفظ بالأصل واستعد نسخة صحيحة قبل التعديل.");
   return notebook;
 }
-export function createPage(options: Partial<Pick<NotebookPage, "paper" | "size" | "orientation" | "tint">> = {}): NotebookPage {
+export function createPage(options: Partial<Pick<NotebookPage, "paper" | "size" | "orientation" | "tint" | "texture" | "lineSpacing" | "fontSize">> = {}): NotebookPage {
   return {
     id: crypto.randomUUID(), html: "<p></p>",
     paper: options.paper ?? "lined",
     size: options.size ?? "a4",
     orientation: options.orientation ?? "portrait",
     tint: options.tint ?? "ivory",
+    texture: options.texture ?? "smooth", lineSpacing: options.lineSpacing ?? 32, fontSize: options.fontSize ?? 16,
     strokes: [], stickers: [],
   };
 }
