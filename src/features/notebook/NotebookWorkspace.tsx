@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import type { Editor } from "@tiptap/react";
 import {
-  BookOpen, Brush, Eraser, FileDown, Layers, PenLine, Plus, Palette,
-  Copy, Trash2, Check, Highlighter, Undo2, CircleHelp, Sticker, SlidersHorizontal,
+  BookOpen, Brush, Eraser, FileDown, Layers, PenLine, Plus,
+  Copy, Trash2, Highlighter, Undo2, Sticker,
 } from "lucide-react";
 import { RichEditor, CompactToolbar } from "@/components/RichEditor";
 import {
-  createPage, dimensionsMm, fromLegacyNote, inkPath, isNotebookContent, parseNotebook,
+  createPage, dimensionsMm, fromLegacyNote, inkPath, notebookPlainText, parseNotebook,
   serializeNotebook, PAPER_SIZES, PAPER_TINTS, PAPER_TYPES,
   type Notebook, type NotebookPage, type InkStroke, type PageSticker,
 } from "./model";
@@ -23,6 +23,34 @@ const TINT_COLORS = {
 } as const;
 type PaletteGroup = "text" | "draw" | "stickers" | "paper";
 type InkMode = "pen" | "highlighter" | "eraser";
+
+function PageMiniature({ page }: { page: NotebookPage }) {
+  // The real page's initial lines and ink marks, not a generic blank rectangle.
+  const preview = notebookPlainText({ version: 1, pages: [{ ...page, html: page.html.slice(0, 240) }] }).slice(0, 65);
+  return (
+    <span className="relative block h-16 w-12 overflow-hidden rounded border border-[#d1d8df] shadow-sm"
+      style={{ ...paperStyle(page), backgroundSize: "10px 10px" }}>
+      <span dir="rtl" className="absolute inset-x-1 top-1 line-clamp-4 break-words text-right text-[5px] leading-[7px] text-[#263b53]">
+        {preview}
+      </span>
+      {!!page.strokes.length && (
+        <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true"
+          className="pointer-events-none absolute inset-0 size-full">
+          {page.strokes.slice(0, 35).map((stroke) => (
+            <path key={stroke.id} d={inkPath(stroke.points)} stroke={stroke.color} fill="none"
+              strokeWidth={stroke.width * 2} opacity={stroke.tool === "highlighter" ? .3 : .8}/>
+          ))}
+        </svg>
+      )}
+      {page.stickers.slice(0, 6).map((sticker) => (
+        <span key={sticker.id} className="absolute size-1.5 rounded-full border border-white"
+          style={{ left: String(sticker.x * 100) + "%", top: String(sticker.y * 100) + "%",
+            backgroundColor: sticker.color }} />
+      ))}
+    </span>
+  );
+}
+
 
 function paperStyle(page: NotebookPage): CSSProperties {
   const color = "rgba(80,119,177,.17)";
@@ -164,7 +192,7 @@ export function NotebookWorkspace({
         </button>
       </section>
       <RichEditor value={content} onChange={onChange} onAddAttachment={onAddAttachment}
-        placeholder="اكتب محتوى المذكرة..." showCount />
+        placeholder="اكتب محتوى المذكرة..." toolbarMode="compact" showCount />
     </div>
   );
   const page = book.pages[index];
@@ -536,8 +564,7 @@ export function NotebookWorkspace({
               onClick={() => { finish(); setIndex(n); setSelectedSticker(null); }}
               className={"flex min-w-20 flex-col items-center gap-1 rounded-xl border-2 p-1.5 " +
                 (index === n ? "border-primary bg-primary-soft" : "border-border bg-background")}>
-              <span className="block h-12 w-9 rounded-sm border border-border shadow-sm"
-                style={{ ...paperStyle(p), backgroundSize: "10px 10px" }}/>
+              <PageMiniature page={p} />
               <span className="text-xs">صفحة {n + 1}</span>
             </button>
           ))}
