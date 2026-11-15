@@ -69,7 +69,8 @@ async function checkSegmentEraser(page, artifacts) {
   await page.getByRole("button", { name: "قلم", exact: true }).click();
   await canvas.evaluate((e) => e.scrollIntoView({ block: "center" }));
   let bounds = await canvas.boundingBox();
-  const y = Math.max(190, Math.min(page.viewportSize().height - 210, bounds.y + bounds.height * .55));
+  const controls = await page.getByRole("navigation", { name: "شريط صفحات المذكرة", exact: true }).boundingBox();
+  const y = Math.max(190, Math.min(page.viewportSize().height - 210, controls.y - 25, bounds.y + bounds.height * .55));
   const x = bounds.x + bounds.width * .2, length = bounds.width * .5;
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button: "left", buttons: 1, pointerType: "pen", force: .3 });
@@ -105,8 +106,13 @@ async function checkSegmentEraser(page, artifacts) {
   await page.mouse.up();
   assert.equal(await mark.getAttribute("d"), after, "cancelling a gesture restores all its preview cuts");
   await page.getByRole("button", { name: "تحديد وتحريك", exact: true }).click();
-  await mark.scrollIntoViewIfNeeded(); bounds = await mark.boundingBox();
-  const pickX = bounds.x + bounds.width * .2, pickY = bounds.y + bounds.height / 2;
+  await mark.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  const pick = await mark.evaluate((el) => {
+    const point = el.getPointAtLength(el.getTotalLength() * .1);
+    const screen = new DOMPoint(point.x, point.y).matrixTransform(el.getScreenCTM());
+    return { x: screen.x, y: screen.y };
+  });
+  const pickX = pick.x, pickY = pick.y;
   await page.mouse.move(pickX, pickY); await page.mouse.down();
   await page.mouse.move(pickX + 15, pickY + 10, { steps: 4 }); await page.mouse.up();
   assert.notEqual(await mark.getAttribute("d"), after, "remaining pieces move together");
