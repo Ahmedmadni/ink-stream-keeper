@@ -16,6 +16,7 @@ import {
   Loader2,
   Cloud,
   CloudOff,
+  ShieldPlus,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import {
@@ -32,6 +33,8 @@ import {
 import { formatRelative, plainTextFromHtml } from "@/lib/format";
 import { NotebookWorkspace } from "@/features/notebook/NotebookWorkspace";
 import { appendHtmlToNotebook } from "@/features/notebook/model";
+import { useAddVaultEntry, useVaultLocked } from "@/lib/vault";
+import { serializeVaultNoteCopy } from "@/features/notebook/vault-note";
 import { AudioRecorder } from "@/components/AudioRecorder";
 import { LectureRecorder } from "@/components/speech/LectureRecorder";
 import { SubItemsTree } from "@/components/subitems/SubItemsTree";
@@ -88,6 +91,8 @@ function NoteEditor({ note }: { note: Note }) {
   const upload = useUploadAttachment();
   const removeAtt = useDeleteAttachment();
   const { controller, snapshot } = useNoteAutosave(note);
+  const vaultLocked = useVaultLocked();
+  const saveVaultCopy = useAddVaultEntry();
   const { title, content: draft } = snapshot.draft;
   const cat = categories.find((c) => c.id === note.category_id);
 
@@ -246,6 +251,42 @@ function NoteEditor({ note }: { note: Note }) {
           <span className="text-xs text-muted-foreground">
             آخر تعديل {formatRelative(tsOf(note.updated_at))}
           </span>
+        </div>
+
+        <div className="mt-3">
+          <button type="button" aria-label="نسخ المذكرة إلى الخزنة"
+            disabled={saveVaultCopy.isPending}
+            onClick={async () => {
+              if (vaultLocked) {
+                toast.info("افتح الخزنة برمزك أولًا، ثم ارجع إلى هذه المذكرة لنسخ نسخة مشفّرة.");
+                await router.navigate({ to: "/vault" });
+                return;
+              }
+              if (!window.confirm(
+                "سيتم إنشاء نسخة مشفّرة داخل الخزنة؛ المذكرة الأصلية ستبقى في قسم المذكرات ويمكن رؤيتها هناك. المرفقات لا تُنسخ. هل تريد المتابعة؟",
+              )) return;
+              try {
+                await controller.flush();
+                const current = controller.getSnapshot();
+                if (current.state !== "clean" && current.state !== "saved")
+                  throw new Error("لا يمكن إنشاء النسخة حتى يكتمل حفظ المذكرة وتُحل أي تعارضات.");
+                const payload = serializeVaultNoteCopy(
+                  current.draft.title || "مذكرة بدون عنوان", current.draft.content,
+                );
+                await saveVaultCopy.mutateAsync({
+                  categoryId: null,
+                  label: "مذكرة: " + (current.draft.title || "بدون عنوان"),
+                  username: "", url: "", password: "", notes: payload,
+                });
+                toast.success("حُفظت نسخة مشفّرة في الخزنة. المذكرة الأصلية لم تُحذف.");
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : "تعذر نسخ المذكرة إلى الخزنة.");
+              }
+            }}
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card px-3 text-sm font-semibold text-foreground disabled:opacity-50">
+            <ShieldPlus className="size-4 text-primary" />
+            {saveVaultCopy.isPending ? "تشفير النسخة..." : "نسخ المذكرة إلى الخزنة"}
+          </button>
         </div>
 
         <div className="mt-5">
