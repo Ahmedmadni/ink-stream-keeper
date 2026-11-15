@@ -62,6 +62,9 @@ async function checkInk(page) {
 }
 
 async function checkPdf(page, artifacts) {
+  let securePreviewRequests = 0;
+  const watch = (request) => { if (request.url().includes("unavailable.fixture.test/leak")) securePreviewRequests++; };
+  page.on("request", watch);
   const result = await page.evaluate(async () => {
     const { createPage } = await import("/src/features/notebook/model.ts");
     const { createNotebookPdf } = await import("/src/features/notebook/pdf-export.ts");
@@ -88,6 +91,11 @@ async function checkPdf(page, artifacts) {
     const safe = safePageHtml('<p style="background-image:url(https://unavailable.fixture.test/leak)">سري</p><img src="https://unavailable.fixture.test/leak"><script>window.leak=1</script>');
     return { pdf: btoa(binary), overflow, missingImage, safe };
   });
+  // Removing a URL from returned HTML is insufficient: a detached element can
+  // already have started a request before sanitization finishes.
+  await page.waitForTimeout(250);
+  page.off("request", watch);
+  assert.equal(securePreviewRequests, 0, "secure preview sanitization must never initiate external requests");
   const pdf = Buffer.from(result.pdf, "base64");
   writeFileSync(artifacts + "/notebook-rich-arabic.pdf", pdf);
   assert.ok(result.overflow, "overflow is reported rather than silently cropped");

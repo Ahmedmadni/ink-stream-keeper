@@ -9,7 +9,10 @@ export function safePageHtml(html: string, remoteImages = false): string {
       "pre", "code", "hr", "a", "sub", "sup", "table", "thead", "tbody", "tfoot", "tr", "th", "td", "colgroup", "col", "img"],
     ALLOWED_ATTR: ["style", "class", "dir", "href", "src", "alt", "width", "height", "colspan", "rowspan", "colwidth", "start", "type", "checked", "data-type", "data-checked"],
   });
-  const root = document.createElement("div"); root.innerHTML = clean;
+  // A detached div still initiates <img> loads in its owner document. Template
+  // content is inert: strip resource URLs before anything can join the live DOM.
+  const template = document.createElement("template"); template.innerHTML = clean;
+  const root = template.content;
   const styleProperties = new Set(["color", "background-color", "text-align", "font-weight", "font-style",
     "text-decoration", "font-size", "vertical-align", "width", "height"]);
   for (const node of root.querySelectorAll<HTMLElement>("[style]")) {
@@ -33,5 +36,5 @@ export function safePageHtml(html: string, remoteImages = false): string {
     if (input.type !== "checkbox") input.remove();
     else input.disabled = true;
   }
-  return root.innerHTML;
+  return template.innerHTML;
 }

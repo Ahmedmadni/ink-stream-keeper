@@ -21,16 +21,15 @@ function dataUrl(blob: Blob): Promise<string> {
 async function embedPageImages(sheet: HTMLElement, signal: AbortSignal) {
   for (const image of sheet.querySelectorAll("img")) {
     try {
-      if (!image.src.startsWith("data:")) {
-        const response = await fetch(image.src, { mode: "cors", credentials: "omit", signal });
+      const source = image.getAttribute("src") || "";
+      if (!source.startsWith("data:")) {
+        const response = await fetch(new URL(source, location.href), { mode: "cors", credentials: "omit", signal });
         if (!response.ok) throw new Error("unavailable");
         const blob = await response.blob();
         if (!/^image\/(png|jpeg|gif|webp)$/.test(blob.type) || blob.size > 15 * 1024 * 1024)
           throw new Error("unsupported image");
         image.src = await dataUrl(blob);
       }
-      await image.decode();
-      if (!image.naturalWidth) throw new Error("empty");
     } catch {
       throw new Error("تعذر تضمين إحدى الصور. افتح الصورة أو أدرج نسخة محلية منها ثم أعد تصدير PDF؛ لم يتم إنشاء ملف ناقص.");
     }
@@ -46,15 +45,24 @@ export async function renderNotebookPage(page: NotebookPage, fontCss?: string) {
   host.setAttribute("aria-hidden", "true");
   host.inert = true;
   host.style.cssText = "position:fixed;left:-20000px;top:0;pointer-events:none;z-index:-1";
-  host.innerHTML = renderToStaticMarkup(createElement(PageArtwork, { page, remoteImages: true }));
-  document.body.appendChild(host);
-  const sheet = host.firstElementChild as HTMLElement;
+  const template = document.createElement("template");
+  template.innerHTML = renderToStaticMarkup(createElement(PageArtwork, { page, remoteImages: true }));
+  const sheet = template.content.firstElementChild as HTMLElement;
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), 20_000);
   let canvas: HTMLCanvasElement | undefined;
   try {
-    await document.fonts.ready;
+    // Fetch remote resources with explicit CORS/omitted credentials while the
+    // subtree is inert. The live DOM only ever receives embedded data images.
     await embedPageImages(sheet, abort.signal);
+    host.appendChild(sheet); document.body.appendChild(host);
+    await document.fonts.ready;
+    try {
+      for (const image of sheet.querySelectorAll("img")) {
+        await image.decode();
+        if (!image.naturalWidth) throw new Error("empty");
+      }
+    } catch { throw new Error("تعذر تضمين إحدى الصور في PDF. أدرج نسخة محلية سليمة ثم أعد التصدير."); }
     const content = sheet.querySelector<HTMLElement>(".prose-mf")!;
     // Reject both vertical and horizontal overflow rather than cropping content.
     if (content.scrollHeight > content.clientHeight + 2 || content.scrollWidth > content.clientWidth + 2)
