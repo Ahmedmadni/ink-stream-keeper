@@ -161,3 +161,16 @@ export function inkPath(points: InkStroke["points"], smooth = true): string {
   const end = points[points.length - 1];
   return path + " L " + f(end[0]) + " " + f(end[1]);
 }
+
+/** Keep speech-to-note inserts inside the currently last page, not after the
+ * serialized notebook wrapper where the next edit would otherwise lose them. */
+export function appendHtmlToNotebook(content: string, html: string): string {
+  const notebook = parseNotebook(content);
+  if (!notebook) return content + html;
+  const index = notebook.pages.length - 1;
+  return serializeNotebook({
+    ...notebook,
+    pages: notebook.pages.map((page, i) => i === index
+      ? { ...page, html: page.html + html } : page),
+  });
+}
