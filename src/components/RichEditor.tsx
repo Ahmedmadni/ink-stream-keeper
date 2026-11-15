@@ -39,6 +39,7 @@ export function RichEditor({
   showCount = false,
   toolbarMode = "full",
   paperMode = false,
+  onEditorReady,
 }: {
   value: string;
   onChange?: (html: string) => void;
@@ -48,6 +49,7 @@ export function RichEditor({
   showCount?: boolean;
   toolbarMode?: "full" | "compact" | "none";
   paperMode?: boolean;
+  onEditorReady?: (editor: Editor | null) => void;
 }) {
   const initial = normalizeToHtml(value);
   const editor = useEditor({
@@ -101,6 +103,11 @@ export function RichEditor({
     editor?.setEditable(editable);
   }, [editable, editor]);
 
+  useEffect(() => {
+    onEditorReady?.(editor);
+    return () => onEditorReady?.(null);
+  }, [editor, onEditorReady]);
+
   if (!editor) return <div className="min-h-[220px] animate-pulse rounded-2xl bg-muted/40" />;
 
   return (
@@ -122,7 +129,7 @@ export function RichEditor({
 
 
 /** Compact, keyboard-accessible groups for tablet and notebook writing. */
-function CompactToolbar({ editor, onAddAttachment }: { editor: Editor; onAddAttachment?: (file: File) => void }) {
+export function CompactToolbar({ editor, onAddAttachment }: { editor: Editor; onAddAttachment?: (file: File) => void }) {
   const [group, setGroup] = useState<"text" | "paragraph" | "insert">("text");
   const color = useRef<HTMLInputElement>(null);
   const upload = useRef<HTMLInputElement>(null);
