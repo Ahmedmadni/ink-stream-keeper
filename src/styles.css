@@ -5,6 +5,17 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* One logical page across the editor, PDF renderer and secure reader. The
+ * viewport scales the entire sheet, so ink cannot drift relative to text. */
+.notebook-content { left: 6%; right: 6%; top: 7%; bottom: 6%; padding: 4px; }
+.notebook-content .prose-mf { font-size: 15px; line-height: 1.625; min-height: 0; overflow-wrap: anywhere; }
+.notebook-content > .prose-mf { height: 100%; }
+.notebook-sheet .prose-mf { color: #17263b; }
+.notebook-sheet { --color-border: #cbd5e1; --color-foreground: #17263b; --color-primary: #2564ad;
+  --color-primary-soft: #e3efff; --color-muted: #e9eef4; --color-secondary: #edf2f7; }
+.notebook-sheet .prose-mf mark { background: #ffeb96; }
+.notebook-sheet .prose-mf img { box-shadow: none; }
+
 /*
  * MemoFlow Design System — Arabic-first, RTL, professional blue identity.
  * Quiet surfaces, clear hierarchy, bundled IBM Plex Sans Arabic.

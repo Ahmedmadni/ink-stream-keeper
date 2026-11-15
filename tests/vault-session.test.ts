@@ -78,10 +78,16 @@ test("locking can purge decrypted vault data without discarding settings", () =>
   queryClient.setQueryData(["vault", "settings"], { configured: true });
   queryClient.setQueryData(["vault", "entries"], [{ label: "decrypted" }]);
   queryClient.setQueryData(["vault", "categories"], [{ name: "decrypted" }]);
+  const mutations = queryClient.getMutationCache();
+  const copy = mutations.build(queryClient, { mutationKey: ["vault", "add-entry"] });
+  copy.state.variables = { notes: "plaintext note copy" };
+  mutations.build(queryClient, { mutationKey: ["notes", "save"] });
   purgeSensitiveVaultQueries(queryClient);
   expect(queryClient.getQueryData(["vault", "entries"])).toBeUndefined();
   expect(queryClient.getQueryData(["vault", "categories"])).toBeUndefined();
   expect(queryClient.getQueryData(["vault", "settings"])).toEqual({ configured: true });
+  expect(mutations.getAll()).toHaveLength(1);
+  expect(mutations.getAll()[0].options.mutationKey).toEqual(["notes", "save"]);
 });
 
 test("legacy encrypted passwords remain readable; corrupted ciphertext is rejected", async () => {

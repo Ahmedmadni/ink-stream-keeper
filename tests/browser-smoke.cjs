@@ -309,7 +309,7 @@ const vaultPinWrites = [];
             assert.ok(!row.notes.includes("data-mf-notebook-v1"));
             assert.ok(!row.notes.includes("أفكار الأسبوع"));
             vaultEntries.push({
-              ...row, id: "77777777-7777-4777-8777-777777777777",
+              ...row, id: row.id || "77777777-7777-4777-8777-777777777777",
               created_at: "2026-11-15T04:00:00.000Z",
               updated_at: "2026-11-15T04:00:00.000Z",
             });
@@ -616,6 +616,10 @@ const vaultPinWrites = [];
     // Notebook Studio: paper, pen, licensed accounting stickers, PDF and reload.
     await page.getByRole("button", { name: "إنشاء دفتر بالصفحات" }).click();
     await page.getByRole("tab", { name: "ورق", exact: true }).click();
+    for (const [label, value] of [["سادة", "plain"], ["مسطرة", "lined"], ["منقّطة", "dots"], ["كورنيل", "cornell"], ["جدول محاسبي", "ledger"]]) {
+      await page.getByRole("button", { name: label, exact: true }).click();
+      assert.equal(await page.locator("[data-notebook-paper]").getAttribute("data-notebook-paper"), value);
+    }
     await page.getByRole("button", { name: "مربعات", exact: true }).click();
     await page.getByRole("tab", { name: "ملصقات", exact: true }).click();
     await page.getByRole("button", { name: "محاسبة وأعمال", exact: true }).click();
@@ -623,15 +627,22 @@ const vaultPinWrites = [];
     await page.getByRole("tab", { name: "أقلام", exact: true }).click();
     const drawing = page.getByRole("img", { name: "مساحة الرسم بالقلم" });
     await drawing.waitFor();
+    await drawing.scrollIntoViewIfNeeded();
     const bounds = await drawing.boundingBox();
     assert.ok(bounds);
     await page.mouse.move(bounds.x + bounds.width * .42, bounds.y + bounds.height * .57);
     await page.mouse.down();
     await page.mouse.move(bounds.x + bounds.width * .47, bounds.y + bounds.height * .61, { steps: 8 });
     await page.mouse.up();
+    await require("./notebook-browser-checks.cjs").checkInk(page);
     await page.getByRole("button", { name: "إضافة صفحة", exact: true }).click();
     await page.getByRole("tab", { name: "صفحة 2", exact: true }).waitFor();
     assert.equal(await page.getByRole("tab", { name: /^صفحة [12]$/ }).count(), 2);
+    await page.getByRole("button", { name: "تكرار الصفحة", exact: true }).click();
+    await page.getByRole("tab", { name: "صفحة 3", exact: true }).waitFor();
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.getByRole("button", { name: "حذف الصفحة", exact: true }).click();
+    assert.equal(await page.getByRole("tab", { name: /^صفحة [123]$/ }).count(), 2);
     await page.getByRole("tab", { name: "صفحة 1", exact: true }).click();
     const downloadPending = page.waitForEvent("download", { timeout: 25000 });
     await page.getByRole("button", { name: "تصدير صفحات الدفتر PDF" }).click();
@@ -639,6 +650,7 @@ const vaultPinWrites = [];
     const pdfBytes = readFileSync(await pdf.path());
     assert.equal(pdfBytes.subarray(0, 8).toString("utf8"), "%PDF-1.4");
     assert.ok(pdfBytes.includes(Buffer.from("/Count 2")));
+    await require("./notebook-browser-checks.cjs").checkPdf(page, artifacts);
     const notebookDeadline = Date.now() + 20000;
     while (!notes[0].content.includes("data-mf-notebook-v1")) {
       if (Date.now() > notebookDeadline) throw Error("Notebook was not saved remotely");

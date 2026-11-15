@@ -178,6 +178,13 @@ const vaultEntries = [
       if (table === "vault_entries") return route.fulfill({ json: vaultEntries });
       if (table === "notes") {
         const id = url.searchParams.get("id");
+        if (route.request().method() === "PATCH") {
+          const row = notes.find((n) => n.id === id?.slice(3));
+          if (!row || url.searchParams.get("updated_at") !== "eq." + row.updated_at)
+            return route.fulfill({ json: [] });
+          Object.assign(row, route.request().postDataJSON(), { updated_at: new Date().toISOString() });
+          return route.fulfill({ json: [row] });
+        }
         return route.fulfill({
           json: id?.startsWith("eq.") ? (notes.find((n) => n.id === id.slice(3)) ?? null) : notes,
         });
@@ -583,6 +590,40 @@ const vaultEntries = [
       ),
       1,
     );
+    // Exercise the actual packaged Notebook Studio, including persisted pages
+    // and the bundled PDF renderer/fonts rather than only source-level tests.
+    await page.goto("memoflow://app/notes/ffffffff-ffff-4fff-8fff-ffffffffffff");
+    await page.getByRole("button", { name: "إنشاء دفتر بالصفحات", exact: true }).click();
+    await page.getByRole("button", { name: "إضافة صفحة", exact: true }).click();
+    await page.getByRole("tab", { name: "صفحة 2", exact: true }).waitFor();
+    await page.locator("[data-notebook-paper] .ProseMirror").fill("اختبار الدفتر في نسخة ويندوز المجمعة");
+    const studioDeadline = Date.now() + 20000;
+    while (!notes.find((n) => n.id.startsWith("ffffffff")).content.includes("اختبار الدفتر")) {
+      if (Date.now() > studioDeadline) throw new Error("Packaged notebook did not autosave");
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    await page.reload();
+    await page.getByRole("tab", { name: "صفحة 2", exact: true }).click();
+    await page.locator("[data-notebook-paper] .ProseMirror").getByText("اختبار الدفتر في نسخة ويندوز المجمعة", { exact: true }).waitFor();
+    const studioPdfPath = resolve(artifacts, "notebook-packaged-windows.pdf");
+    const pdfCompleted = desktop.evaluate(({ session }, output) => new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("Packaged PDF export did not complete")), 45000);
+      session.defaultSession.once("will-download", (_event, item) => {
+        item.setSavePath(output);
+        item.once("done", (_event, state) => {
+          clearTimeout(timer);
+          state === "completed" ? resolve(true) : reject(new Error("Packaged PDF export: " + state));
+        });
+      });
+    }), studioPdfPath);
+    await page.getByRole("button", { name: "تصدير صفحات الدفتر PDF", exact: true }).click();
+    await pdfCompleted;
+    const studioPdf = readFileSync(studioPdfPath);
+    assert.equal(studioPdf.subarray(0, 8).toString(), "%PDF-1.4");
+    assert.ok(studioPdf.includes(Buffer.from("/Count 2")));
+    assert.ok(studioPdf.includes(Buffer.from("/FlateDecode")));
+    await page.screenshot({ path: resolve(artifacts, "notebook-packaged-windows.png"), fullPage: true });
+    console.log("PASS: packaged Notebook Studio conversion, page editing, autosave/reload and lossless Arabic PDF export.");
     await page.goto("memoflow://app/settings");
     await page.getByText("أحمد محمد المدني", { exact: true }).waitFor();
     assert.equal(

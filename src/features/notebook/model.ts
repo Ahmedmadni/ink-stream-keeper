@@ -17,7 +17,12 @@ const strokeSchema = z.object({
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   width: z.number().finite().min(1).max(40),
   points: z.array(point).min(1).max(4000),
-}).strict();
+  // Optional fields preserve every existing v1 notebook and its original samples.
+  pressures: z.array(z.number().finite().min(0).max(1)).min(1).max(4000).optional(),
+  smoothing: z.boolean().optional(),
+}).strict().refine((stroke) => !stroke.pressures || stroke.pressures.length === stroke.points.length, {
+  message: "عدد عينات الضغط لا يطابق نقاط القلم.",
+});
 const stickerSchema = z.object({
   id: z.string().uuid(),
   kind: z.enum(STICKER_TYPES),

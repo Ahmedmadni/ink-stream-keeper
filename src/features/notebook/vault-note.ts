@@ -1,11 +1,14 @@
 import { z } from "zod";
-import { parseNotebook, type Notebook } from "./model";
+import { MAX_NOTEBOOK_BYTES, parseNotebook, type Notebook } from "./model";
 
 const PREFIX = "MF_ENCRYPTED_NOTE_COPY_V1:";
+// The notebook wrapper contains base64 plus an escaped search preview. A valid
+// notebook must not fail vault copying at the old, smaller 1.5 MB string limit.
+export const MAX_VAULT_NOTE_CONTENT_LENGTH = Math.ceil(MAX_NOTEBOOK_BYTES / 3) * 4 + 100_000;
 const schema = z.object({
   version: z.literal(1),
   title: z.string().min(1).max(500),
-  content: z.string().max(1_500_000),
+  content: z.string().max(MAX_VAULT_NOTE_CONTENT_LENGTH),
   copiedAt: z.string().datetime({ offset: true }),
 }).strict();
 
@@ -24,7 +27,9 @@ export function isVaultNoteCopy(value: string): boolean {
 }
 export function parseVaultNoteCopy(value: string): VaultNoteCopy | null {
   if (!isVaultNoteCopy(value)) return null;
-  return schema.parse(JSON.parse(value.slice(PREFIX.length)));
+  const copy = schema.parse(JSON.parse(value.slice(PREFIX.length)));
+  parseNotebook(copy.content);
+  return copy;
 }
 export function vaultNotePages(content: string): Notebook | null {
   return parseNotebook(content);

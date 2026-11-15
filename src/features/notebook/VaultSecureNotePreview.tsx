@@ -1,53 +1,27 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { plainTextFromHtml } from "@/lib/format";
-import { inkPath, notebookPlainText, type NotebookPage } from "./model";
-import { stickerIcon } from "./sticker-packs";
+import { type NotebookPage } from "./model";
+import { PageArtwork } from "./PageArtwork";
+import { pageLayout } from "./page-layout";
 import { type VaultNoteCopy, vaultNotePages } from "./vault-note";
 
-const TINT = {
-  white: "#ffffff", ivory: "#fffdf4", mint: "#f4fff9", blue: "#f4faff", rose: "#fff6fa",
-};
 function PageReader({ page }: { page: NotebookPage }) {
-  const stripes = page.paper === "lined" || page.paper === "cornell";
-  const graph = page.paper === "grid" || page.paper === "ledger";
-  const dotted = page.paper === "dots";
-  return (
-    <div className="relative mx-auto min-h-56 w-full max-w-md overflow-hidden rounded-lg border border-border p-[7%] text-[#17263b]"
-      style={{
-        backgroundColor: TINT[page.tint],
-        backgroundImage: stripes ? "repeating-linear-gradient(to bottom,transparent 0px,transparent 27px,#d3dfeb 28px)"
-          : graph ? "linear-gradient(90deg,#d3dfeb 1px,transparent 1px),linear-gradient(#d3dfeb 1px,transparent 1px)"
-          : dotted ? "radial-gradient(circle,#bed3e6 1px,transparent 2px)" : "none",
-        backgroundSize: graph ? "28px 28px" : dotted ? "25px 25px" : undefined,
-      }}>
-      {page.paper === "cornell" && <div className="pointer-events-none absolute inset-y-[10%] right-[27%] w-px bg-[#dcafb5]" />}
-      <p className="relative z-10 whitespace-pre-wrap break-words text-sm leading-7">
-        {notebookPlainText({ version: 1, pages: [page] })}
-      </p>
-      <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-20 size-full">
-        {page.strokes.map((stroke) => (
-          <path key={stroke.id} d={inkPath(stroke.points)} fill="none" stroke={stroke.color}
-            strokeWidth={stroke.width} opacity={stroke.tool === "highlighter" ? .34 : 1}
-            strokeLinejoin="round" strokeLinecap="round"/>
-        ))}
-      </svg>
-      {page.stickers.map((sticker) => {
-        const Icon = stickerIcon(sticker.kind);
-        return (
-          <span key={sticker.id} aria-label={"ملصق " + sticker.kind}
-            className="pointer-events-none absolute z-30 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-white text-white"
-            style={{
-              left: String(sticker.x * 100) + "%", top: String(sticker.y * 100) + "%",
-              width: String(sticker.scale * 100) + "%", aspectRatio: "1 / 1",
-              backgroundColor: sticker.color,
-            }}>
-            <Icon size="62%" />
-          </span>
-        );
-      })}
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(340);
+  const layout = pageLayout(page);
+  useEffect(() => {
+    if (!ref.current) return;
+    const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
+    observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+  const scale = width / layout.width;
+  return <div ref={ref} className="relative mx-auto w-full max-w-xl overflow-hidden rounded-lg border border-border"
+    style={{ height: layout.height * scale }}>
+    <div className="absolute left-0 top-0" style={{ transform: `scale(${scale})`, transformOrigin: "top left" }}>
+      <PageArtwork page={page}/>
     </div>
-  );
+  </div>;
 }
 
 export function VaultSecureNotePreview({ copy }: { copy: VaultNoteCopy }) {

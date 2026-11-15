@@ -1,164 +1,89 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { dimensionsMm, type Notebook, type NotebookPage } from "./model";
-import { stickerIcon, stickerLabel } from "./sticker-packs";
+import { getFontEmbedCSS, toCanvas } from "html-to-image";
+import { validateNotebook, type Notebook, type NotebookPage } from "./model";
+import { pageLayout } from "./page-layout";
+import { PageArtwork } from "./PageArtwork";
 
-const BACKGROUND = {
-  white: "#ffffff", ivory: "#fffdf4", mint: "#f4fff9", blue: "#f4faff", rose: "#fff6fa",
-};
 const encoder = new TextEncoder();
+export const PDF_DPI = 216;
+const MAX_EXPORT_BYTES = 80 * 1024 * 1024;
 
-function putPaper(ctx: CanvasRenderingContext2D, page: NotebookPage, width: number, height: number) {
-  ctx.fillStyle = BACKGROUND[page.tint];
-  ctx.fillRect(0, 0, width, height);
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = "#cbdbea";
-  const guide = Math.max(24, Math.round(width / 28));
-  if (page.paper === "lined" || page.paper === "cornell" || page.paper === "grid" || page.paper === "ledger") {
-    for (let y = guide; y < height; y += guide) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
-    }
-  }
-  if (page.paper === "grid" || page.paper === "ledger") {
-    const xGap = page.paper === "ledger" ? guide * 3 : guide;
-    for (let x = xGap; x < width; x += xGap) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
-    }
-  }
-  if (page.paper === "dots") {
-    ctx.fillStyle = "#c9d9ea";
-    for (let x = guide; x < width; x += guide)
-      for (let y = guide; y < height; y += guide) {
-        ctx.beginPath(); ctx.arc(x, y, 1.6, 0, Math.PI * 2); ctx.fill();
-      }
-  }
-  if (page.paper === "cornell") {
-    ctx.strokeStyle = "#d6afb3";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(width * .28, height * .08); ctx.lineTo(width * .28, height * .85);
-    ctx.moveTo(0, height * .85); ctx.lineTo(width, height * .85);
-    ctx.stroke();
-  }
-}
-
-function renderText(ctx: CanvasRenderingContext2D, html: string, width: number, height: number) {
-  const dom = new DOMParser().parseFromString(html || "<p></p>", "text/html");
-  const right = width * .92;
-  const usable = width * .84;
-  const font = '"IBM Plex Sans Arabic", "Noto Sans Arabic", sans-serif';
-  let y = height * .105;
-  ctx.textAlign = "right";
-  ctx.textBaseline = "top";
-  ctx.direction = "rtl";
-  const blocks = Array.from(dom.body.children);
-  if (!blocks.length && dom.body.textContent?.trim()) blocks.push(dom.body);
-  for (const block of blocks) {
-    const tag = block.tagName.toLowerCase();
-    const heading = /^h[1-6]$/.test(tag);
-    const size = heading ? Math.max(23, Math.round(width * .027)) : Math.max(19, Math.round(width * .020));
-    const lineHeight = size * 1.75;
-    ctx.font = (heading ? "bold " : "") + String(size) + "px " + font;
-    ctx.fillStyle = "#202c40";
-    const text = (block.textContent || "").replace(/\s+/g, " ").trim();
-    const words = text.split(" ").filter(Boolean);
-    let line = "";
-    const flush = () => {
-      if (!line) return;
-      if (y + lineHeight > height * .94)
-        throw new Error("نص الصفحة يتجاوز حدود الورقة. وزّع النص على صفحات إضافية ثم أعد تصدير PDF.");
-      ctx.fillText(line, right, y, usable);
-      y += lineHeight;
-      line = "";
-    };
-    for (const word of words) {
-      const candidate = line ? line + " " + word : word;
-      if (ctx.measureText(candidate).width > usable && line) flush();
-      line = line ? line + " " + word : word;
-    }
-    flush();
-    if (text) y += lineHeight * .3;
-  }
-}
-
-function renderInk(ctx: CanvasRenderingContext2D, page: NotebookPage, width: number, height: number) {
-  ctx.lineJoin = "round"; ctx.lineCap = "round";
-  for (const stroke of page.strokes) {
-    if (!stroke.points.length) continue;
-    ctx.save();
-    ctx.globalAlpha = stroke.tool === "highlighter" ? .34 : 1;
-    ctx.strokeStyle = stroke.color;
-    ctx.lineWidth = Math.max(1.5, stroke.width * width / 1000);
-    ctx.beginPath();
-    ctx.moveTo(stroke.points[0][0] / 1000 * width, stroke.points[0][1] / 1000 * height);
-    if (stroke.points.length === 1) {
-      ctx.lineTo(stroke.points[0][0] / 1000 * width + 1, stroke.points[0][1] / 1000 * height);
-    } else {
-      for (const [x, y] of stroke.points.slice(1))
-        ctx.lineTo(x / 1000 * width, y / 1000 * height);
-    }
-    ctx.stroke();
-    ctx.restore();
-  }
-}
-
-async function makeSvgIcon(kind: NotebookPage["stickers"][number]["kind"]) {
-  const Icon = stickerIcon(kind);
-  let markup = renderToStaticMarkup(createElement(Icon, { size: 96, color: "#ffffff", strokeWidth: 2.5 }));
-  if (!markup.includes("xmlns=")) markup = markup.replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" ');
-  return new Promise<HTMLImageElement | null>((resolve) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => resolve(null);
-    image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(markup);
+function dataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("تعذر قراءة صورة الصفحة."));
+    reader.readAsDataURL(blob);
   });
 }
-async function renderStickers(
-  ctx: CanvasRenderingContext2D, page: NotebookPage, width: number, height: number,
-) {
-  for (const sticker of page.stickers) {
-    const diameter = sticker.scale * width;
-    const x = sticker.x * width, y = sticker.y * height;
-    ctx.save();
-    ctx.fillStyle = sticker.color;
-    ctx.strokeStyle = "#ffffff"; ctx.lineWidth = Math.max(2, diameter * .025);
-    ctx.beginPath(); ctx.arc(x, y, diameter / 2, 0, Math.PI * 2);
-    ctx.fill(); ctx.stroke();
-    const icon = await makeSvgIcon(sticker.kind);
-    if (icon) ctx.drawImage(icon, x - diameter * .33, y - diameter * .33, diameter * .66, diameter * .66);
-    else {
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold " + Math.round(diameter * .20) + 'px "IBM Plex Sans Arabic",sans-serif';
-      ctx.direction = "rtl"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(stickerLabel(sticker.kind).slice(0, 5), x, y);
+
+async function embedPageImages(sheet: HTMLElement, signal: AbortSignal) {
+  for (const image of sheet.querySelectorAll("img")) {
+    try {
+      if (!image.src.startsWith("data:")) {
+        const response = await fetch(image.src, { mode: "cors", credentials: "omit", signal });
+        if (!response.ok) throw new Error("unavailable");
+        const blob = await response.blob();
+        if (!/^image\/(png|jpeg|gif|webp)$/.test(blob.type) || blob.size > 15 * 1024 * 1024)
+          throw new Error("unsupported image");
+        image.src = await dataUrl(blob);
+      }
+      await image.decode();
+      if (!image.naturalWidth) throw new Error("empty");
+    } catch {
+      throw new Error("تعذر تضمين إحدى الصور. افتح الصورة أو أدرج نسخة محلية منها ثم أعد تصدير PDF؛ لم يتم إنشاء ملف ناقص.");
     }
-    ctx.restore();
   }
 }
-async function renderPage(page: NotebookPage) {
-  const [widthMm, heightMm] = dimensionsMm(page.size, page.orientation);
-  // ~150 dpi: readable text/strokes without creating huge mobile allocations.
-  const width = Math.round(widthMm * 5.7);
-  const height = Math.round(heightMm * 5.7);
-  const canvas = document.createElement("canvas");
-  canvas.width = width; canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("تعذر تشغيل محرّك الرسم المطلوب للتصدير.");
-  putPaper(ctx, page, width, height);
-  renderText(ctx, page.html, width, height);
-  renderInk(ctx, page, width, height);
-  await renderStickers(ctx, page, width, height);
-  const data = canvas.toDataURL("image/jpeg", .91).split(",")[1];
-  const binary = atob(data);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  // Release canvas memory before moving to the next sheet.
-  canvas.width = 0; canvas.height = 0;
-  return { bytes, width, height, widthPt: widthMm * 72 / 25.4, heightPt: heightMm * 72 / 25.4 };
+
+/** Browser text shaping and the very same sheet geometry/CSS as the editor.
+ * Never flatten rich HTML to textContent: tables, inline styles, Arabic joining,
+ * lists and embedded images are rendered together before the ink/sticker layers. */
+export async function renderNotebookPage(page: NotebookPage, fontCss?: string) {
+  const layout = pageLayout(page);
+  const host = document.createElement("div");
+  host.setAttribute("aria-hidden", "true");
+  host.inert = true;
+  host.style.cssText = "position:fixed;left:-20000px;top:0;pointer-events:none;z-index:-1";
+  host.innerHTML = renderToStaticMarkup(createElement(PageArtwork, { page, remoteImages: true }));
+  document.body.appendChild(host);
+  const sheet = host.firstElementChild as HTMLElement;
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), 20_000);
+  let canvas: HTMLCanvasElement | undefined;
+  try {
+    await document.fonts.ready;
+    await embedPageImages(sheet, abort.signal);
+    const content = sheet.querySelector<HTMLElement>(".prose-mf")!;
+    // Reject both vertical and horizontal overflow rather than cropping content.
+    if (content.scrollHeight > content.clientHeight + 2 || content.scrollWidth > content.clientWidth + 2)
+      throw new Error("محتوى الصفحة يتجاوز حدود الورقة. وزّع النص أو الجدول على صفحات إضافية ثم أعد تصدير PDF.");
+    const fontEmbedCSS = fontCss ?? await getFontEmbedCSS(sheet, { preferredFontFormat: "woff2" });
+    if (!fontEmbedCSS.includes("data:")) throw new Error("تعذر تضمين خط العربية في PDF. أعد فتح التطبيق وحاول مجددًا.");
+    canvas = await toCanvas(sheet, { width: layout.width, height: layout.height,
+      pixelRatio: PDF_DPI / 25.4 / (780 / 210), fontEmbedCSS,
+      includeQueryParams: true, onImageErrorHandler: () => { throw new Error("تعذر تضمين صورة في PDF."); } });
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("تعذر تشغيل محرّك تصدير PDF.");
+    // Lossless RGB/Flate keeps thin Arabic glyphs, ruled lines and tables crisp.
+    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    const rgb = new Uint8Array(canvas.width * canvas.height * 3);
+    for (let src = 0, dst = 0; src < pixels.length; src += 4) {
+      rgb[dst++] = pixels[src]; rgb[dst++] = pixels[src + 1]; rgb[dst++] = pixels[src + 2];
+    }
+    const stream = new Blob([rgb]).stream().pipeThrough(new CompressionStream("deflate"));
+    const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+    return { bytes, width: canvas.width, height: canvas.height,
+      widthPt: layout.widthMm * 72 / 25.4, heightPt: layout.heightMm * 72 / 25.4, fontEmbedCSS };
+  } finally {
+    clearTimeout(timer); abort.abort(); host.remove();
+    if (canvas) { canvas.width = 0; canvas.height = 0; }
+  }
 }
 
-type RasterPage = Awaited<ReturnType<typeof renderPage>>;
-/** Minimal ISO PDF 1.4 writer with per-page JPEG images and exact physical page sizes. */
+type RasterPage = Awaited<ReturnType<typeof renderNotebookPage>>;
+/** Minimal ISO PDF 1.4 writer with per-page lossless RGB images and exact physical page sizes. */
 function buildPdf(pages: RasterPage[]): Blob {
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -184,7 +109,7 @@ function buildPdf(pages: RasterPage[]): Blob {
     const command = "q\n" + w + " 0 0 " + h + " 0 0 cm\n/Sheet Do\nQ\n";
     obj(contentId, "<< /Length " + encoder.encode(command).length + " >>", encoder.encode(command));
     obj(imageId, "<< /Type /XObject /Subtype /Image /Width " + p.width +
-      " /Height " + p.height + " /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length " +
+      " /Height " + p.height + " /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " +
       p.bytes.length + " >>", p.bytes);
   });
   const xref = total;
@@ -198,12 +123,27 @@ function buildPdf(pages: RasterPage[]): Blob {
   for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.length; }
   return new Blob([result.buffer], { type: "application/pdf" });
 }
-export async function downloadNotebookPdf(book: Notebook, title: string) {
+export async function createNotebookPdf(book: Notebook): Promise<Blob> {
   if (typeof document === "undefined") throw new Error("تصدير PDF يتطلب واجهة التطبيق.");
-  await document.fonts.ready;
+  const valid = validateNotebook(book);
   const pages: RasterPage[] = [];
-  for (const page of book.pages) pages.push(await renderPage(page));
-  const file = buildPdf(pages);
+  let fontCss: string | undefined;
+  let totalBytes = 0;
+  for (let i = 0; i < valid.pages.length; i++) {
+    try {
+      const page = await renderNotebookPage(valid.pages[i], fontCss);
+      fontCss = page.fontEmbedCSS;
+      totalBytes += page.bytes.length;
+      if (totalBytes > MAX_EXPORT_BYTES) throw new Error("حجم PDF كبير جدًا للجهاز. صدّر الدفتر على أجزاء أصغر.");
+      pages.push(page);
+    } catch (error) {
+      throw new Error(`صفحة ${i + 1}: ${error instanceof Error ? error.message : "تعذر تصدير الصفحة."}`);
+    }
+  }
+  return buildPdf(pages);
+}
+export async function downloadNotebookPdf(book: Notebook, title: string) {
+  const file = await createNotebookPdf(book);
   const filename = (title.replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").trim().slice(0, 80) || "MemoFlow") + ".pdf";
   const [{ files }, { isNative }] = await Promise.all([
     import("@/services/files"), import("@/services/platform"),

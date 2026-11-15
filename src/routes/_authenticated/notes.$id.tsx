@@ -281,6 +281,10 @@ function NoteEditor({ note }: { note: Note }) {
                 toast.success("حُفظت نسخة مشفّرة في الخزنة. المذكرة الأصلية لم تُحذف.");
               } catch (error) {
                 toast.error(error instanceof Error ? error.message : "تعذر نسخ المذكرة إلى الخزنة.");
+              } finally {
+                // Do not retain the full plaintext note in mutation variables
+                // after a copy succeeds, fails, or the vault locks mid-request.
+                saveVaultCopy.reset();
               }
             }}
             className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card px-3 text-sm font-semibold text-foreground disabled:opacity-50">

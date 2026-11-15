@@ -114,7 +114,7 @@ export function RichEditor({
     <div className="space-y-3">
       {editable && toolbarMode === "full" && <Toolbar editor={editor} onAddAttachment={onAddAttachment} />}
       {editable && toolbarMode === "compact" && <CompactToolbar editor={editor} onAddAttachment={onAddAttachment} />}
-      <div className={paperMode ? "bg-transparent p-1" : "rounded-2xl bg-card p-4 shadow-card"}>
+      <div className={paperMode ? "bg-transparent" : "rounded-2xl bg-card p-4 shadow-card"}>
         <EditorContent editor={editor} />
       </div>
       {showCount && editable && (
