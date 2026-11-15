@@ -30,7 +30,8 @@ import {
   type Note,
 } from "@/lib/data";
 import { formatRelative, plainTextFromHtml } from "@/lib/format";
-import { RichEditor } from "@/components/RichEditor";
+import { NotebookWorkspace } from "@/features/notebook/NotebookWorkspace";
+import { appendHtmlToNotebook } from "@/features/notebook/model";
 import { AudioRecorder } from "@/components/AudioRecorder";
 import { LectureRecorder } from "@/components/speech/LectureRecorder";
 import { SubItemsTree } from "@/components/subitems/SubItemsTree";
@@ -248,12 +249,11 @@ function NoteEditor({ note }: { note: Note }) {
         </div>
 
         <div className="mt-5">
-          <RichEditor
-            value={draft}
+          <NotebookWorkspace
+            content={draft}
             onChange={(html) => controller.edit({ content: html })}
             onAddAttachment={(file) => upload.mutate({ noteId: note.id, file })}
-            placeholder="اكتب محتوى الملاحظة..."
-            showCount
+            filename={title || "مذكرة MemoFlow"}
           />
         </div>
 
@@ -264,7 +264,11 @@ function NoteEditor({ note }: { note: Note }) {
                 .split(/\n{2,}/)
                 .map((para) => `<p>${escapeHtml(para).replace(/\n/g, "<br/>")}</p>`)
                 .join("");
-              controller.edit({ content: controller.getSnapshot().draft.content + html });
+              try {
+                controller.edit({ content: appendHtmlToNotebook(controller.getSnapshot().draft.content, html) });
+              } catch {
+                toast.error("تعذر إضافة النص المسجل إلى الصفحة. لم نغيّر المذكرة.");
+              }
             }}
             onAudioFile={(file) => upload.mutate({ noteId: note.id, file })}
           />
