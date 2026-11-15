@@ -28,6 +28,10 @@ jobs:
       - run: bun run build
       - run: bunx playwright install --with-deps chromium
       - run: bun run test:browser
+      - name: Exercise the bundled native SPA and Android PDF bridge
+        run: |
+          bun run build:native
+          MEMOFLOW_BROWSER_NATIVE_BUNDLE=1 node tests/browser-smoke.cjs
       - run: bun run build:web-release
       - run: node scripts/verify-web-server.mjs
       - name: Package runnable web release

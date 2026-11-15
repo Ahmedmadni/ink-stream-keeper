@@ -72,6 +72,16 @@ describe("notebook data format", () => {
     expect(dimensionsMm("a5", "portrait")).toEqual([148, 210]);
     expect(dimensionsMm("square", "landscape")).toEqual([210, 210]);
   });
+  test("damaged envelopes and unknown markers never fall through to legacy editing", () => {
+    const html = serializeNotebook(notebook());
+    expect(() => parseNotebook(html.slice(0, -6))).toThrow();
+    expect(() => parseNotebook(html + "<p>تعديل أحدث خارج الصفحات</p>")).toThrow();
+    expect(() => parseNotebook(html.replace('data-mf-notebook-v1="1"', 'class="sheet" data-mf-notebook-v1="1"'))).toThrow();
+    const future = html.replace("data-mf-notebook-v1", "data-mf-notebook-v2");
+    expect(isNotebookContent(future)).toBe(true);
+    expect(() => parseNotebook(future)).toThrow();
+    expect(parseNotebook("<p>المذكرة القديمة كما هي</p>")).toBeNull();
+  });
   test("pen path smoothing never introduces NaN or undefined points", () => {
     const points: [number, number][] = [[10, 10], [20, 30], [40, 50], [80, 70]];
     expect(inkPath(points, true)).toContain(" Q ");

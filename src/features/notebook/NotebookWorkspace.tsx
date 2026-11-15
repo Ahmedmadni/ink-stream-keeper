@@ -111,7 +111,19 @@ export function NotebookWorkspace({
   const [startingTint, setStartingTint] = useState<NotebookPage["tint"]>("ivory");
   const [exporting, setExporting] = useState(false);
   const [activeTextEditor, setActiveTextEditor] = useState<Editor | null>(null);
+  const [textOverflow, setTextOverflow] = useState(false);
   const handleEditor = useCallback((editor: Editor | null) => setActiveTextEditor(editor), []);
+  useEffect(() => {
+    if (!activeTextEditor || activeTextEditor.isDestroyed) { setTextOverflow(false); return; }
+    const node = activeTextEditor.view.dom;
+    const area = node.closest<HTMLElement>(".notebook-content");
+    if (!area) return;
+    const check = () => setTextOverflow(node.scrollHeight > area.clientHeight - 8 || node.scrollWidth > area.clientWidth - 8);
+    const observer = new ResizeObserver(check);
+    observer.observe(node); observer.observe(area);
+    activeTextEditor.on("update", check); check();
+    return () => { observer.disconnect(); activeTextEditor.off("update", check); };
+  }, [activeTextEditor]);
 
   useEffect(() => {
     if (lastContent.current === content) return;
@@ -670,6 +682,9 @@ export function NotebookWorkspace({
         </div>
         </div>
       </div>
+      {textOverflow && <p role="status" className="rounded-xl bg-warning/15 p-3 text-sm">
+        النص يتجاوز مساحة هذه الورقة. محتواك محفوظ داخل المذكرة؛ انقل الجزء الزائد إلى صفحة إضافية ليظهر كاملًا ويُصدّر إلى PDF.
+      </p>}
       {warning && <p role="alert" className="rounded-xl bg-warning/15 p-3 text-sm">{warning}</p>}
       <nav className="sticky bottom-2 z-40 rounded-2xl border border-border bg-card/95 p-3 shadow-lg backdrop-blur"
         aria-label="شريط صفحات المذكرة">

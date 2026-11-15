@@ -76,7 +76,12 @@ function escapeHtml(text: string): string {
 /** Recognizable HTML wrapper keeps the note preview searchable, but never
  * exposes its JSON payload as editor body content. */
 export function isNotebookContent(content: string): boolean {
-  return content.trimStart().startsWith('<div data-mf-notebook-v1="1"');
+  // Recognize damaged/reordered/unknown markers too, so a notebook cannot be
+  // mistaken for legacy HTML and overwritten by the legacy editor.
+  return /^\s*<div\b[^>]*\bdata-mf-notebook-v\d+\s*=/i.test(content);
+}
+function notebookPreview(notebook: Notebook): string {
+  return "<p>" + escapeHtml(notebookPlainText(notebook).slice(0, 8000)).replace(/\n/g, "<br>") + "</p></div>";
 }
 export function validateNotebook(input: unknown): Notebook {
   const doc = notebookSchema.parse(input);
@@ -109,8 +114,7 @@ export function serializeNotebook(input: Notebook): string {
   if (bytes.byteLength > MAX_NOTEBOOK_BYTES)
     throw new Error("حجم الدفتر تجاوز الحد الآمن للحفظ المحلي (3.5 ميجابايت).");
   // The visible (escaped) preview preserves search in existing notes lists.
-  const preview = escapeHtml(notebookPlainText(notebook).slice(0, 8000)).replace(/\n/g, "<br>");
-  return PREFIX + toBase64(bytes) + '"><p>' + preview + "</p></div>";
+  return PREFIX + toBase64(bytes) + '">' + notebookPreview(notebook);
 }
 export function parseNotebook(content: string): Notebook | null {
   if (!isNotebookContent(content)) return null;
@@ -125,7 +129,11 @@ export function parseNotebook(content: string): Notebook | null {
   } catch {
     throw new Error("محتوى الدفتر غير صالح؛ احتفظ بنسخة من المذكرة قبل أي تعديل.");
   }
-  return validateNotebook(decoded);
+  const notebook = validateNotebook(decoded);
+  // Do not silently discard text appended outside the encoded pages.
+  if (content.trimStart().slice(match[0].length) !== notebookPreview(notebook))
+    throw new Error("غلاف الدفتر غير مكتمل أو يحتوي نصًا خارج الصفحات. احتفظ بالأصل واستعد نسخة صحيحة قبل التعديل.");
+  return notebook;
 }
 export function createPage(options: Partial<Pick<NotebookPage, "paper" | "size" | "orientation" | "tint">> = {}): NotebookPage {
   return {

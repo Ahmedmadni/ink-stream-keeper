@@ -181,7 +181,7 @@ const vaultPinWrites = [];
 (async () => {
   const server = spawn(
     process.execPath,
-    [
+    process.env.MEMOFLOW_BROWSER_NATIVE_BUNDLE === "1" ? [resolve(root, "tests/serve-native-bundle.cjs")] : [
       resolve(root, "node_modules/vite/bin/vite.js"),
       "dev",
       "--host",
@@ -637,6 +637,11 @@ const vaultPinWrites = [];
     await require("./notebook-browser-checks.cjs").checkInk(page);
     await page.getByRole("button", { name: "إضافة صفحة", exact: true }).click();
     await page.getByRole("tab", { name: "صفحة 2", exact: true }).waitFor();
+    const secondPageEditor = page.locator("[data-notebook-paper] .ProseMirror");
+    await secondPageEditor.fill("نص زائد ".repeat(2000));
+    await page.getByRole("status").filter({ hasText: "النص يتجاوز مساحة هذه الورقة" }).waitFor();
+    await secondPageEditor.fill("");
+    await page.getByRole("status").filter({ hasText: "النص يتجاوز مساحة هذه الورقة" }).waitFor({ state: "hidden" });
     assert.equal(await page.getByRole("tab", { name: /^صفحة [12]$/ }).count(), 2);
     await page.getByRole("button", { name: "تكرار الصفحة", exact: true }).click();
     await page.getByRole("tab", { name: "صفحة 3", exact: true }).waitFor();
@@ -650,7 +655,8 @@ const vaultPinWrites = [];
     const pdfBytes = readFileSync(await pdf.path());
     assert.equal(pdfBytes.subarray(0, 8).toString("utf8"), "%PDF-1.4");
     assert.ok(pdfBytes.includes(Buffer.from("/Count 2")));
-    await require("./notebook-browser-checks.cjs").checkPdf(page, artifacts);
+    if (process.env.MEMOFLOW_BROWSER_NATIVE_BUNDLE !== "1")
+      await require("./notebook-browser-checks.cjs").checkPdf(page, artifacts);
     const notebookDeadline = Date.now() + 20000;
     while (!notes[0].content.includes("data-mf-notebook-v1")) {
       if (Date.now() > notebookDeadline) throw Error("Notebook was not saved remotely");
@@ -802,6 +808,8 @@ const vaultPinWrites = [];
         MemoFlowAppLock: ["getStatus", "lock", "unlock", "configure", "changePin"],
         MemoFlowAuth: ["getLaunchUrl", "addListener", "removeListener"],
         MemoFlowBackup: ["getStatus"],
+        Filesystem: ["rmdir", "writeFile"],
+        Share: ["canShare", "share"],
         MemoFlowFloating: ["checkPermission", "show", "hide"],
         MemoFlowDeviceSettings: ["openNotifications"],
         LocalNotifications: [
@@ -823,6 +831,8 @@ const vaultPinWrites = [];
         nativePromise: async (plugin, method, options) => {
           window.__nativeCalls.push({ plugin, method, options });
           const state = window.__nativeState;
+          if (plugin === "Share" && method === "canShare") return { value: true };
+          if (plugin === "Filesystem" && method === "writeFile") return { uri: "content://fixture/notebook.pdf" };
           if (plugin === "MemoFlowAppLock" && method === "changePin") {
             if (options.currentPin !== (state.appPin ?? "123456"))
               throw new Error("رمز التطبيق الحالي غير صحيح");
@@ -931,6 +941,17 @@ const vaultPinWrites = [];
     await page.goto(`${baseUrl}/vault`);
     await page.getByLabel("رمز الخزنة", { exact: true }).fill("654321");
     await page.getByText("حساب تجريبي", { exact: true }).waitFor();
+    await page.goto(`${baseUrl}/notes/` + notes[0].id);
+    await page.getByRole("button", { name: "تصدير صفحات الدفتر PDF", exact: true }).click();
+    await page.waitForFunction(() => window.__nativeCalls.some((c) => c.plugin === "Share" && c.method === "share"));
+    const pdfDelivery = await page.evaluate(() => ({
+      file: window.__nativeCalls.find((c) => c.plugin === "Filesystem" && c.method === "writeFile").options,
+      share: window.__nativeCalls.find((c) => c.plugin === "Share" && c.method === "share").options,
+    }));
+    assert.equal(Buffer.from(pdfDelivery.file.data, "base64").subarray(0, 8).toString(), "%PDF-1.4");
+    assert.equal(pdfDelivery.file.encoding, undefined, "binary PDF must not be written as UTF-8 text");
+    assert.deepEqual(pdfDelivery.share.files, ["content://fixture/notebook.pdf"]);
+    assert.ok(!pdfDelivery.share.text.includes("مشفّرة"), "an ordinary exported PDF must not be described as encrypted");
     // This fixture changes a web SSR page into Android on the client. React's
     // expected SSR mismatch is absent from the real Android build (local SPA).
     assert.deepEqual(

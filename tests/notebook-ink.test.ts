@@ -44,6 +44,8 @@ describe("Notebook Studio ink engine", () => {
     expect(moved[0].pressures).toEqual(a.pressures);
     expect([a, b]).toEqual(original);
     expect(moveInk([a, b], new Set([a.id]), 10, 20)[1]).toBe(b);
+    const unchanged = [a, b];
+    expect(moveInk(unchanged, new Set([a.id]), 0, 0)).toBe(unchanged);
   });
   test("erase/move undo and redo are isolated by page, preserve text and clear redo after new edits", () => {
     const history = new InkHistory(), a = createPage(), b = createPage();

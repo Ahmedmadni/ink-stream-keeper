@@ -125,6 +125,8 @@ function buildPdf(pages: RasterPage[]): Blob {
 }
 export async function createNotebookPdf(book: Notebook): Promise<Blob> {
   if (typeof document === "undefined") throw new Error("تصدير PDF يتطلب واجهة التطبيق.");
+  if (typeof CompressionStream === "undefined")
+    throw new Error("تصدير PDF عالي الدقة يحتاج إصدارًا أحدث من المتصفح أو Android System WebView.");
   const valid = validateNotebook(book);
   const pages: RasterPage[] = [];
   let fontCss: string | undefined;

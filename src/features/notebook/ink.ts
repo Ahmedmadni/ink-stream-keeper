@@ -81,6 +81,7 @@ export function moveInk(strokes: InkStroke[], ids: Set<string>, dx: number, dy: 
   if (!bounds) return strokes;
   dx = Math.max(-bounds.x, Math.min(1000 - bounds.x - bounds.width, dx));
   dy = Math.max(-bounds.y, Math.min(1000 - bounds.y - bounds.height, dy));
+  if (dx === 0 && dy === 0) return strokes;
   return strokes.map((s) => ids.has(s.id) ? { ...s, points: s.points.map(([x, y]) => [f(x + dx), f(y + dy)] as Point) } : s);
 }
 
@@ -101,12 +102,14 @@ export class InkHistory {
   canUndo(pageId: string) { return this.past.some((c) => c.pageId === pageId); }
   canRedo(pageId: string) { return this.future.some((c) => c.pageId === pageId); }
   undo(pageId: string): Marks | null {
-    const i = this.past.findLastIndex((c) => c.pageId === pageId);
+    let i = this.past.length - 1;
+    while (i >= 0 && this.past[i].pageId !== pageId) i--;
     if (i < 0) return null;
     const [change] = this.past.splice(i, 1); this.future.push(change); return change.before;
   }
   redo(pageId: string): Marks | null {
-    const i = this.future.findLastIndex((c) => c.pageId === pageId);
+    let i = this.future.length - 1;
+    while (i >= 0 && this.future[i].pageId !== pageId) i--;
     if (i < 0) return null;
     const [change] = this.future.splice(i, 1); this.past.push(change); return change.after;
   }
