@@ -105,7 +105,7 @@ function renderInk(ctx: CanvasRenderingContext2D, page: NotebookPage, width: num
 async function makeSvgIcon(kind: NotebookPage["stickers"][number]["kind"]) {
   const Icon = stickerIcon(kind);
   let markup = renderToStaticMarkup(createElement(Icon, { size: 96, color: "#ffffff", strokeWidth: 2.5 }));
-  markup = markup.replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" ');
+  if (!markup.includes("xmlns=")) markup = markup.replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" ');
   return new Promise<HTMLImageElement | null>((resolve) => {
     const image = new Image();
     image.onload = () => resolve(image);
