@@ -25,7 +25,7 @@ import {
   Table as TableIcon, Code2, Minus, Superscript as SupIcon, Subscript as SubIcon,
   Palette, Pilcrow,
 } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DictateButton } from "@/components/speech/DictateButton";
 
 export type RichEditorHandle = Editor;
@@ -37,6 +37,8 @@ export function RichEditor({
   placeholder = "ابدأ الكتابة...",
   editable = true,
   showCount = false,
+  toolbarMode = "full",
+  paperMode = false,
 }: {
   value: string;
   onChange?: (html: string) => void;
@@ -44,6 +46,8 @@ export function RichEditor({
   placeholder?: string;
   editable?: boolean;
   showCount?: boolean;
+  toolbarMode?: "full" | "compact" | "none";
+  paperMode?: boolean;
 }) {
   const initial = normalizeToHtml(value);
   const editor = useEditor({
@@ -101,8 +105,9 @@ export function RichEditor({
 
   return (
     <div className="space-y-3">
-      {editable && <Toolbar editor={editor} onAddAttachment={onAddAttachment} />}
-      <div className="rounded-2xl bg-card p-4 shadow-card">
+      {editable && toolbarMode === "full" && <Toolbar editor={editor} onAddAttachment={onAddAttachment} />}
+      {editable && toolbarMode === "compact" && <CompactToolbar editor={editor} onAddAttachment={onAddAttachment} />}
+      <div className={paperMode ? "bg-transparent p-1" : "rounded-2xl bg-card p-4 shadow-card"}>
         <EditorContent editor={editor} />
       </div>
       {showCount && editable && (
@@ -111,6 +116,79 @@ export function RichEditor({
           <span>~{Math.max(1, Math.ceil(editor.storage.characterCount.words() / 180))} د قراءة</span>
         </div>
       )}
+    </div>
+  );
+}
+
+
+/** Compact, keyboard-accessible groups for tablet and notebook writing. */
+function CompactToolbar({ editor, onAddAttachment }: { editor: Editor; onAddAttachment?: (file: File) => void }) {
+  const [group, setGroup] = useState<"text" | "paragraph" | "insert">("text");
+  const color = useRef<HTMLInputElement>(null);
+  const upload = useRef<HTMLInputElement>(null);
+  const actions = [
+    ["text", "تنسيق النص"], ["paragraph", "الفقرات"], ["insert", "إدراج"],
+  ] as const;
+  return (
+    <div className="rounded-2xl border border-border bg-card/95 p-2 shadow-sm">
+      <div className="flex flex-wrap gap-1" role="tablist" aria-label="مجموعات أدوات الكتابة">
+        {actions.map(([key, label]) => (
+          <button key={key} type="button" role="tab" aria-selected={group === key}
+            onClick={() => setGroup(key)}
+            className={"min-h-11 rounded-xl px-3 text-sm font-semibold " +
+              (group === key ? "bg-primary text-primary-foreground" : "bg-secondary")}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-1" role="tabpanel" aria-label="أدوات الكتابة">
+        {group === "text" && (
+          <>
+            <Btn label="عريض" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}><Bold className="size-4" /></Btn>
+            <Btn label="مائل" active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic className="size-4" /></Btn>
+            <Btn label="تسطير" active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()}><UIcon className="size-4" /></Btn>
+            <Btn label="يتوسطه خط" active={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()}><Strikethrough className="size-4" /></Btn>
+            <Btn label="تظليل" active={editor.isActive("highlight")} onClick={() => editor.chain().focus().toggleHighlight().run()}><Highlighter className="size-4" /></Btn>
+            <Btn label="لون الخط" onClick={() => color.current?.click()}><Palette className="size-4" /></Btn>
+            <Btn label="حرف مرتفع" onClick={() => editor.chain().focus().toggleSuperscript().run()}><SupIcon className="size-4" /></Btn>
+            <Btn label="حرف منخفض" onClick={() => editor.chain().focus().toggleSubscript().run()}><SubIcon className="size-4" /></Btn>
+          </>
+        )}
+        {group === "paragraph" && (
+          <>
+            <Btn label="عنوان رئيسي" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}><Heading1 className="size-4" /></Btn>
+            <Btn label="عنوان فرعي" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}><Heading2 className="size-4" /></Btn>
+            <Btn label="فقرة" onClick={() => editor.chain().focus().setParagraph().run()}><Pilcrow className="size-4" /></Btn>
+            <Btn label="قائمة" onClick={() => editor.chain().focus().toggleBulletList().run()}><List className="size-4" /></Btn>
+            <Btn label="قائمة مرقمة" onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered className="size-4" /></Btn>
+            <Btn label="مهام" onClick={() => editor.chain().focus().toggleTaskList().run()}><ListChecks className="size-4" /></Btn>
+            <Btn label="محاذاة يمين" onClick={() => editor.chain().focus().setTextAlign("right").run()}><AlignRight className="size-4" /></Btn>
+            <Btn label="محاذاة وسط" onClick={() => editor.chain().focus().setTextAlign("center").run()}><AlignCenter className="size-4" /></Btn>
+            <Btn label="محاذاة يسار" onClick={() => editor.chain().focus().setTextAlign("left").run()}><AlignLeft className="size-4" /></Btn>
+          </>
+        )}
+        {group === "insert" && (
+          <>
+            <Btn label="جدول" onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}><TableIcon className="size-4" /></Btn>
+            <Btn label="اقتباس" onClick={() => editor.chain().focus().toggleBlockquote().run()}><Quote className="size-4" /></Btn>
+            <Btn label="فاصل" onClick={() => editor.chain().focus().setHorizontalRule().run()}><Minus className="size-4" /></Btn>
+            <DictateButton size="sm" live label="إملاء صوتي داخل الصفحة"
+              onText={(t) => editor.chain().focus().insertContent(t + " ").run()}
+              onAudioFile={onAddAttachment} />
+            {onAddAttachment && <Btn label="إرفاق ملف" onClick={() => upload.current?.click()}><ImgIcon className="size-4" /></Btn>}
+          </>
+        )}
+        <Divider />
+        <Btn label="تراجع النص" onClick={() => editor.chain().focus().undo().run()}><Undo2 className="size-4" /></Btn>
+        <Btn label="إعادة النص" onClick={() => editor.chain().focus().redo().run()}><Redo2 className="size-4" /></Btn>
+      </div>
+      <input type="color" ref={color} className="sr-only" aria-label="لون الخط"
+        onChange={(event) => editor.chain().focus().setColor(event.target.value).run()} />
+      <input type="file" ref={upload} hidden onChange={(event) => {
+        const f = event.target.files?.[0];
+        if (f) onAddAttachment?.(f);
+        event.target.value = "";
+      }} />
     </div>
   );
 }
