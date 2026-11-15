@@ -204,15 +204,17 @@ export async function downloadNotebookPdf(book: Notebook, title: string) {
   const pages: RasterPage[] = [];
   for (const page of book.pages) pages.push(await renderPage(page));
   const file = buildPdf(pages);
-  const url = URL.createObjectURL(file);
-  try {
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = (title.replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").trim().slice(0, 80) || "MemoFlow") + ".pdf";
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-  } finally {
-    setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  const filename = (title.replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").trim().slice(0, 80) || "MemoFlow") + ".pdf";
+  const [{ files }, { isNative }] = await Promise.all([
+    import("@/services/files"), import("@/services/platform"),
+  ]);
+  if (isNative()) {
+    // Android/iOS WebViews don't reliably support <a download> for blob: URLs.
+    // Use the binary-safe Capacitor Filesystem + native share/save chooser.
+    const result = await files.share(file, filename, "تصدير دفتر MemoFlow بصيغة PDF");
+    if (result === "unavailable")
+      throw new Error("خدمة حفظ ومشاركة ملفات PDF غير متاحة على هذا الجهاز.");
+    return;
   }
+  await files.save(file, filename);
 }
