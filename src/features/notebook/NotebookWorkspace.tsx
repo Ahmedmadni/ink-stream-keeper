@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
+import type { Editor } from "@tiptap/react";
 import {
   BookOpen, Brush, Eraser, FileDown, Layers, PenLine, Plus, Palette,
   Copy, Trash2, Check, Highlighter, Undo2, CircleHelp, Sticker, SlidersHorizontal,
 } from "lucide-react";
-import { RichEditor } from "@/components/RichEditor";
+import { RichEditor, CompactToolbar } from "@/components/RichEditor";
 import {
   createPage, dimensionsMm, fromLegacyNote, inkPath, isNotebookContent, parseNotebook,
   serializeNotebook, PAPER_SIZES, PAPER_TINTS, PAPER_TYPES,
@@ -73,6 +74,8 @@ export function NotebookWorkspace({
   const [startingOrientation, setStartingOrientation] = useState<NotebookPage["orientation"]>("portrait");
   const [startingTint, setStartingTint] = useState<NotebookPage["tint"]>("ivory");
   const [exporting, setExporting] = useState(false);
+  const [activeTextEditor, setActiveTextEditor] = useState<Editor | null>(null);
+  const handleEditor = useCallback((editor: Editor | null) => setActiveTextEditor(editor), []);
 
   useEffect(() => {
     if (lastContent.current === content) return;
@@ -411,17 +414,10 @@ export function NotebookWorkspace({
         </div>
       )}
 
-      {group === "text" && (
-        <div className="rounded-xl bg-primary-soft/60 px-3 py-2 text-xs leading-6 text-muted-foreground">
-          استخدم لوحة تنسيق النص أعلى الورقة. بدّل إلى الأقلام للكتابة والرسم فوق الصفحة.
-        </div>
+      {group === "text" && activeTextEditor && (
+        <CompactToolbar editor={activeTextEditor} onAddAttachment={onAddAttachment} />
       )}
       <div className="mx-auto w-full" style={{ maxWidth: Math.min(pageW / 210 * 780, 980) }}>
-        {group === "text" && (
-          <div className="mb-2">
-            {/* Kept with the same editor instance on this page. Toolbar is rendered in the paper. */}
-          </div>
-        )}
         <div data-notebook-paper={page.paper}
           className="relative isolate w-full overflow-hidden rounded-sm border border-[#d2d8dc] shadow-[0_12px_45px_-22px_rgba(0,0,0,.4)]"
           style={{
@@ -437,7 +433,8 @@ export function NotebookWorkspace({
           <div className="relative z-10 mx-[6%] mt-[7%] mb-[6%] min-h-[70%]">
             <RichEditor key={page.id} value={page.html}
               onChange={(html) => updatePage((p) => ({ ...p, html }))}
-              onAddAttachment={onAddAttachment} toolbarMode={group === "text" ? "compact" : "none"}
+              onAddAttachment={onAddAttachment} toolbarMode="none"
+              onEditorReady={handleEditor}
               paperMode placeholder="ابدأ الكتابة في هذه الصفحة..." />
           </div>
           {isDrawing && (
