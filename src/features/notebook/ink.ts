@@ -1,5 +1,5 @@
 import { inkPath, type InkStroke, type NotebookPage } from "./model";
-import { cutInkPath, inkOutline, visibleInkRuns } from "./ink-segments";
+import { cutInkPath, inkOutline, visibleInkRuns, visibleInkBounds, inkWorldPoints } from "./ink-segments";
 
 export type Point = [number, number];
 export type ShapeTool = "line" | "rectangle" | "ellipse" | "arrow";
@@ -17,7 +17,6 @@ export function shapePoints(from: Point, to: Point, tool: ShapeTool, aspect = 1)
   return [from, to, tip(-.55), to, tip(.55)].map(([x, y]) => [Math.max(0, Math.min(1000, x)), Math.max(0, Math.min(1000, y))] as Point);
 }
 export type InkBounds = { x: number; y: number; width: number; height: number };
-const f = (n: number) => Math.round(n * 1000) / 1000;
 
 /** Widths are in page-width units. Convert y before constructing paths so pen
  * tips stay circular on portrait, landscape and square paper. Never rewrite
@@ -25,8 +24,8 @@ const f = (n: number) => Math.round(n * 1000) / 1000;
 export function inkShape(stroke: InkStroke, aspect = 1): { d: string; fill: boolean } {
   if (stroke.pressures && stroke.tool === "pen")
     return { d: visibleInkRuns(stroke, aspect).map(inkOutline).join(" "), fill: true };
-  return { d: stroke.cuts?.length ? cutInkPath(stroke, aspect)
-    : inkPath(stroke.points.map(([x, y]) => [x, y * aspect]), stroke.smoothing ?? true), fill: false };
+  return { d: stroke.cuts?.length || stroke.span ? cutInkPath(stroke, aspect)
+    : inkPath(inkWorldPoints(stroke).map(([x, y]) => [x, y * aspect]), stroke.smoothing ?? true), fill: false };
 }
 
 function distanceToSegment(point: Point, start: Point, end: Point): number {
@@ -53,22 +52,35 @@ export function hitStroke(stroke: InkStroke, from: Point, to: Point, radius: num
 
 export function inkBounds(strokes: InkStroke[], aspect = 1): InkBounds | null {
   if (!strokes.length) return null;
-  let left = 1000, top = 1000, right = 0, bottom = 0;
-  for (const stroke of strokes) for (const [x, y] of stroke.cuts?.length
-    ? visibleInkRuns(stroke, aspect).flatMap((run) => run.map((p): Point => [p.x, p.y / aspect])) : stroke.points) {
-    left = Math.min(left, x); top = Math.min(top, y); right = Math.max(right, x); bottom = Math.max(bottom, y);
+  let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+  for (const stroke of strokes) {
+    if (stroke.cuts?.length || stroke.span || stroke.controlPoints) {
+      const b = visibleInkBounds(stroke, aspect);
+      if (b) { left = Math.min(left, b.x); top = Math.min(top, b.y); right = Math.max(right, b.x + b.width); bottom = Math.max(bottom, b.y + b.height); }
+    } else for (const [x, y] of inkWorldPoints(stroke)) {
+      left = Math.min(left, x); top = Math.min(top, y); right = Math.max(right, x); bottom = Math.max(bottom, y);
+    }
   }
   return right < left ? null : { x: left, y: top, width: right - left, height: bottom - top };
 }
 
-export function moveInk(strokes: InkStroke[], ids: Set<string>, dx: number, dy: number): InkStroke[] {
-  // Even hidden captured points must stay within the serializable sheet bounds.
-  const bounds = inkBounds(strokes.filter((s) => ids.has(s.id)).map((s) => ({ ...s, cuts: undefined })));
+export function moveInk(strokes: InkStroke[], ids: Set<string>, dx: number, dy: number, aspect = 1): InkStroke[] {
+  const selected = strokes.filter((s) => ids.has(s.id));
+  const bounds = inkBounds(selected, aspect);
   if (!bounds) return strokes;
   dx = Math.max(-bounds.x, Math.min(1000 - bounds.x - bounds.width, dx));
   dy = Math.max(-bounds.y, Math.min(1000 - bounds.y - bounds.height, dy));
+  for (const s of selected) {
+    const [x, y] = s.offset ?? [0, 0];
+    dx = Math.max(-10000 - x, Math.min(10000 - x, dx));
+    dy = Math.max(-10000 - y, Math.min(10000 - y, dy));
+    for (const [px, py] of inkWorldPoints(s)) {
+      dx = Math.max(-10000 - px, Math.min(10000 - px, dx));
+      dy = Math.max(-10000 - py, Math.min(10000 - py, dy));
+    }
+  }
   if (dx === 0 && dy === 0) return strokes;
-  return strokes.map((s) => ids.has(s.id) ? { ...s, points: s.points.map(([x, y]) => [f(x + dx), f(y + dy)] as Point) } : s);
+  return strokes.map((s) => ids.has(s.id) ? { ...s, offset: [(s.offset?.[0] ?? 0) + dx, (s.offset?.[1] ?? 0) + dy] as Point } : s);
 }
 
 type Marks = Pick<NotebookPage, "strokes" | "stickers">;

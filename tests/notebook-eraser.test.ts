@@ -78,11 +78,13 @@ describe("non-destructive ink segment eraser", () => {
     expect(result.points).toBe(points);
     expect(inkShape(result, 1.414).d.match(/M /g)).toHaveLength(3);
   });
-  test("selection bounds exclude erased ends while movement keeps hidden capture points valid", () => {
+  test("movement uses visible bounds and retains hidden capture points through a translation", () => {
     const cut: InkStroke = { ...line(), cuts: [[.3, 1]] };
     expect(inkBounds([cut])).toEqual({ x: 100, y: 500, width: 240, height: 0 });
     const moved = moveInk([cut], new Set([cut.id]), 1000, 0)[0];
-    expect(moved.points).toEqual([[200, 500], [1000, 500]]);
+    expect(moved.points).toBe(cut.points);
+    expect(moved.offset).toEqual([660, 0]);
+    expect(inkBounds([moved])).toEqual({ x: 760, y: 500, width: 240, height: 0 });
     expect(() => validateNotebook({ version: 1, pages: [{ ...createPage(), strokes: [moved] }] })).not.toThrow();
   });
   test("one gesture undoes all cuts without reverting later keyboard text", () => {

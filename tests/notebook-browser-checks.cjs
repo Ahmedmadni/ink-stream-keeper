@@ -236,6 +236,131 @@ async function checkPdf(page, artifacts) {
     if (b > r + 25 && b > g + 8) coloredArt++;
   }
   assert.ok(coloredArt > 1000, "colored science SVG must survive PDF rasterization");
+  await checkEditingPdf(page, artifacts);
+}
+
+async function checkEditingPdf(page, artifacts) {
+  const result = await page.evaluate(async () => {
+    const { createPage } = await import("/src/features/notebook/model.ts");
+    const { createNotebookPdf } = await import("/src/features/notebook/pdf-export.ts");
+    const { splitInk } = await import("/src/features/notebook/ink-edit.ts");
+    const marker = { id: crypto.randomUUID(), tool: "highlighter", color: "#2f65d9", width: 30, smoothing: false,
+      points: [[100, 200], [800, 800], [800, 200], [100, 800]], cuts: [[.45, .55]], times: [1, 2, 3, 4] };
+    const edited = { id: crypto.randomUUID(), tool: "pen", color: "#dd2233", width: 8, smoothing: false,
+      points: [[100, 900], [400, 900]], pressures: [.8, .8], controlPoints: [[100, 850], [400, 850]], offset: [200, 0] };
+    const first = { ...createPage({ paper: "plain", size: "a5" }), html: "<p>اختبار تحرير الحبر</p>", strokes: [marker, edited] };
+    const second = { ...first, strokes: splitInk(first.strokes, new Set([marker.id])).strokes };
+    const encode = async (sheet) => {
+      const blob = await createNotebookPdf({ version: 1, pages: [sheet] });
+      const bytes = new Uint8Array(await blob.arrayBuffer()); let raw = "";
+      for (let i = 0; i < bytes.length; i += 16384) raw += String.fromCharCode(...bytes.subarray(i, i + 16384));
+      return btoa(raw);
+    };
+    return { before: await encode(first), after: await encode(second) };
+  });
+  const decode = (encoded) => {
+    const pdf = Buffer.from(encoded, "base64");
+    const h = /\/Subtype \/Image \/Width (\d+) \/Height (\d+)[\s\S]*?\/Filter \/FlateDecode \/Length (\d+) >>\nstream\n/.exec(pdf.toString("latin1"));
+    assert.ok(h); const start = h.index + h[0].length;
+    return { width: Number(h[1]), height: Number(h[2]), pixels: inflateSync(pdf.subarray(start, start + Number(h[3]))), pdf };
+  };
+  const before = decode(result.before), after = decode(result.after);
+  const pixel = (image, x, y) => {
+    const offset = (Math.floor(image.height * y) * image.width + Math.floor(image.width * x)) * 3;
+    return [...image.pixels.subarray(offset, offset + 3)];
+  };
+  const overlap = pixel(before, .45, .5);
+  assert.ok(overlap[0] > 150 && overlap[0] < 235, "the marker crossing keeps the original single-stroke alpha");
+  // SVG group alpha may round one 8-bit channel differently from path alpha.
+  // Applying .34 twice would change this crossing by tens of RGB levels.
+  assert.ok(pixel(after, .45, .5).every((value, i) => Math.abs(value - overlap[i]) <= 1),
+    "split marker fragments must retain single-stroke opacity at their crossing");
+  const red = pixel(after, .45, .85), hidden = pixel(after, .15, .9);
+  assert.ok(red[0] > 180 && red[1] < 90 && red[2] < 100, "PDF uses edited nodes and page translation");
+  assert.ok(!(hidden[0] > 180 && hidden[1] < 90 && hidden[2] < 100), "PDF does not paint the retained source geometry");
+  writeFileSync(artifacts + "/notebook-fragment-edit.pdf", after.pdf);
+}
+
+async function checkInkEditing(page, artifacts, source) {
+  const paper = page.locator("[data-notebook-paper]");
+  const paths = paper.locator("[data-stroke-id]");
+  const path = (id) => paper.locator(`[data-stroke-id="${id}"]`);
+  const screenPoint = async (mark) => {
+    await mark.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    return mark.evaluate((el) => {
+      const p = el.getPointAtLength(el.getTotalLength() * .1);
+      const s = new DOMPoint(p.x, p.y).matrixTransform(el.getScreenCTM());
+      return { x: s.x, y: s.y };
+    });
+  };
+  await page.getByRole("button", { name: "تحديد وتحريك", exact: true }).click();
+  const pick = await screenPoint(path(source.id)); await page.mouse.click(pick.x, pick.y);
+  const before = await paths.evaluateAll((els) => els.map((el) => ({ id: el.dataset.strokeId, d: el.getAttribute("d") })));
+  await page.getByRole("button", { name: "فصل الأجزاء الممسوحة", exact: true }).click();
+  assert.equal(await paths.count(), before.length + 1);
+  assert.equal(await path(source.id).count(), 0);
+  const oldIds = new Set(before.map((s) => s.id));
+  const created = (await paths.evaluateAll((els) => els.map((el) => ({ id: el.dataset.strokeId, d: el.getAttribute("d") })))).filter((s) => !oldIds.has(s.id));
+  assert.equal(created.length, 2);
+  assert.equal(created.map((s) => s.d).join(" "), source.path, "splitting preserves the existing pressure outline exactly");
+  await page.getByRole("button", { name: "تراجع الرسم", exact: true }).click();
+  assert.equal(await path(source.id).getAttribute("d"), source.path);
+  await page.getByRole("button", { name: "إعادة الرسم", exact: true }).click();
+  const first = path(created[0].id), second = path(created[1].id);
+  const p = await screenPoint(first), b = await first.boundingBox();
+  await page.mouse.move(p.x, p.y); await page.mouse.down();
+  const width = await paper.boundingBox(), distance = width.width * .4;
+  await page.mouse.move(p.x + distance, p.y, { steps: 8 }); await page.mouse.up();
+  assert.ok(Math.abs((await first.boundingBox()).x - b.x - distance) < 3, "the visible fragment moves freely despite hidden source endpoints");
+  assert.equal(await second.getAttribute("d"), created[1].d, "moving one fragment leaves its sibling unchanged");
+  await page.getByRole("button", { name: "تحرير نقاط المسار", exact: true }).click();
+  const handle = paper.locator("[data-active-ink-node]");
+  const pointScreen = async () => {
+    await handle.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    return handle.evaluate((el) => {
+      const p = new DOMPoint(el.cx.baseVal.value, el.cy.baseVal.value).matrixTransform(el.getScreenCTM());
+      return { x: p.x, y: p.y };
+    });
+  };
+  const preEdit = await first.getAttribute("d"), node = await pointScreen();
+  await page.mouse.move(node.x, node.y); await page.mouse.down();
+  await page.mouse.move(node.x, node.y - 25, { steps: 5 }); await page.mouse.up();
+  const edited = await first.getAttribute("d"); assert.notEqual(edited, preEdit);
+  await handle.focus(); await handle.press("Control+z"); assert.equal(await first.getAttribute("d"), preEdit);
+  await handle.press("Control+Shift+z"); assert.equal(await first.getAttribute("d"), edited);
+  const cancel = await pointScreen();
+  await page.mouse.move(cancel.x, cancel.y); await page.mouse.down();
+  await page.mouse.move(cancel.x - 15, cancel.y, { steps: 3 });
+  assert.notEqual(await first.getAttribute("d"), edited);
+  await page.keyboard.press("Escape"); await page.mouse.up();
+  assert.equal(await first.getAttribute("d"), edited, "Escape rejects the whole point-drag preview");
+  const xField = page.getByLabel("إحداثي نقطة المسار الأفقي", { exact: true });
+  const newX = Number(await xField.inputValue()) + 1;
+  await xField.fill(String(newX));
+  await page.getByRole("button", { name: "تطبيق الإحداثيات", exact: true }).click();
+  const numeric = await first.getAttribute("d"); assert.notEqual(numeric, edited);
+  await page.getByRole("button", { name: "استعادة النقاط والموضع الأصليين", exact: true }).click();
+  assert.equal(await first.getAttribute("d"), created[0].d, "reset restores capture geometry and position without revealing other fragments");
+  await page.getByRole("button", { name: "تراجع الرسم", exact: true }).click();
+  assert.equal(await first.getAttribute("d"), numeric);
+  await page.screenshot({ path: artifacts + "/notebook-path-edit-tablet.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const touch = await pointScreen();
+  await page.waitForTimeout(850); // Let the real pen palm-rejection window expire.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: touch.x, y: touch.y }] });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: touch.x, y: touch.y - 12 }] });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false }); await cdp.detach();
+  assert.notEqual(await first.getAttribute("d"), numeric, "a finger can drag the mobile editing handle");
+  await page.getByRole("button", { name: "تراجع سريع", exact: true }).click();
+  assert.equal(await first.getAttribute("d"), numeric);
+  await page.screenshot({ path: artifacts + "/notebook-path-edit-mobile.png" });
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.getByRole("button", { name: "إنهاء تحرير النقاط", exact: true }).click();
+  return { id: created[0].id, path: numeric, sourceId: source.id, sibling: created[1] };
 }
 async function checkStudy(page, artifacts) {
   await page.getByRole("tab", { name: "ورق", exact: true }).click();
@@ -285,4 +410,4 @@ async function checkStudy(page, artifacts) {
   await page.getByRole("dialog").getByText("هذه النسخة لا توفر محرك التعرف المحلي.", { exact: false }).waitFor();
   await page.getByRole("button", { name: "إغلاق التعرف على الخط", exact: true }).click();
 }
-module.exports = { checkInk, checkPdf, checkStudy, checkSegmentEraser };
+module.exports = { checkInk, checkPdf, checkStudy, checkSegmentEraser, checkInkEditing };

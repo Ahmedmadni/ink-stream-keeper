@@ -640,6 +640,7 @@ const vaultPinWrites = [];
     await page.mouse.up();
     await require("./notebook-browser-checks.cjs").checkInk(page);
     const partialInk = await require("./notebook-browser-checks.cjs").checkSegmentEraser(page, artifacts);
+    const editedInk = await require("./notebook-browser-checks.cjs").checkInkEditing(page, artifacts, partialInk);
     await require("./notebook-browser-checks.cjs").checkStudy(page, artifacts);
     await page.getByRole("button", { name: "إضافة صفحة", exact: true }).click();
     await page.getByRole("tab", { name: "صفحة 2", exact: true }).waitFor();
@@ -672,8 +673,10 @@ const vaultPinWrites = [];
     await page.getByRole("tab", { name: "صفحة 2", exact: true }).waitFor();
     await page.getByRole("tab", { name: "صفحة 1", exact: true }).click();
     await page.getByRole("tab", { name: "ملصقات", exact: true }).click();
-    assert.equal(await page.locator(`[data-notebook-paper] [data-stroke-id="${partialInk.id}"]`).getAttribute("d"), partialInk.path,
-      "partial erasing survives autosave and a complete reload");
+    assert.equal(await page.locator(`[data-notebook-paper] [data-stroke-id="${editedInk.id}"]`).getAttribute("d"), editedInk.path,
+      "split, moved and edited fragments survive autosave and reload");
+    assert.equal(await page.locator(`[data-notebook-paper] [data-stroke-id="${editedInk.sibling.id}"]`).getAttribute("d"), editedInk.sibling.d);
+    assert.equal(await page.locator(`[data-notebook-paper] [data-stroke-id="${editedInk.sourceId}"]`).count(), 0);
     assert.equal(await page.getByRole("button", { name: "ملصق calculator" }).count(), 1);
     const paperInk = await page.locator("[data-notebook-paper] .prose-mf").evaluate((element) => getComputedStyle(element).color);
     assert.equal(paperInk, "rgb(23, 38, 59)", "paper must have dark legible ink even in dark app theme");

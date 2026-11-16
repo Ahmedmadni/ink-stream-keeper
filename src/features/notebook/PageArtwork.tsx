@@ -1,4 +1,4 @@
-import { InkMark } from "./InkMark";
+import { InkLayer } from "./InkMark";
 import { pageLayout, paperStyle } from "./page-layout";
 import { PaperGuides, paperTextStyle } from "./PaperGuides";
 import { safePageHtml } from "./rich-content";
@@ -16,7 +16,7 @@ export function PageArtwork({ page, remoteImages = false }: { page: NotebookPage
     </div>
     <svg viewBox={`0 0 1000 ${1000 * layout.aspect}`} preserveAspectRatio="none" aria-hidden="true"
       className="pointer-events-none absolute inset-0 z-20 size-full">
-      {page.strokes.map((stroke) => <InkMark key={stroke.id} stroke={stroke} aspect={layout.aspect}/>)}
+      <InkLayer strokes={page.strokes} aspect={layout.aspect}/>
     </svg>
     {page.stickers.map((sticker) => {
       return <span key={sticker.id} aria-label={"ملصق " + sticker.kind}

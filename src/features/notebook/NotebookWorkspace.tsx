@@ -2,19 +2,21 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent } from "rea
 import type { Editor } from "@tiptap/react";
 import {
   BookOpen, Brush, Eraser, FileDown, Layers, PenLine, Plus,
-  Copy, Trash2, Highlighter, Undo2, Redo2, Sticker, MousePointer2, ScanLine, ZoomIn, Shapes, Minus, Square, Circle, ArrowUpRight, Search, ScanText,
+  Copy, Trash2, Highlighter, Undo2, Redo2, Sticker, MousePointer2, ScanLine, ZoomIn, Shapes, Minus, Square, Circle, ArrowUpRight, Search, ScanText, Scissors, Waypoints, Check,
 } from "lucide-react";
 import { RichEditor, CompactToolbar } from "@/components/RichEditor";
 import {
   createPage, dimensionsMm, fromLegacyNote, notebookPlainText, parseNotebook,
-  serializeNotebook, PAPER_SIZES, PAPER_TINTS, PAPER_TYPES, PAPER_TEXTURES,
+  serializeNotebook, PAPER_SIZES, PAPER_TINTS, PAPER_TYPES, PAPER_TEXTURES, MAX_NOTEBOOK_BYTES,
   type Notebook, type NotebookPage, type InkStroke, type PageSticker,
 } from "./model";
 import { STICKER_GROUPS, stickerIcon, searchStickers } from "./sticker-packs";
-import { InkMark } from "./InkMark";
+import { InkMark, InkLayer } from "./InkMark";
 import { StickerArtwork, stickerStyle, ScienceAttribution } from "./StickerArtwork";
 import { shapePoints, type ShapeTool, hitStroke, inkBounds, InkHistory, moveInk as translateInk, type Point, type InkBounds } from "./ink";
-import { eraseInkSegments } from "./ink-segments";
+import { eraseInkSegments, inkWorldPoint, visibleRanges } from "./ink-segments";
+import { splitInk, editInkPoint, resetInkGeometry, editableInkNodes, nearestInkNode } from "./ink-edit";
+import { InkPointPanel, InkPointOverlay } from "./InkPoints";
 import { pageLayout, paperStyle } from "./page-layout";
 import { PaperGuides, PAPER_LABELS, TEXTURE_LABELS, paperTextStyle } from "./PaperGuides";
 import { HandwritingPanel } from "./HandwritingPanel";
@@ -23,10 +25,11 @@ import { recognizedTextPage } from "./handwriting";
 const SIZE_LABELS = { a4: "A4", a5: "A5", letter: "Letter", square: "مربعة" };
 const TINT_LABELS = { white: "أبيض", ivory: "كريمي", mint: "نعناعي", blue: "أزرق هادئ", rose: "وردي" };
 type PaletteGroup = "text" | "draw" | "shapes" | "stickers" | "paper";
-type InkMode = "pen" | "highlighter" | "eraser" | "select";
+type InkMode = "pen" | "highlighter" | "eraser" | "select" | "nodes";
 type EraserKind = "segment" | "stroke";
 type InkGesture = { pointerId: number; pageId: string; mode: InkMode; start: Point; last: Point; erased: Set<string>; moving: boolean;
-  eraserKind: EraserKind; partialStrokes?: InkStroke[]; error?: string };
+  eraserKind: EraserKind; partialStrokes?: InkStroke[]; error?: string;
+  nodeSource?: InkStroke; nodeIndex?: number; nodeDraft?: InkStroke };
 type PaperFineSettings = Pick<NotebookPage, "lineSpacing" | "fontSize" | "texture">;
 function PaperFineControls({ value, onChange }: { value: PaperFineSettings; onChange: (value: Partial<PaperFineSettings>) => void }) {
   return <div className="grid grid-cols-1 gap-3 rounded-xl bg-secondary/40 p-3 text-sm sm:grid-cols-3">
@@ -72,9 +75,7 @@ function PageMiniature({ page }: { page: NotebookPage }) {
       {!!page.strokes.length && (
         <svg viewBox={`0 0 1000 ${1000 * aspect}`} preserveAspectRatio="none" aria-hidden="true"
           className="pointer-events-none absolute inset-0 size-full">
-          {page.strokes.slice(0, 35).map((stroke) => (
-            <InkMark key={stroke.id} stroke={stroke} aspect={aspect}/>
-          ))}
+          <InkLayer strokes={page.strokes.slice(0, 35)} aspect={aspect}/>
         </svg>
       )}
       {page.stickers.slice(0, 6).map((sticker) => (
@@ -129,6 +130,12 @@ export function NotebookWorkspace({
   const [selection, setSelection] = useState<Set<string>>(new Set());
   const [selectionBox, setSelectionBox] = useState<InkBounds | null>(null);
   const [offset, setOffset] = useState<Point | null>(null);
+  const [nodePreview, setNodePreview] = useState<InkStroke | null>(null);
+  const [activeNode, setActiveNode] = useState(0);
+  useEffect(() => {
+    setNodePreview(null); setActiveNode(0);
+    setInkMode((mode) => mode === "nodes" ? "select" : mode);
+  }, [index, group]);
   const viewport = useRef<HTMLDivElement | null>(null);
   const [viewportWidth, setViewportWidth] = useState(780);
   const [zoom, setZoom] = useState<number | null>(null);
@@ -180,6 +187,7 @@ export function NotebookWorkspace({
     history.current.clear();
     gesture.current = null; liveRef.current = null;
     setLive(null); setErased(new Set()); setErasePreview(null); setEraserPoint(null); setSelection(new Set()); setSelectionBox(null); setOffset(null);
+    setNodePreview(null); setActiveNode(0); setInkMode((mode) => mode === "nodes" ? "select" : mode);
     setIndex((prev) => Math.min(prev, Math.max(0, (next.book?.pages.length ?? 1) - 1)));
   }, [content]);
 
@@ -282,12 +290,20 @@ export function NotebookWorkspace({
   const layout = pageLayout(page);
   const aspect = pageH / pageW;
   const displayScale = zoom ?? Math.min(1, Math.max(1, viewportWidth) / layout.width);
-  const shownStrokes = erasePreview ?? (offset ? translateInk(page.strokes, selection, offset[0], offset[1]) : page.strokes);
+  const baseStrokes = nodePreview ? page.strokes.map((s) => s.id === nodePreview.id ? nodePreview : s) : page.strokes;
+  const shownStrokes = erasePreview ?? (offset ? translateInk(baseStrokes, selection, offset[0], offset[1], aspect) : baseStrokes);
   const selectedBounds = inkBounds(shownStrokes.filter((s) => selection.has(s.id)), aspect);
+  const selectedStroke = selection.size === 1 ? shownStrokes.find((s) => selection.has(s.id)) : undefined;
+  const nodeIndices = selectedStroke ? editableInkNodes(selectedStroke) : [];
+  const nodeIndex = nodeIndices.includes(activeNode) ? activeNode : nodeIndices.find((i) => {
+    const [x, y] = inkWorldPoint(selectedStroke!, i); return x >= 0 && y >= 0 && x <= 1000 && y <= 1000;
+  }) ?? nodeIndices[0] ?? 0;
+  const canSplit = page.strokes.some((s) => selection.has(s.id) && visibleRanges(s).length > 1);
   const isDrawing = group === "draw" || group === "shapes";
   const selected = page.stickers.find((s) => s.id === selectedSticker) ?? null;
-  const coords = (event: PointerEvent<SVGSVGElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
+  const coords = (event: PointerEvent<SVGElement>) => {
+    const svg = event.currentTarget instanceof SVGSVGElement ? event.currentTarget : event.currentTarget.ownerSVGElement!;
+    const rect = svg.getBoundingClientRect();
     return [
       Math.max(0, Math.min(1000, (event.clientX - rect.left) * 1000 / rect.width)),
       Math.max(0, Math.min(1000, (event.clientY - rect.top) * 1000 / rect.height)),
@@ -296,6 +312,7 @@ export function NotebookWorkspace({
   const clearGesture = () => {
     gesture.current = null;
     liveRef.current = null; setLive(null); setErased(new Set()); setErasePreview(null); setEraserPoint(null); setSelectionBox(null); setOffset(null);
+    setNodePreview(null);
   };
   const finish = () => {
     const activeGesture = gesture.current;
@@ -306,13 +323,15 @@ export function NotebookWorkspace({
     if (!current) { clearGesture(); return; }
     const next = { ...current, pages: current.pages.map((p) => {
       if (p.id !== activeGesture.pageId) return p;
+      if (activeGesture.mode === "nodes" && activeGesture.nodeDraft && activeGesture.nodeDraft !== activeGesture.nodeSource)
+        return { ...p, strokes: p.strokes.map((s) => s.id === activeGesture.nodeDraft!.id ? activeGesture.nodeDraft! : s) };
       if (stroke?.points.length) return { ...p, strokes: [...p.strokes, stroke] };
       if (activeGesture.mode === "eraser" && activeGesture.partialStrokes && activeGesture.partialStrokes !== p.strokes)
         return { ...p, strokes: activeGesture.partialStrokes };
       if (activeGesture.mode === "eraser" && activeGesture.erased.size)
         return { ...p, strokes: p.strokes.filter((s) => !activeGesture.erased.has(s.id)) };
       if (activeGesture.mode === "select" && activeGesture.moving)
-        return { ...p, strokes: translateInk(p.strokes, selection, activeGesture.last[0] - activeGesture.start[0], activeGesture.last[1] - activeGesture.start[1]) };
+        return { ...p, strokes: translateInk(p.strokes, selection, activeGesture.last[0] - activeGesture.start[0], activeGesture.last[1] - activeGesture.start[1], aspect) };
       return p;
     }) };
     if (next.pages.some((p, i) => p !== current.pages[i]) && !commit(next)) { clearGesture(); return; }
@@ -342,11 +361,17 @@ export function NotebookWorkspace({
     event.preventDefault();
     event.currentTarget.focus({ preventScroll: true });
     const mode = event.button === 5 || (event.buttons & 32) ? "eraser" : group === "shapes" ? "pen" : inkMode;
+    const position = coords(event);
+    if (mode === "nodes") {
+      const hit = [...page.strokes].reverse().find((s) => hitStroke(s, position, position, 12, aspect));
+      if (hit) { setSelection(new Set([hit.id])); setActiveNode(nearestInkNode(hit, position, aspect)); }
+      else { setInkMode("select"); setSelection(new Set()); }
+      return;
+    }
     if ((mode === "pen" || mode === "highlighter") && page.strokes.length >= 350) {
       setWarning("وصلت هذه الصفحة إلى حد 350 مسارًا. أضف صفحة أخرى للحفاظ على سرعة الدفتر."); return;
     }
     event.currentTarget.setPointerCapture(event.pointerId);
-    const position = coords(event);
     const active: InkGesture = { pointerId: event.pointerId, pageId: page.id, mode, start: position, last: position,
       erased: new Set(), moving: false, eraserKind };
     gesture.current = active;
@@ -376,6 +401,12 @@ export function NotebookWorkspace({
     const active = gesture.current;
     if (!active || active.pointerId !== event.pointerId) return;
     event.preventDefault();
+    if (active.mode === "nodes" && active.nodeSource && active.nodeIndex !== undefined) {
+      const next = coords(event), point = inkWorldPoint(active.nodeSource, active.nodeIndex);
+      active.nodeDraft = editInkPoint(active.nodeSource, active.nodeIndex,
+        [point[0] + next[0] - active.start[0], point[1] + next[1] - active.start[1]]);
+      active.last = next; setNodePreview(active.nodeDraft); return;
+    }
     const events = event.nativeEvent.getCoalescedEvents?.() ?? [];
     for (const sample of [...events, event.nativeEvent]) {
       const next = coords({ ...event, clientX: sample.clientX, clientY: sample.clientY } as PointerEvent<SVGSVGElement>);
@@ -416,7 +447,59 @@ export function NotebookWorkspace({
     if (!commit({ ...current, pages: current.pages.map((p) => p.id === page.id ? { ...p, ...marks } : p) }, false)) {
       if (redo) history.current.undo(page.id); else history.current.redo(page.id);
     }
-    setSelection(new Set());
+    if (inkMode === "nodes") {
+      const retained = new Set([...selection].filter((id) => marks.strokes.some((s) => s.id === id)));
+      setSelection(retained);
+      if (retained.size !== 1) setInkMode("select");
+    } else setSelection(new Set());
+  };
+  const enterNodes = () => {
+    finish();
+    if (!selectedStroke || !nodeIndices.length) return;
+    const visible = nodeIndices.find((i) => { const [x, y] = inkWorldPoint(selectedStroke, i); return x >= 0 && x <= 1000 && y >= 0 && y <= 1000; });
+    setActiveNode(visible ?? nodeIndex); setInkMode("nodes");
+  };
+  const applySelectedEdit = (edit: (stroke: InkStroke) => InkStroke): boolean => {
+    finish();
+    const current = bookRef.current, id = selection.size === 1 ? [...selection][0] : null;
+    const source = current?.pages[index]?.strokes.find((s) => s.id === id);
+    if (!current || !source) return false;
+    try {
+      const result = edit(source);
+      if (result === source) return true;
+      return commit({ ...current, pages: current.pages.map((p, i) => i === index
+        ? { ...p, strokes: p.strokes.map((s) => s.id === source.id ? result : s) } : p) });
+    } catch (error) { setWarning(error instanceof Error ? error.message : "تعذر تعديل النقطة؛ بقي الأصل محفوظًا."); return false; }
+  };
+  const nudgeNode = (key: string, shift: boolean) => {
+    if (!selectedStroke || !nodeIndices.length) return;
+    const p = inkWorldPoint(selectedStroke, nodeIndex), step = shift ? 10 : 1;
+    applySelectedEdit((s) => editInkPoint(s, nodeIndex,
+      [p[0] + (key === "ArrowRight" ? step : key === "ArrowLeft" ? -step : 0),
+        p[1] + (key === "ArrowDown" ? step : key === "ArrowUp" ? -step : 0)]));
+  };
+  const startNode = (event: PointerEvent<SVGCircleElement>) => {
+    if (!event.isPrimary || event.button !== 0 || gesture.current || !selectedStroke) return;
+    if (event.pointerType === "pen") lastPen.current = Date.now();
+    if (event.pointerType === "touch" && (penOnly || Date.now() - lastPen.current < 800)) return;
+    const source = bookRef.current?.pages[index]?.strokes.find((s) => s.id === selectedStroke.id);
+    if (!source) return;
+    event.preventDefault(); event.stopPropagation(); event.currentTarget.focus({ preventScroll: true });
+    const position = coords(event);
+    gesture.current = { pointerId: event.pointerId, pageId: page.id, mode: "nodes", start: position, last: position,
+      erased: new Set(), moving: false, eraserKind, nodeSource: source, nodeIndex };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const separateSelection = () => {
+    finish(); const current = bookRef.current;
+    if (!current) return;
+    try {
+      const room = MAX_NOTEBOOK_BYTES - new TextEncoder().encode(JSON.stringify(current)).byteLength;
+      const result = splitInk(current.pages[index].strokes, selection, room);
+      if (!result.created.length) return;
+      if (!commit({ ...current, pages: current.pages.map((p, i) => i === index ? { ...p, strokes: result.strokes } : p) })) return;
+      setSelection(new Set([result.created[0]])); setInkMode("select"); setActiveNode(0);
+    } catch (error) { setWarning(error instanceof Error ? error.message : "تعذر فصل الأجزاء؛ بقي الأصل محفوظًا."); }
   };
   const addSticker = (kind: PageSticker["kind"]) => {
     updatePage((p) => {
@@ -476,7 +559,16 @@ export function NotebookWorkspace({
   return (
     <section className="space-y-3" aria-label="دفتر المذكرة متعدد الصفحات"
       onKeyDown={(event) => {
-        if (group !== "draw" || !(event.ctrlKey || event.metaKey) ||
+        const inCanvas = (event.target as Element).closest("svg[data-ink-editor]");
+        if (inCanvas && event.key === "Escape") {
+          event.preventDefault();
+          if (gesture.current) clearGesture(); else if (inkMode === "nodes") setInkMode("select");
+          return;
+        }
+        if (inCanvas && inkMode === "nodes" && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+          event.preventDefault(); nudgeNode(event.key, event.shiftKey); return;
+        }
+        if (!isDrawing || !(event.ctrlKey || event.metaKey) ||
           (event.target as Element).closest("input,textarea,[contenteditable=true]")) return;
         const key = event.key.toLowerCase();
         if (key === "z" || key === "y") {
@@ -570,10 +662,16 @@ export function NotebookWorkspace({
           </div>}
           {inkMode === "select" && <div className="flex flex-wrap items-center gap-2">
             <button type="button" className={controlCls(false)} onClick={() => setSelection(new Set(page.strokes.map((s) => s.id)))}><ScanLine className="size-4"/>تحديد كل الرسم</button>
+            <button type="button" className={controlCls(false)} disabled={!canSplit} onClick={separateSelection}><Scissors className="size-4"/>فصل الأجزاء الممسوحة</button>
+            <button type="button" className={controlCls(false)} disabled={!selectedStroke || !nodeIndices.length} onClick={enterNodes}><Waypoints className="size-4"/>تحرير نقاط المسار</button>
             <button type="button" className={controlCls(false)} disabled={!selection.size} onClick={() => {
               updatePage((p) => ({ ...p, strokes: p.strokes.filter((s) => !selection.has(s.id)) })); setSelection(new Set());
             }}><Trash2 className="size-4"/>حذف المحدد ({selection.size})</button>
           </div>}
+          {inkMode === "nodes" && selectedStroke && nodeIndices.length > 0 && <InkPointPanel stroke={selectedStroke}
+            indices={nodeIndices} active={nodeIndex} onSelect={setActiveNode}
+            onPosition={(position) => applySelectedEdit((s) => editInkPoint(s, nodeIndex, position))}
+            onReset={() => { applySelectedEdit(resetInkGeometry); }} onDone={() => { finish(); setInkMode("select"); }}/>}
           <p className="text-xs leading-6 text-muted-foreground">
             الضغط يعمل مع الأقلام التي ترسل بيانات ضغط. اختر للممحاة مسح مقطع أو ضربة كاملة، وكلاهما قابل للتراجع.
             للتحديد اسحب إطارًا حول الرسم، ثم اسحب أي خط محدد لتحريكه. تنعيم المسار لا يتعرف على الحروف العربية.
@@ -728,6 +826,7 @@ export function NotebookWorkspace({
           </div>
           {(isDrawing || page.strokes.length > 0) && (
             <svg viewBox={`0 0 1000 ${1000 * aspect}`} preserveAspectRatio="none"
+              data-ink-editor="canvas"
               role={isDrawing ? "img" : undefined} aria-label={isDrawing ? "مساحة الرسم بالقلم" : undefined}
               tabIndex={isDrawing ? 0 : -1}
               aria-hidden={!isDrawing || undefined}
@@ -738,9 +837,7 @@ export function NotebookWorkspace({
               onPointerLeave={() => { if (!gesture.current) setEraserPoint(null); }}
               className={"absolute inset-0 z-20 size-full " + (isDrawing ? "cursor-crosshair" : "pointer-events-none")}
               style={{ touchAction: isDrawing && !penOnly ? "none" : "pan-x pan-y" }}>
-              {shownStrokes.filter((s) => !erased.has(s.id)).map((stroke) => (
-                <InkMark key={stroke.id} stroke={stroke} aspect={aspect} selected={isDrawing && selection.has(stroke.id)} />
-              ))}
+              <InkLayer strokes={shownStrokes.filter((s) => !erased.has(s.id))} aspect={aspect} selected={isDrawing ? selection : undefined}/>
               {live && <InkMark stroke={live} aspect={aspect} />}
               {isDrawing && eraserPoint && <circle cx={eraserPoint[0]} cy={eraserPoint[1] * aspect} r={eraserWidth / 2}
                 fill="#4488ff12" stroke="#3275ba" strokeWidth={1.5} strokeDasharray="3 3" pointerEvents="none"/>}
@@ -751,6 +848,23 @@ export function NotebookWorkspace({
               })()}
             </svg>
           )}
+          {isDrawing && inkMode === "nodes" && selectedStroke && nodeIndices.length > 0 && <svg
+            viewBox={`0 0 1000 ${1000 * aspect}`} preserveAspectRatio="none" data-ink-editor="nodes"
+            role="group" aria-label="نقاط التحكم في المسار" className="pointer-events-none absolute inset-0 z-[35] size-full"
+            onPointerMove={moveInk} onPointerUp={(e) => { if (gesture.current?.pointerId === e.pointerId) { moveInk(e); finish(); } }}
+            onPointerCancel={(e) => { if (gesture.current?.pointerId === e.pointerId) clearGesture(); }}
+            onLostPointerCapture={(e) => { if (gesture.current?.pointerId === e.pointerId) finish(); }}>
+            <InkPointOverlay stroke={selectedStroke} indices={nodeIndices} active={nodeIndex} aspect={aspect}
+              unitsPerPixel={1000 / (layout.width * displayScale)} onStart={startNode}
+              onKey={(event) => {
+                if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+                  event.preventDefault(); event.stopPropagation(); nudgeNode(event.key, event.shiftKey);
+                } else if (event.key === "Escape") {
+                  event.preventDefault(); event.stopPropagation();
+                  if (gesture.current) clearGesture(); else setInkMode("select");
+                }
+              }}/>
+          </svg>}
           <ScienceAttribution page={page}/>
           {page.stickers.map((sticker) => {
             const position = moving?.id === sticker.id ? moving : sticker;
@@ -827,6 +941,10 @@ export function NotebookWorkspace({
             <option value="segment">مسح جزء</option><option value="stroke">مسار كامل</option>
           </select>}
           <button type="button" className={controlCls(inkMode === "select")} aria-label="التحديد السريع" onClick={() => { finish(); setInkMode("select"); }}><MousePointer2 className="size-4"/></button>
+          {selectedStroke && <button type="button" className={controlCls(inkMode === "nodes")} aria-label={inkMode === "nodes" ? "إنهاء تحرير النقاط السريع" : "تحرير النقاط السريع"}
+            disabled={!nodeIndices.length} onClick={() => { if (inkMode === "nodes") { finish(); setInkMode("select"); } else enterNodes(); }}>
+            {inkMode === "nodes" ? <Check className="size-4"/> : <Waypoints className="size-4"/>}
+          </button>}
           <button type="button" className={controlCls(false)} aria-label="تراجع سريع" disabled={!history.current.canUndo(page.id)} onClick={() => historyStep(false)}><Undo2 className="size-4"/></button>
           <button type="button" className={controlCls(false)} aria-label="إعادة سريعة" disabled={!history.current.canRedo(page.id)} onClick={() => historyStep(true)}><Redo2 className="size-4"/></button>
         </div>}

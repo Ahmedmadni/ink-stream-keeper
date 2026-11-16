@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { visibleInkBounds, inkWorldPoints } from "./ink-segments";
 
 export const PAPER_TYPES = ["plain", "lined", "grid", "dots", "cornell", "ledger", "two-column", "weekly", "flashcards", "music", "isometric", "hex"] as const;
 export const PAPER_SIZES = ["a4", "a5", "letter", "square"] as const;
@@ -19,6 +20,12 @@ const strokeSchema = z.object({
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   width: z.number().finite().min(1).max(40),
   points: z.array(point).min(1).max(4000),
+  // Editing geometry is separate from immutable captured samples.
+  controlPoints: z.array(z.tuple([z.number().finite().min(-20000).max(20000), z.number().finite().min(-20000).max(20000)]))
+    .min(1).max(4000).optional(),
+  offset: z.tuple([z.number().finite().min(-10000).max(10000), z.number().finite().min(-10000).max(10000)]).optional(),
+  span: z.tuple([z.number().finite().min(0).max(1), z.number().finite().min(0).max(1)]).optional(),
+  paintGroup: z.string().uuid().optional(),
   cuts: z.array(z.tuple([z.number().finite().min(0).max(1), z.number().finite().min(0).max(1)]))
     .min(1).max(128).optional(),
   times: z.array(z.number().finite().int().nonnegative().max(Number.MAX_SAFE_INTEGER)).min(1).max(4000).optional(),
@@ -26,6 +33,8 @@ const strokeSchema = z.object({
   pressures: z.array(z.number().finite().min(0).max(1)).min(1).max(4000).optional(),
   smoothing: z.boolean().optional(),
 }).strict().refine((stroke) => (!stroke.pressures || stroke.pressures.length === stroke.points.length) &&
+  (!stroke.controlPoints || stroke.controlPoints.length === stroke.points.length) &&
+  (!stroke.span || (stroke.points.length > 1 && stroke.span[0] < stroke.span[1])) &&
   (!stroke.times || (stroke.times.length === stroke.points.length && stroke.times.every((t, i) => i === 0 || t >= stroke.times![i - 1]))) &&
   (!stroke.cuts || (stroke.points.length > 1 && stroke.cuts.every(([a, b], i) => a < b && (i === 0 || a > stroke.cuts![i - 1][1])))), {
   message: "عينات القلم أو مقاطع المسح غير متطابقة مع المسار.",
@@ -105,6 +114,17 @@ export function validateNotebook(input: unknown): Notebook {
     for (const s of [...page.strokes, ...page.stickers]) {
       if (markIds.has(s.id)) throw new Error("عنصر مرئي مكرر.");
       markIds.add(s.id);
+    }
+    for (const stroke of page.strokes) {
+      if (!stroke.offset && !stroke.controlPoints && !stroke.span) continue;
+      if (inkWorldPoints(stroke).some(([x, y]) => Math.abs(x) > 10000.00001 || Math.abs(y) > 10000.00001))
+        throw new Error("نقطة تحكم بعيدة عن مجال التحرير الآمن.");
+      const b = visibleInkBounds(stroke);
+      if (b && (b.x < -1e-5 || b.y < -1e-5 || b.x + b.width > 1000.00001 || b.y + b.height > 1000.00001))
+        throw new Error("لم يُحفظ تعديل المسار: أعد الجزء الظاهر إلى داخل حدود الورقة.");
+      if (!stroke.controlPoints && !stroke.span && !stroke.cuts &&
+          inkWorldPoints(stroke).some(([x, y]) => x < -1e-5 || y < -1e-5 || x > 1000.00001 || y > 1000.00001))
+        throw new Error("نقاط المسار المنقول خارج حدود الورقة.");
     }
   }
   return doc;
