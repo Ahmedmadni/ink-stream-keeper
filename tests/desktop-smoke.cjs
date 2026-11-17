@@ -652,6 +652,30 @@ const vaultEntries = [
     await page.reload();
     await page.getByRole("tab", { name: "صفحة 2", exact: true }).click();
     assert.equal(await page.locator("[data-notebook-paper] [data-stroke-id]").getAttribute("d"), studioEditedPath);
+    const studioCapture = studioSaved().points;
+    await page.getByRole("tab", { name: "أقلام", exact: true }).click();
+    await page.getByRole("button", { name: "تحديد وتحريك", exact: true }).click();
+    await page.getByRole("button", { name: "تحديد كل الرسم", exact: true }).click();
+    await page.getByRole("button", { name: "تغيير الحجم والتدوير", exact: true }).click();
+    await page.getByLabel("حجم الرسم المحدد بالمئة", { exact: true }).fill("75");
+    const studioAngle = page.getByLabel("زاوية تدوير الرسم المحدد", { exact: true });
+    await studioAngle.fill("30");
+    const studioTransformedPath = await studioStroke.getAttribute("d");
+    assert.notEqual(studioTransformedPath, studioEditedPath);
+    await studioAngle.press("Escape");
+    assert.equal(await studioStroke.getAttribute("d"), studioEditedPath);
+    await page.getByRole("button", { name: "تغيير الحجم والتدوير", exact: true }).click();
+    await page.getByLabel("حجم الرسم المحدد بالمئة", { exact: true }).fill("75"); await studioAngle.fill("30");
+    await page.getByRole("button", { name: "تطبيق تحويل الرسم", exact: true }).click();
+    assert.equal(await studioStroke.getAttribute("d"), studioTransformedPath);
+    await page.getByRole("button", { name: "تراجع الرسم", exact: true }).click();
+    assert.equal(await studioStroke.getAttribute("d"), studioEditedPath);
+    await page.getByRole("button", { name: "إعادة الرسم", exact: true }).click();
+    assert.equal(await studioStroke.getAttribute("d"), studioTransformedPath);
+    await page.getByRole("status").filter({ hasText: /^(تم الحفظ في الخادم|محفوظة في الخادم)$/ }).waitFor({ timeout: 20000 });
+    assert.deepEqual(studioSaved().points, studioCapture);
+    await page.reload(); await page.getByRole("tab", { name: "صفحة 2", exact: true }).click();
+    assert.equal(await studioStroke.getAttribute("d"), studioTransformedPath);
     const studioPdfPath = resolve(artifacts, "notebook-packaged-windows.pdf");
     const pdfCompleted = desktop.evaluate(({ session }, output) => new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error("Packaged PDF export did not complete")), 45000);
@@ -670,7 +694,7 @@ const vaultEntries = [
     assert.ok(studioPdf.includes(Buffer.from("/Count 2")));
     assert.ok(studioPdf.includes(Buffer.from("/FlateDecode")));
     await page.screenshot({ path: resolve(artifacts, "notebook-packaged-windows.png"), fullPage: true });
-    console.log("PASS: packaged Notebook Studio pages, ink node insertion/edit/deletion/undo, autosave/reload and lossless Arabic PDF export.");
+    console.log("PASS: packaged Notebook Studio pages, ink vertices, previewed scale/rotation/cancel/undo, autosave/reload and lossless Arabic PDF export.");
     await page.goto("memoflow://app/settings");
     await page.getByText("أحمد محمد المدني", { exact: true }).waitFor();
     assert.equal(

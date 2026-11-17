@@ -244,12 +244,14 @@ async function checkEditingPdf(page, artifacts) {
     const { createPage } = await import("/src/features/notebook/model.ts");
     const { createNotebookPdf } = await import("/src/features/notebook/pdf-export.ts");
     const { splitInk, insertInkPoint, editInkPoint, deleteInkPoint } = await import("/src/features/notebook/ink-edit.ts");
+    const { transformInk } = await import("/src/features/notebook/ink-transform.ts");
     const marker = { id: crypto.randomUUID(), tool: "highlighter", color: "#2f65d9", width: 30, smoothing: false,
       points: [[100, 200], [800, 800], [800, 200], [100, 800]], cuts: [[.45, .55]], times: [1, 2, 3, 4] };
     const retained = { id: crypto.randomUUID(), tool: "pen", color: "#dd2233", width: 8, smoothing: false,
       points: [[100, 900], [400, 900]], pressures: [.8, .8], controlPoints: [[100, 850], [400, 850]], offset: [200, 0] };
     const edited = deleteInkPoint(editInkPoint(insertInkPoint(retained, 0), 1, [450, 800]), 0);
-    const first = { ...createPage({ paper: "plain", size: "a5" }), html: "<p>اختبار تحرير الحبر</p>", strokes: [marker, edited] };
+    const transformed = transformInk([edited], new Set([edited.id]), { scale: 1, rotation: 90 }, 210 / 148)[0];
+    const first = { ...createPage({ paper: "plain", size: "a5" }), html: "<p>اختبار تحرير الحبر</p>", strokes: [marker, transformed] };
     const second = { ...first, strokes: splitInk(first.strokes, new Set([marker.id])).strokes };
     const encode = async (sheet) => {
       const blob = await createNotebookPdf({ version: 1, pages: [sheet] });
@@ -280,6 +282,9 @@ async function checkEditingPdf(page, artifacts) {
   assert.ok(red[0] > 180 && red[1] < 90 && red[2] < 100, "PDF uses added/moved nodes and page translation");
   assert.ok(!(hidden[0] > 180 && hidden[1] < 90 && hidden[2] < 100), "PDF does not paint the retained source geometry");
   assert.ok(!(removed[0] > 180 && removed[1] < 90 && removed[2] < 100), "PDF omits the deleted endpoint's portion");
+  const rotated = pixel(after, .5427364865, .7985714286), unrotated = pixel(after, .4875, .8125);
+  assert.ok(rotated[0] > 180 && rotated[1] < 90 && rotated[2] < 100, "PDF rotates ink using the A5 sheet's true physical aspect ratio");
+  assert.ok(!(unrotated[0] > 180 && unrotated[1] < 90 && unrotated[2] < 100), "PDF omits the pre-rotation centerline");
   writeFileSync(artifacts + "/notebook-fragment-edit.pdf", after.pdf);
 }
 
@@ -444,4 +449,95 @@ async function checkStudy(page, artifacts) {
   await page.getByRole("dialog").getByText("هذه النسخة لا توفر محرك التعرف المحلي.", { exact: false }).waitFor();
   await page.getByRole("button", { name: "إغلاق التعرف على الخط", exact: true }).click();
 }
-module.exports = { checkInk, checkPdf, checkStudy, checkSegmentEraser, checkInkEditing };
+
+async function checkInkTransforms(page, artifacts, source, readSavedContent) {
+  const paper = page.locator("[data-notebook-paper]"), first = paper.locator(`[data-stroke-id="${source.id}"]`);
+  const sibling = paper.locator(`[data-stroke-id="${source.sibling.id}"]`);
+  const size = page.getByLabel("حجم الرسم المحدد بالمئة", { exact: true });
+  const angle = page.getByLabel("زاوية تدوير الرسم المحدد", { exact: true });
+  const panel = page.getByLabel("معاينة تغيير حجم الرسم وتدويره", { exact: true });
+  const apply = page.getByRole("button", { name: "تطبيق تحويل الرسم", exact: true });
+  const open = async () => page.getByRole("button", { name: "تغيير الحجم والتدوير", exact: true }).click();
+  const selectFirst = async () => {
+    await first.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    const p = await first.evaluate((el) => {
+      const point = el.getPointAtLength(el.getTotalLength() * .1);
+      const s = new DOMPoint(point.x, point.y).matrixTransform(el.getScreenCTM());
+      return { x: s.x, y: s.y };
+    });
+    await page.mouse.click(p.x, p.y);
+  };
+  await page.getByRole("status").filter({ hasText: /^(تم الحفظ في الخادم|محفوظة في الخادم)$/ }).waitFor({ timeout: 20000 });
+  const savedBefore = readSavedContent();
+  await open(); assert.ok(await apply.isDisabled());
+  assert.ok(await page.getByRole("button", { name: "تصدير صفحات الدفتر PDF", exact: true }).isDisabled());
+  assert.ok(await page.getByRole("button", { name: "إضافة صفحة", exact: true }).isDisabled());
+  await size.fill("75"); await angle.fill("30");
+  assert.notEqual(await first.getAttribute("d"), source.path);
+  assert.equal(await sibling.getAttribute("d"), source.sibling.d);
+  const count = await paper.locator("[data-stroke-id]").count();
+  const canvas = page.getByRole("img", { name: "مساحة الرسم بالقلم", exact: true });
+  await canvas.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  const box = await canvas.boundingBox();
+  await page.mouse.move(box.x + box.width * .1, 260); await page.mouse.down();
+  await page.mouse.move(box.x + box.width * .2, 280, { steps: 3 }); await page.mouse.up();
+  assert.equal(await paper.locator("[data-stroke-id]").count(), count, "a transform preview cannot start a drawing gesture");
+  await page.waitForTimeout(1100);
+  assert.equal(readSavedContent(), savedBefore, "previewing must never enter autosave or modify the server note");
+  await angle.fill("0"); await size.fill("400");
+  await panel.getByRole("alert").filter({ hasText: "خارج الورقة" }).waitFor();
+  assert.ok(await apply.isDisabled()); assert.equal(await first.getAttribute("d"), source.path);
+  await size.press("Escape"); await panel.waitFor({ state: "hidden" });
+  assert.equal(readSavedContent(), savedBefore);
+  assert.equal(await first.getAttribute("d"), source.path);
+  await open(); await size.fill("75"); await angle.fill("30");
+  await page.getByRole("tab", { name: "كتابة", exact: true }).click();
+  await panel.waitFor({ state: "hidden" });
+  assert.equal(await first.getAttribute("d"), source.path, "switching tool groups discards the unapplied preview");
+  assert.equal(readSavedContent(), savedBefore);
+  await page.getByRole("tab", { name: "أقلام", exact: true }).click();
+  await open(); await size.fill("75"); await angle.fill("30");
+  await panel.screenshot({ path: artifacts + "/notebook-transform-settings.png" });
+  const transformed = await first.getAttribute("d");
+  await apply.click(); await panel.waitFor({ state: "hidden" });
+  assert.equal(await first.getAttribute("d"), transformed);
+  await page.getByRole("button", { name: "تراجع الرسم", exact: true }).click();
+  assert.equal(await first.getAttribute("d"), source.path);
+  await page.getByRole("button", { name: "إعادة الرسم", exact: true }).click();
+  assert.equal(await first.getAttribute("d"), transformed);
+  const allPaths = () => paper.locator("[data-stroke-id]").evaluateAll((els) => els.map((el) => ({ id: el.dataset.strokeId, d: el.getAttribute("d") })));
+  const beforeGroup = await allPaths();
+  await page.getByRole("button", { name: "تحديد كل الرسم", exact: true }).click();
+  await open(); await size.fill("75"); await angle.fill("-15");
+  const grouped = await allPaths(); assert.notDeepEqual(grouped, beforeGroup);
+  await apply.click();
+  await page.getByRole("button", { name: "تراجع الرسم", exact: true }).click();
+  assert.deepEqual(await allPaths(), beforeGroup, "one undo restores the complete group transformation");
+  await page.getByRole("button", { name: "إعادة الرسم", exact: true }).click(); assert.deepEqual(await allPaths(), grouped);
+  await page.getByRole("button", { name: "تراجع الرسم", exact: true }).click(); assert.deepEqual(await allPaths(), beforeGroup);
+  await selectFirst(); await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "تحويل الرسم السريع", exact: true }).click(); await size.fill("50");
+  assert.notEqual(await first.getAttribute("d"), transformed);
+  await page.getByRole("button", { name: "إلغاء التحويل السريع", exact: true }).click();
+  assert.equal(await first.getAttribute("d"), transformed);
+  await page.getByRole("button", { name: "تحويل الرسم السريع", exact: true }).click();
+  await size.fill("90"); await angle.fill("15");
+  const final = await first.getAttribute("d"); assert.notEqual(final, transformed);
+  await first.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  const bar = await page.getByRole("navigation", { name: "شريط صفحات المذكرة", exact: true }).boundingBox();
+  const app = await page.getByRole("navigation", { name: "التنقل الرئيسي", exact: true }).boundingBox();
+  assert.ok(bar.y >= 0 && bar.y + bar.height <= app.y - 6);
+  await page.screenshot({ path: artifacts + "/notebook-transform-mobile.png" });
+  const quick = await page.getByRole("button", { name: "تطبيق التحويل السريع", exact: true }).boundingBox();
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: quick.x + quick.width / 2, y: quick.y + quick.height / 2 }] });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false }); await cdp.detach();
+  await panel.waitFor({ state: "hidden" }); assert.equal(await first.getAttribute("d"), final);
+  assert.equal(await sibling.getAttribute("d"), source.sibling.d);
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.screenshot({ path: artifacts + "/notebook-transform-tablet.png", fullPage: true });
+  return { ...source, path: final };
+}
+module.exports = { checkInk, checkPdf, checkStudy, checkSegmentEraser, checkInkEditing, checkInkTransforms };

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent } from "rea
 import type { Editor } from "@tiptap/react";
 import {
   BookOpen, Brush, Eraser, FileDown, Layers, PenLine, Plus,
-  Copy, Trash2, Highlighter, Undo2, Redo2, Sticker, MousePointer2, ScanLine, ZoomIn, Shapes, Minus, Square, Circle, ArrowUpRight, Search, ScanText, Scissors, Waypoints, Check,
+  Copy, Trash2, Highlighter, Undo2, Redo2, Sticker, MousePointer2, ScanLine, ZoomIn, Shapes, Minus, Square, Circle, ArrowUpRight, Search, ScanText, Scissors, Waypoints, Check, RotateCw, X,
 } from "lucide-react";
 import { RichEditor, CompactToolbar } from "@/components/RichEditor";
 import {
@@ -17,6 +17,8 @@ import { shapePoints, type ShapeTool, hitStroke, inkBounds, InkHistory, moveInk 
 import { eraseInkSegments, inkWorldPoint, inkPoints, visibleRanges } from "./ink-segments";
 import { splitInk, editInkPoint, canInsertInkPoint, insertInkPoint, deleteInkPoint, resetInkGeometry, editableInkNodes, nearestInkNode } from "./ink-edit";
 import { InkPointPanel, InkPointOverlay } from "./InkPoints";
+import { InkTransformPanel } from "./InkTransform";
+import type { InkTransformPreview } from "./ink-transform";
 import { pageLayout, paperStyle } from "./page-layout";
 import { PaperGuides, PAPER_LABELS, TEXTURE_LABELS, paperTextStyle } from "./PaperGuides";
 import { HandwritingPanel } from "./HandwritingPanel";
@@ -132,8 +134,13 @@ export function NotebookWorkspace({
   const [offset, setOffset] = useState<Point | null>(null);
   const [nodePreview, setNodePreview] = useState<InkStroke | null>(null);
   const [activeNode, setActiveNode] = useState(0);
+  const [transformSession, setTransformSession] = useState<{ pageId: string; source: InkStroke[]; ids: Set<string>; remainingBytes: number } | null>(null);
+  const [transformPreview, setTransformPreview] = useState<InkTransformPreview | null>(null);
+  const handleTransformPreview = useCallback((preview: InkTransformPreview) => setTransformPreview(preview), []);
+  const cancelTransform = useCallback(() => { setTransformSession(null); setTransformPreview(null); }, []);
   useEffect(() => {
     setNodePreview(null); setActiveNode(0);
+    setTransformSession(null); setTransformPreview(null);
     setInkMode((mode) => mode === "nodes" ? "select" : mode);
   }, [index, group]);
   const viewport = useRef<HTMLDivElement | null>(null);
@@ -188,6 +195,7 @@ export function NotebookWorkspace({
     gesture.current = null; liveRef.current = null;
     setLive(null); setErased(new Set()); setErasePreview(null); setEraserPoint(null); setSelection(new Set()); setSelectionBox(null); setOffset(null);
     setNodePreview(null); setActiveNode(0); setInkMode((mode) => mode === "nodes" ? "select" : mode);
+    setTransformSession(null); setTransformPreview(null);
     setIndex((prev) => Math.min(prev, Math.max(0, (next.book?.pages.length ?? 1) - 1)));
   }, [content]);
 
@@ -290,7 +298,9 @@ export function NotebookWorkspace({
   const layout = pageLayout(page);
   const aspect = pageH / pageW;
   const displayScale = zoom ?? Math.min(1, Math.max(1, viewportWidth) / layout.width);
-  const baseStrokes = nodePreview ? page.strokes.map((s) => s.id === nodePreview.id ? nodePreview : s) : page.strokes;
+  const baseStrokes = transformSession && transformSession.source === page.strokes
+    ? (transformPreview?.source === transformSession.source ? transformPreview.strokes : transformSession.source)
+    : nodePreview ? page.strokes.map((s) => s.id === nodePreview.id ? nodePreview : s) : page.strokes;
   const shownStrokes = erasePreview ?? (offset ? translateInk(baseStrokes, selection, offset[0], offset[1], aspect) : baseStrokes);
   const selectedBounds = inkBounds(shownStrokes.filter((s) => selection.has(s.id)), aspect);
   const selectedStroke = selection.size === 1 ? shownStrokes.find((s) => selection.has(s.id)) : undefined;
@@ -356,7 +366,7 @@ export function NotebookWorkspace({
     setErased(new Set(active.erased));
   };
   const startInk = (event: PointerEvent<SVGSVGElement>) => {
-    if (!isDrawing || !event.isPrimary || (event.button !== 0 && event.button !== 5) || gesture.current) return;
+    if (transformSession || !isDrawing || !event.isPrimary || (event.button !== 0 && event.button !== 5) || gesture.current) return;
     if (event.pointerType === "pen") lastPen.current = Date.now();
     if (event.pointerType === "touch" && (penOnly || Date.now() - lastPen.current < 800)) return;
     event.preventDefault();
@@ -508,6 +518,21 @@ export function NotebookWorkspace({
       setSelection(new Set([result.created[0]])); setInkMode("select"); setActiveNode(0);
     } catch (error) { setWarning(error instanceof Error ? error.message : "تعذر فصل الأجزاء؛ بقي الأصل محفوظًا."); }
   };
+  const beginTransform = () => {
+    finish(); const current = bookRef.current, active = current?.pages[index];
+    if (!current || !active || !selection.size) return;
+    setTransformPreview(null); setInkMode("select"); setWarning("");
+    setTransformSession({ pageId: active.id, source: active.strokes, ids: new Set(selection),
+      remainingBytes: Math.max(0, MAX_NOTEBOOK_BYTES - new TextEncoder().encode(JSON.stringify(current)).byteLength) });
+  };
+  const applyTransform = (preview: InkTransformPreview) => {
+    const current = bookRef.current, active = current?.pages[index];
+    if (!transformSession || !preview.changed || preview.error) return;
+    if (!current || !active || active.id !== transformSession.pageId || active.strokes !== transformSession.source || preview.source !== transformSession.source) {
+      cancelTransform(); setWarning("تغير الرسم أثناء المعاينة؛ بقي التعديل الأحدث محفوظًا. أعد تحديد الرسم وتحويله."); return;
+    }
+    if (commit({ ...current, pages: current.pages.map((p) => p.id === active.id ? { ...p, strokes: preview.strokes } : p) })) cancelTransform();
+  };
   const addSticker = (kind: PageSticker["kind"]) => {
     updatePage((p) => {
       if (p.stickers.length >= 120) { setWarning("الصفحة تحتوي الحد الأقصى من الملصقات."); return p; }
@@ -567,6 +592,13 @@ export function NotebookWorkspace({
     <section className="space-y-3" aria-label="دفتر المذكرة متعدد الصفحات"
       onKeyDown={(event) => {
         const inCanvas = (event.target as Element).closest("svg[data-ink-editor]");
+        if (transformSession) {
+          if (event.key === "Escape" || ((event.ctrlKey || event.metaKey) && ["z", "y"].includes(event.key.toLowerCase()) &&
+              !(event.target as Element).closest("input,textarea,[contenteditable=true]"))) {
+            event.preventDefault(); cancelTransform();
+          }
+          return;
+        }
         if (inCanvas && event.key === "Escape") {
           event.preventDefault();
           if (gesture.current) clearGesture(); else if (inkMode === "nodes") setInkMode("select");
@@ -591,7 +623,7 @@ export function NotebookWorkspace({
             <h2 className="text-base font-bold">دفتر المذاكرة</h2>
             <p className="text-xs text-muted-foreground">{book.pages.length} صفحة · {SIZE_LABELS[page.size]} · {PAPER_LABELS[page.paper]}</p>
           </div>
-          <button type="button" disabled={exporting} onClick={() => { void exportPdf(); }}
+          <button type="button" disabled={exporting || !!transformSession} onClick={() => { void exportPdf(); }}
             className={controlCls(false)} aria-label="تصدير صفحات الدفتر PDF">
             <FileDown className="size-4" /> {exporting ? "تصدير..." : "تصدير PDF"}
           </button>
@@ -615,6 +647,8 @@ export function NotebookWorkspace({
 
       {group === "draw" && (
         <div className="space-y-2 rounded-2xl border border-border bg-card p-3">
+          {transformSession ? <InkTransformPanel source={transformSession.source} ids={transformSession.ids} aspect={aspect}
+            remainingBytes={transformSession.remainingBytes} onPreview={handleTransformPreview} onApply={applyTransform} onCancel={cancelTransform}/> : <>
           <div className="flex flex-wrap gap-2" role="group" aria-label="أدوات الرسم">
             <button type="button" className={controlCls(false)} aria-label="تحسين الخط والتعرف العربي"
               onClick={() => { finish(); setRecognitionSource({ page: bookRef.current!.pages[index], selection: new Set(selection) }); }}>
@@ -674,6 +708,7 @@ export function NotebookWorkspace({
             <button type="button" className={controlCls(false)} onClick={() => setSelection(new Set(page.strokes.map((s) => s.id)))}><ScanLine className="size-4"/>تحديد كل الرسم</button>
             <button type="button" className={controlCls(false)} disabled={!canSplit} onClick={separateSelection}><Scissors className="size-4"/>فصل الأجزاء الممسوحة</button>
             <button type="button" className={controlCls(false)} disabled={!selectedStroke || !nodeIndices.length} onClick={enterNodes}><Waypoints className="size-4"/>تحرير نقاط المسار</button>
+            <button type="button" className={controlCls(false)} disabled={!selection.size} onClick={beginTransform}><RotateCw className="size-4"/>تغيير الحجم والتدوير</button>
             <button type="button" className={controlCls(false)} disabled={!selection.size} onClick={() => {
               updatePage((p) => ({ ...p, strokes: p.strokes.filter((s) => !selection.has(s.id)) })); setSelection(new Set());
             }}><Trash2 className="size-4"/>حذف المحدد ({selection.size})</button>
@@ -688,6 +723,7 @@ export function NotebookWorkspace({
             الضغط يعمل مع الأقلام التي ترسل بيانات ضغط. اختر للممحاة مسح مقطع أو ضربة كاملة، وكلاهما قابل للتراجع.
             للتحديد اسحب إطارًا حول الرسم، ثم اسحب أي خط محدد لتحريكه. تنعيم المسار لا يتعرف على الحروف العربية.
           </p>
+          </>}
         </div>
       )}
       {group === "shapes" && <div className="space-y-3 rounded-2xl border border-border bg-card p-3">
@@ -847,8 +883,8 @@ export function NotebookWorkspace({
               onPointerCancel={(e) => { if (gesture.current?.pointerId === e.pointerId) clearGesture(); }}
               onLostPointerCapture={(e) => { if (gesture.current?.pointerId === e.pointerId) finish(); }}
               onPointerLeave={() => { if (!gesture.current) setEraserPoint(null); }}
-              className={"absolute inset-0 z-20 size-full " + (isDrawing ? "cursor-crosshair" : "pointer-events-none")}
-              style={{ touchAction: isDrawing && !penOnly ? "none" : "pan-x pan-y" }}>
+              className={"absolute inset-0 z-20 size-full " + (isDrawing ? transformSession ? "cursor-default" : "cursor-crosshair" : "pointer-events-none")}
+              style={{ touchAction: isDrawing && !transformSession && !penOnly ? "none" : "pan-x pan-y" }}>
               <InkLayer strokes={shownStrokes.filter((s) => !erased.has(s.id))} aspect={aspect} selected={isDrawing ? selection : undefined}/>
               {live && <InkMark stroke={live} aspect={aspect} />}
               {isDrawing && eraserPoint && <circle cx={eraserPoint[0]} cy={eraserPoint[1] * aspect} r={eraserWidth / 2}
@@ -945,6 +981,11 @@ export function NotebookWorkspace({
       <nav className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-40 rounded-2xl border border-border bg-card/95 p-3 shadow-lg backdrop-blur md:bottom-2"
         aria-label="شريط صفحات المذكرة">
         {group === "draw" && <div className="mb-2 flex gap-1 overflow-x-auto border-b border-border pb-2" role="group" aria-label="أدوات القلم السريعة">
+          {transformSession ? <>
+            <button type="button" className={controlCls(true)} aria-label="تطبيق التحويل السريع" disabled={!transformPreview?.changed || !!transformPreview.error}
+              onClick={() => { if (transformPreview) applyTransform(transformPreview); }}><Check className="size-4"/>تطبيق</button>
+            <button type="button" className={controlCls(false)} aria-label="إلغاء التحويل السريع" onClick={cancelTransform}><X className="size-4"/>إلغاء</button>
+          </> : <>
           {inkMode !== "nodes" && <>
             <button type="button" className={controlCls(inkMode === "pen")} aria-label="القلم السريع" onClick={() => { finish(); setInkMode("pen"); }}><PenLine className="size-4"/></button>
             <button type="button" className={controlCls(inkMode === "eraser")} aria-label="الممحاة السريعة" onClick={() => { finish(); setInkMode("eraser"); }}><Eraser className="size-4"/></button>
@@ -965,16 +1006,19 @@ export function NotebookWorkspace({
             disabled={!nodeIndices.length} onClick={() => { if (inkMode === "nodes") { finish(); setInkMode("select"); } else enterNodes(); }}>
             {inkMode === "nodes" ? <Check className="size-4"/> : <Waypoints className="size-4"/>}
           </button>}
+          {inkMode === "select" && selection.size > 0 && <button type="button" className={controlCls(false)} aria-label="تحويل الرسم السريع" title="تغيير الحجم والتدوير"
+            onClick={beginTransform}><RotateCw className="size-4"/></button>}
           <button type="button" className={controlCls(false)} aria-label="تراجع سريع" disabled={!history.current.canUndo(page.id)} onClick={() => historyStep(false)}><Undo2 className="size-4"/></button>
           <button type="button" className={controlCls(false)} aria-label="إعادة سريعة" disabled={!history.current.canRedo(page.id)} onClick={() => historyStep(true)}><Redo2 className="size-4"/></button>
+          </>}
         </div>}
         <div className="mb-2 flex items-center justify-between gap-2">
           <strong className="text-sm">الصفحات ({book.pages.length})</strong>
           <div className="flex gap-1">
             <button type="button" aria-label="تكرار الصفحة" title="تكرار الصفحة"
-              onClick={duplicatePage} className="grid size-10 place-items-center rounded-xl bg-secondary"><Copy className="size-4" /></button>
+              onClick={duplicatePage} disabled={!!transformSession} className="grid size-10 place-items-center rounded-xl bg-secondary disabled:opacity-40"><Copy className="size-4" /></button>
             <button type="button" aria-label="حذف الصفحة" title="حذف الصفحة"
-              onClick={removePage} disabled={book.pages.length === 1}
+              onClick={removePage} disabled={book.pages.length === 1 || !!transformSession}
               className="grid size-10 place-items-center rounded-xl bg-secondary text-destructive disabled:opacity-40">
               <Trash2 className="size-4"/>
             </button>
@@ -983,6 +1027,7 @@ export function NotebookWorkspace({
         <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="صفحات المذكرة">
           {book.pages.map((p, n) => (
             <button type="button" role="tab" key={p.id} aria-selected={index === n}
+              disabled={!!transformSession}
               aria-label={"صفحة " + (n + 1)}
               onClick={() => { finish(); setIndex(n); setSelectedSticker(null); setSelection(new Set()); }}
               className={"flex min-w-20 flex-col items-center gap-1 rounded-xl border-2 p-1.5 " +
@@ -991,8 +1036,8 @@ export function NotebookWorkspace({
               <span className="text-xs">صفحة {n + 1}</span>
             </button>
           ))}
-          <button type="button" onClick={addPage} aria-label="إضافة صفحة" title="إضافة صفحة"
-            className="flex min-w-20 flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-primary/35 text-primary">
+          <button type="button" onClick={addPage} disabled={!!transformSession} aria-label="إضافة صفحة" title="إضافة صفحة"
+            className="flex min-w-20 flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-primary/35 text-primary disabled:opacity-40">
             <Plus className="size-6"/><span className="text-xs">صفحة جديدة</span>
           </button>
         </div>
