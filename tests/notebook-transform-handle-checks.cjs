@@ -63,6 +63,13 @@ async function checkTransformHandles(page, artifacts, source, readSavedContent) 
   active = await beginMouse(scale(2), .9); await page.keyboard.press("Escape"); await page.mouse.up();
   await unchanged(baseline, "Escape cancels only the active drag"); assert.ok(await panel.isVisible());
   active = await beginMouse(scale(2), 1.1);
+  const immediateSize = await scale(2).evaluate((el) => {
+    el.dispatchEvent(new PointerEvent("lostpointercapture", { bubbles: true, pointerId: Number(el.dataset.qaPointer), pointerType: "mouse", isPrimary: true }));
+    return document.querySelector('[aria-label="حجم الرسم المحدد بالمئة"]').value;
+  });
+  assert.equal(immediateSize, baseline.size, "lost capture restores the visible draft before another gesture can reuse it");
+  await page.mouse.up(); await unchanged(baseline, "lost capture restores geometry and controls synchronously");
+  active = await beginMouse(scale(2), 1.1);
   await scale(2).evaluate((el) => el.releasePointerCapture(Number(el.dataset.qaPointer)));
   await page.mouse.up(); await unchanged(baseline, "lost pointer capture restores the whole gesture");
   active = await beginMouse(scale(2), 1.1);

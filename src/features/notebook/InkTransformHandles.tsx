@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, type PointerEvent, type KeyboardEvent } from "react";
+import { flushSync } from "react-dom";
 import { RotateCw } from "lucide-react";
 import type { InkStroke } from "./model";
 import type { InkBounds, Point } from "./ink";
@@ -33,13 +34,17 @@ export function InkTransformHandles({ source, ids, aspect, unitsPerPixel, draft,
     if (!active) return;
     drag.current = null; onChange(active.draft); onGesture(null); release(active);
   }, [onChange, onGesture]);
+  // lostpointercapture and native lifecycle listeners have default React
+  // priority. Flush only terminal cancellations so the old drag cannot stay
+  // visible or mix with the next pointer gesture while its restore is queued.
+  const cancelOnEvent = useCallback(() => { if (drag.current) flushSync(cancel); }, [cancel]);
   useEffect(() => {
-    const hide = () => { if (document.hidden) cancel(); };
-    const resize = () => { if (drag.current && Math.abs((svg.current?.getBoundingClientRect().width ?? 0) - drag.current.width) > .5) cancel(); };
-    window.addEventListener("blur", cancel); window.addEventListener("resize", resize); document.addEventListener("visibilitychange", hide);
-    return () => { window.removeEventListener("blur", cancel); window.removeEventListener("resize", resize);
+    const hide = () => { if (document.hidden) cancelOnEvent(); };
+    const resize = () => { if (drag.current && Math.abs((svg.current?.getBoundingClientRect().width ?? 0) - drag.current.width) > .5) cancelOnEvent(); };
+    window.addEventListener("blur", cancelOnEvent); window.addEventListener("resize", resize); document.addEventListener("visibilitychange", hide);
+    return () => { window.removeEventListener("blur", cancelOnEvent); window.removeEventListener("resize", resize);
       document.removeEventListener("visibilitychange", hide); drag.current = null; };
-  }, [cancel]);
+  }, [cancelOnEvent]);
   useEffect(() => {
     if (drag.current && Math.abs((svg.current?.getBoundingClientRect().width ?? 0) - drag.current.width) > .5) cancel();
   }, [unitsPerPixel, aspect, cancel]);
@@ -49,21 +54,21 @@ export function InkTransformHandles({ source, ids, aspect, unitsPerPixel, draft,
     const from = point(event); if (!from) return;
     drag.current = { pointerId: event.pointerId, target: event.currentTarget, kind, frame, from, aspect,
       width: svg.current!.getBoundingClientRect().width, draft, options };
-    event.currentTarget.setPointerCapture(event.pointerId); onGesture(cancel);
+    event.currentTarget.setPointerCapture(event.pointerId); onGesture(cancelOnEvent);
   };
   const move = (event: PointerEvent<SVGSVGElement>) => {
     const active = drag.current;
     if (!active || active.pointerId !== event.pointerId) return;
     // Capture release can be pending before lostpointercapture is delivered.
     // A move/up in that interval must cancel, never complete the draft.
-    if (!active.target.hasPointerCapture(active.pointerId)) { cancel(); return; }
+    if (!active.target.hasPointerCapture(active.pointerId)) { cancelOnEvent(); return; }
     if (event.pointerType === "pen") allowPointer(event);
     event.preventDefault(); event.stopPropagation();
-    const to = point(event); if (!to) { cancel(); return; }
+    const to = point(event); if (!to) { cancelOnEvent(); return; }
     try {
       const next = transformFromHandle(active.options, active.frame, active.from, to, active.kind, active.aspect, event.shiftKey);
       onChange(next === active.options ? active.draft : transformDraft(next));
-    } catch { cancel(); }
+    } catch { cancelOnEvent(); }
   };
   const finish = (event: PointerEvent<SVGSVGElement>) => {
     const active = drag.current; if (!active || active.pointerId !== event.pointerId) return;
@@ -71,7 +76,7 @@ export function InkTransformHandles({ source, ids, aspect, unitsPerPixel, draft,
     drag.current = null; onGesture(null); release(active);
   };
   const key = (event: KeyboardEvent<SVGCircleElement>, kind: TransformHandleKind) => {
-    if (event.key === "Escape" && drag.current) { event.preventDefault(); event.stopPropagation(); cancel(); return; }
+    if (event.key === "Escape" && drag.current) { event.preventDefault(); event.stopPropagation(); cancelOnEvent(); return; }
     if (event.ctrlKey || event.metaKey) return;
     const next = nudgeTransformHandle(options, kind, event.key, event.shiftKey);
     if (!next) return;
@@ -97,8 +102,8 @@ export function InkTransformHandles({ source, ids, aspect, unitsPerPixel, draft,
   </g>;
   return <svg ref={svg} viewBox={`0 0 1000 ${1000 * aspect}`} preserveAspectRatio="none" data-ink-editor="transform"
     role="group" aria-label="مقابض التحويل المباشر" className="pointer-events-none absolute inset-0 z-[35] size-full"
-    onPointerMove={move} onPointerUp={finish} onPointerCancel={(event) => { if (drag.current?.pointerId === event.pointerId) cancel(); }}
-    onLostPointerCapture={(event) => { if (drag.current?.pointerId === event.pointerId) cancel(); }}>
+    onPointerMove={move} onPointerUp={finish} onPointerCancel={(event) => { if (drag.current?.pointerId === event.pointerId) cancelOnEvent(); }}
+    onLostPointerCapture={(event) => { if (drag.current?.pointerId === event.pointerId) cancelOnEvent(); }}>
     <polygon points={layout.outline.map((p) => p.join(",")).join(" ")} fill="none" stroke={color} strokeWidth={u} strokeDasharray={`${5 * u} ${4 * u}`}/>
     <line x1={layout.anchor[0]} y1={layout.anchor[1]} x2={layout.rotation[0]} y2={layout.rotation[1]} stroke={color} strokeWidth={u}/>
     <circle data-transform-center="" cx={layout.center[0]} cy={layout.center[1]} r={2 * u} fill={color} opacity={.5}/>
