@@ -490,12 +490,14 @@ async function checkInkTransforms(page, artifacts, source, readSavedContent) {
   await size.press("Escape"); await panel.waitFor({ state: "hidden" });
   assert.equal(readSavedContent(), savedBefore);
   assert.equal(await first.getAttribute("d"), source.path);
-  await open(); await size.fill("75"); await angle.fill("30");
-  await page.getByRole("tab", { name: "كتابة", exact: true }).click();
-  await panel.waitFor({ state: "hidden" });
-  assert.equal(await first.getAttribute("d"), source.path, "switching tool groups discards the unapplied preview");
-  assert.equal(readSavedContent(), savedBefore);
-  await page.getByRole("tab", { name: "أقلام", exact: true }).click();
+  for (let repeat = 0; repeat < 3; repeat++) {
+    await open(); await size.fill("75"); await angle.fill("30");
+    await page.getByRole("tab", { name: "كتابة", exact: true }).click();
+    await panel.waitFor({ state: "hidden" });
+    assert.equal(await first.getAttribute("d"), source.path, "switching tool groups discards the unapplied preview immediately");
+    assert.equal(readSavedContent(), savedBefore);
+    await page.getByRole("tab", { name: "أقلام", exact: true }).click();
+  }
   await open(); await size.fill("75"); await angle.fill("30");
   await panel.screenshot({ path: artifacts + "/notebook-transform-settings.png" });
   const transformed = await first.getAttribute("d");

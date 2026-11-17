@@ -298,7 +298,7 @@ export function NotebookWorkspace({
   const layout = pageLayout(page);
   const aspect = pageH / pageW;
   const displayScale = zoom ?? Math.min(1, Math.max(1, viewportWidth) / layout.width);
-  const baseStrokes = transformSession && transformSession.source === page.strokes
+  const baseStrokes = group === "draw" && transformSession?.pageId === page.id && transformSession.source === page.strokes
     ? (transformPreview?.source === transformSession.source ? transformPreview.strokes : transformSession.source)
     : nodePreview ? page.strokes.map((s) => s.id === nodePreview.id ? nodePreview : s) : page.strokes;
   const shownStrokes = erasePreview ?? (offset ? translateInk(baseStrokes, selection, offset[0], offset[1], aspect) : baseStrokes);
@@ -637,7 +637,7 @@ export function NotebookWorkspace({
             ["paper", "ورق", Layers],
           ] as const).map(([key, label, Icon]) => (
             <button type="button" role="tab" key={key} aria-selected={group === key}
-              onClick={() => { finish(); setGroup(key); setSelectedSticker(null); }}
+              onClick={() => { finish(); if (key !== group) cancelTransform(); setGroup(key); setSelectedSticker(null); }}
               className={"flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 font-semibold sm:flex-row sm:gap-2 " + (group === key ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground hover:bg-accent")}>
               <Icon className="size-4 shrink-0" /><span className="text-xs">{label}</span>
             </button>
