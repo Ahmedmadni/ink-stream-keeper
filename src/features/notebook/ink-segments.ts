@@ -12,25 +12,36 @@ const lerp = (a: Center, b: Center, t: number): Center => ({
 const midpoint = (a: Center, b: Center) => lerp(a, b, .5);
 const f = (n: number) => Math.round(n * 1000) / 1000;
 const xy = (p: Center) => `${f(p.x)} ${f(p.y)}`;
+export const inkPoints = (stroke: InkStroke) => stroke.controlPoints ?? stroke.points;
+export const inkKnots = (stroke: InkStroke): number[] => stroke.controlKnots ??
+  inkPoints(stroke).map((_, i, points) => i / Math.max(1, points.length - 1));
 export function inkWorldPoint(stroke: InkStroke, index: number): Point {
-  const p = (stroke.controlPoints ?? stroke.points)[index], offset = stroke.offset ?? [0, 0];
+  const p = inkPoints(stroke)[index], offset = stroke.offset ?? [0, 0];
   return [p[0] + offset[0], p[1] + offset[1]];
 }
 export function inkWorldPoints(stroke: InkStroke): Point[] {
-  return stroke.points.map((_, i) => inkWorldPoint(stroke, i));
+  return inkPoints(stroke).map((_, i) => inkWorldPoint(stroke, i));
+}
+
+/** Pressure is interpolated from retained real samples at a curve parameter.
+ * New control nodes are editing geometry; they never acquire capture times. */
+function pressureAt(stroke: InkStroke, t: number): number {
+  if (!stroke.pressures) return 1;
+  const x = t * (stroke.pressures.length - 1), i = Math.floor(x), u = x - i;
+  return stroke.pressures[i] * (1 - u) + stroke.pressures[Math.min(i + 1, stroke.pressures.length - 1)] * u;
 }
 
 // Cuts refer to the original rendered segment parameters, not resampled point
 // indices or screen pixels. Raw captured points, pressure and time stay intact.
 function segments(stroke: InkStroke, aspect: number): Segment[] {
-  const count = stroke.points.length;
-  const p = inkWorldPoints(stroke).map(([x, y], i): Center => ({ x, y: y * aspect, t: i / Math.max(1, count - 1),
-    r: stroke.width * (stroke.pressures && stroke.tool === "pen" ? .25 + .75 * stroke.pressures[i] : 1) / 2 }));
+  const count = inkPoints(stroke).length, knots = inkKnots(stroke);
+  const p = inkWorldPoints(stroke).map(([x, y], i): Center => ({ x, y: y * aspect, t: knots[i],
+    r: stroke.width * (stroke.pressures && stroke.tool === "pen" ? .25 + .75 * (stroke.controlKnots ? pressureAt(stroke, knots[i]) : stroke.pressures[i]) : 1) / 2 }));
   if (count < 2) return [{ a: p[0], b: p[0] }];
   if (stroke.smoothing === false || count < 3) return p.slice(1).map((b, i) => ({ a: p[i], b }));
   let a = p[0]; const result: Segment[] = [];
   for (let i = 1; i < count - 1; i++) {
-    const b = { ...midpoint(p[i], p[i + 1]), t: i / (count - 1) };
+    const b = { ...midpoint(p[i], p[i + 1]), t: knots[i] };
     result.push({ a, c: p[i], b }); a = b;
   }
   result.push({ a, b: p[count - 1] });
@@ -43,12 +54,13 @@ function evaluate(s: Segment, t: number): Center {
 const cache = new WeakMap<InkStroke["points"], { pressures: InkStroke["pressures"]; width: number;
   smoothing: boolean | undefined; tool: InkStroke["tool"]; aspect: number; segments: Segment[]; samples: Center[];
   dx: number; dy: number;
+  knots: InkStroke["controlKnots"];
   bounds: { left: number; right: number; top: number; bottom: number } }>();
 function geometry(stroke: InkStroke, aspect: number) {
   const key = stroke.controlPoints ?? stroke.points, [dx, dy] = stroke.offset ?? [0, 0];
   const old = cache.get(key);
   if (old && old.pressures === stroke.pressures && old.width === stroke.width && old.smoothing === stroke.smoothing &&
-      old.tool === stroke.tool && old.aspect === aspect && old.dx === dx && old.dy === dy) return old;
+      old.tool === stroke.tool && old.aspect === aspect && old.dx === dx && old.dy === dy && old.knots === stroke.controlKnots) return old;
   const curves = segments(stroke, aspect), samples = [curves[0].a];
   const pressured = !!stroke.pressures && stroke.tool === "pen";
   for (const curve of curves) {
@@ -67,11 +79,13 @@ function geometry(stroke: InkStroke, aspect: number) {
     bounds.top = Math.min(bounds.top, y * aspect); bounds.bottom = Math.max(bounds.bottom, y * aspect);
   }
   const value = { pressures: stroke.pressures, width: stroke.width, smoothing: stroke.smoothing, tool: stroke.tool,
-    aspect, segments: curves, samples, bounds, dx, dy };
+    aspect, segments: curves, samples, bounds, dx, dy, knots: stroke.controlKnots };
   cache.set(key, value); return value;
 }
 export function visibleRanges(stroke: InkStroke): InkRange[] {
-  const [lo, hi] = stroke.span ?? [0, 1];
+  const knots = stroke.controlKnots;
+  const lo = Math.max(stroke.span?.[0] ?? 0, knots?.[0] ?? 0);
+  const hi = Math.min(stroke.span?.[1] ?? 1, knots?.[knots.length - 1] ?? 1);
   const ranges: InkRange[] = []; let start = lo;
   for (const [a, b] of stroke.cuts ?? []) {
     if (b <= lo) continue; if (a >= hi) break;
@@ -105,7 +119,7 @@ export function visibleInkBounds(stroke: InkStroke, aspect = 1): { x: number; y:
   if (stroke.pressures && stroke.tool === "pen") points.push(...visibleInkRuns(stroke, aspect).flat());
   else {
     const curves = geometry(stroke, aspect).segments;
-    if (stroke.points.length === 1 && visibleRanges(stroke).length) points.push(curves[0].a);
+    if (inkPoints(stroke).length === 1 && visibleRanges(stroke).length) points.push(curves[0].a);
     for (const [start, end] of visibleRanges(stroke)) for (const curve of curves) {
       const lo = Math.max(start, curve.a.t), hi = Math.min(end, curve.b.t);
       if (hi - lo <= EPS) continue;

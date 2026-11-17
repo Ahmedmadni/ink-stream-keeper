@@ -1,15 +1,19 @@
 import { memo, useEffect, useState, type KeyboardEvent, type PointerEvent } from "react";
-import { ChevronLeft, ChevronRight, Check, RotateCcw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, RotateCcw, Plus, Trash2 } from "lucide-react";
 import type { InkStroke } from "./model";
-import { inkWorldPoint } from "./ink-segments";
+import { inkWorldPoint, inkPoints } from "./ink-segments";
+import { canInsertInkPoint } from "./ink-edit";
 import type { Point } from "./ink";
 
 const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-secondary px-3 text-xs font-semibold disabled:opacity-40";
-export function InkPointPanel({ stroke, indices, active, onSelect, onPosition, onReset, onDone }: {
+export function InkPointPanel({ stroke, indices, active, onSelect, onPosition, onInsert, onDelete, onReset, onDone }: {
   stroke: InkStroke; indices: number[]; active: number; onSelect: (index: number) => void;
+  onInsert: (after: number) => void; onDelete: () => void;
   onPosition: (point: Point) => boolean; onReset: () => void; onDone: () => void;
 }) {
   const [x, y] = inkWorldPoint(stroke, active), position = Math.max(0, indices.indexOf(active));
+  const count = inkPoints(stroke).length, after = Math.min(active, indices[indices.length - 1] - 1, count - 2);
+  const canInsert = canInsertInkPoint(stroke, after);
   const [draftX, setX] = useState(""), [draftY, setY] = useState(""), [dirty, setDirty] = useState(false), [error, setError] = useState("");
   useEffect(() => { setX((x / 10).toFixed(2)); setY((y / 10).toFixed(2)); setDirty(false); setError(""); }, [stroke.id, active, x, y]);
   const apply = () => {
@@ -22,15 +26,23 @@ export function InkPointPanel({ stroke, indices, active, onSelect, onPosition, o
   };
   return <div className="space-y-3 rounded-xl border border-primary/30 bg-secondary/40 p-3" aria-label="إعدادات نقاط المسار">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <strong className="text-sm">نقطة التحكم {active + 1} من {stroke.points.length}</strong>
+      <strong className="text-sm">نقطة التحكم {active + 1} من {count}</strong>
       <button type="button" className={button} onClick={onDone}><Check className="size-4"/>إنهاء تحرير النقاط</button>
     </div>
     <div className="flex items-center gap-2" dir="ltr">
       <button type="button" aria-label="نقطة التحكم السابقة" className={button} disabled={position === 0} onClick={() => onSelect(indices[position - 1])}><ChevronLeft className="size-4"/></button>
       <input type="range" min={0} max={indices.length - 1} step={1} value={position} aria-label="اختيار نقطة تحكم"
-        aria-valuetext={`نقطة ${active + 1} من ${stroke.points.length}`} className="min-h-11 min-w-0 flex-1"
+        aria-valuetext={`نقطة ${active + 1} من ${count}`} className="min-h-11 min-w-0 flex-1"
         onChange={(e) => onSelect(indices[Number(e.target.value)])}/>
       <button type="button" aria-label="نقطة التحكم التالية" className={button} disabled={position === indices.length - 1} onClick={() => onSelect(indices[position + 1])}><ChevronRight className="size-4"/></button>
+    </div>
+    <div className="space-y-2 rounded-xl border border-border p-2">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="تعديل عدد نقاط المسار">
+        <button type="button" className={button} disabled={!canInsert} onClick={() => onInsert(after)}><Plus className="size-4"/>إضافة نقطة للمسار</button>
+        <button type="button" className={button + " text-destructive"} disabled={count <= 2} onClick={onDelete}><Trash2 className="size-4"/>حذف نقطة التحكم</button>
+      </div>
+      <p className="text-xs leading-6 text-muted-foreground">{count >= 4000 ? "وصل المسار إلى حد 4000 نقطة؛ احذف نقطة لإضافة غيرها. " : count < 2 ? "النقطة المنفردة لا تحتوي مقطعًا لإضافة نقطة داخله. " : canInsert ? `تضاف النقطة في المنتصف بين النقطتين ${after + 1} و${after + 2}، ثم يمكنك تحريكها. ` : "اختر موضعًا آخر؛ النقطتان متقاربتان جدًا للإضافة. "}
+        الإضافة والحذف قد يغيران الانحناء قرب النقطة في الخط المنعّم. يبقى الأصل قابلًا للاستعادة، وكل عملية قابلة للتراجع.</p>
     </div>
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_auto]">
       <label className="text-xs">أفقي %<input type="number" aria-label="إحداثي نقطة المسار الأفقي" step={.01} min={-1000} max={1000} value={draftX} dir="ltr"
@@ -43,7 +55,7 @@ export function InkPointPanel({ stroke, indices, active, onSelect, onPosition, o
     </div>
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
     {(x < 0 || y < 0 || x > 1000 || y > 1000) && <p className="text-xs leading-6 text-muted-foreground">نقطة التحكم خارج الورقة؛ يمكنك ضبطها من حقول الإحداثيات. يظل الجزء الظاهر داخل الورقة.</p>}
-    <p className="text-xs leading-6 text-muted-foreground">اسحب المقبض الأزرق أو حركه بالأسهم، ومع Shift تكون الخطوة أكبر. اضغط على الخط لاختيار نقطة قريبة. يعرض المحرر نقاط التحكم المؤثرة في الجزء المحدد.</p>
+    <p className="text-xs leading-6 text-muted-foreground">اسحب المقبض الأزرق أو حركه بالأسهم، ومع Shift تكون الخطوة أكبر. Delete يحذف النقطة المحددة. اضغط على الخط لاختيار نقطة قريبة. يعرض المحرر نقاط التحكم المؤثرة في الجزء المحدد.</p>
     <button type="button" className={button} disabled={!stroke.controlPoints && !stroke.offset} onClick={onReset}><RotateCcw className="size-4"/>استعادة النقاط والموضع الأصليين</button>
   </div>;
 }

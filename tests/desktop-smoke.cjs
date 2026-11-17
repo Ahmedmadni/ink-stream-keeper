@@ -605,6 +605,53 @@ const vaultEntries = [
     await page.reload();
     await page.getByRole("tab", { name: "صفحة 2", exact: true }).click();
     await page.locator("[data-notebook-paper] .ProseMirror").getByText("اختبار الدفتر في نسخة ويندوز المجمعة", { exact: true }).waitFor();
+    await page.getByRole("tab", { name: "أقلام", exact: true }).click();
+    const studioCanvas = page.getByRole("img", { name: "مساحة الرسم بالقلم", exact: true });
+    await studioCanvas.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    const canvasBox = await studioCanvas.boundingBox();
+    const barBox = await page.getByRole("navigation", { name: "شريط صفحات المذكرة", exact: true }).boundingBox();
+    const inkY = Math.max(190, Math.min(barBox.y - 45, canvasBox.y + canvasBox.height * .45));
+    const inkX = canvasBox.x + canvasBox.width * .2;
+    await page.mouse.move(inkX, inkY); await page.mouse.down();
+    await page.mouse.move(inkX + canvasBox.width * .35, inkY + 15, { steps: 8 }); await page.mouse.up();
+    const studioStroke = page.locator("[data-notebook-paper] [data-stroke-id]");
+    assert.equal(await studioStroke.count(), 1);
+    const studioRawPath = await studioStroke.getAttribute("d");
+    await page.getByRole("button", { name: "تحديد وتحريك", exact: true }).click();
+    await page.getByRole("button", { name: "تحديد كل الرسم", exact: true }).click();
+    await page.getByRole("button", { name: "تحرير نقاط المسار", exact: true }).click();
+    const studioPointPanel = page.getByLabel("إعدادات نقاط المسار", { exact: true });
+    const studioCount = async () => Number((await studioPointPanel.locator("strong").textContent()).match(/من (\d+)/)[1]);
+    const studioOriginalCount = await studioCount();
+    await page.getByRole("button", { name: "إضافة نقطة للمسار", exact: true }).click();
+    assert.equal(await studioCount(), studioOriginalCount + 1);
+    const studioHandle = page.locator("[data-active-ink-node]");
+    await studioHandle.focus(); await studioHandle.press("Shift+ArrowUp");
+    const studioEditedPath = await studioStroke.getAttribute("d");
+    assert.notEqual(studioEditedPath, studioRawPath);
+    await studioHandle.press("Delete");
+    assert.equal(await studioCount(), studioOriginalCount);
+    assert.equal(await studioStroke.getAttribute("d"), studioRawPath);
+    await studioHandle.press("Control+z");
+    assert.equal(await studioStroke.getAttribute("d"), studioEditedPath);
+    const studioSaved = () => {
+      const row = notes.find((n) => n.id.startsWith("ffffffff"));
+      const match = row.content.match(/data-json="([^"]+)"/);
+      return match && JSON.parse(Buffer.from(match[1], "base64").toString("utf8")).pages[1].strokes[0];
+    };
+    const studioInkDeadline = Date.now() + 20000;
+    const studioEditSaved = () => {
+      const stroke = studioSaved();
+      return stroke?.controlKnots?.length === studioOriginalCount + 1 &&
+        Math.abs(stroke.controlPoints[1][1] - ((stroke.points[0][1] + stroke.points[1][1]) / 2 - 10)) < 1e-7;
+    };
+    while (!studioEditSaved()) {
+      if (Date.now() > studioInkDeadline) throw new Error("Packaged edited topology did not autosave");
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    await page.reload();
+    await page.getByRole("tab", { name: "صفحة 2", exact: true }).click();
+    assert.equal(await page.locator("[data-notebook-paper] [data-stroke-id]").getAttribute("d"), studioEditedPath);
     const studioPdfPath = resolve(artifacts, "notebook-packaged-windows.pdf");
     const pdfCompleted = desktop.evaluate(({ session }, output) => new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error("Packaged PDF export did not complete")), 45000);
@@ -623,7 +670,7 @@ const vaultEntries = [
     assert.ok(studioPdf.includes(Buffer.from("/Count 2")));
     assert.ok(studioPdf.includes(Buffer.from("/FlateDecode")));
     await page.screenshot({ path: resolve(artifacts, "notebook-packaged-windows.png"), fullPage: true });
-    console.log("PASS: packaged Notebook Studio conversion, page editing, autosave/reload and lossless Arabic PDF export.");
+    console.log("PASS: packaged Notebook Studio pages, ink node insertion/edit/deletion/undo, autosave/reload and lossless Arabic PDF export.");
     await page.goto("memoflow://app/settings");
     await page.getByText("أحمد محمد المدني", { exact: true }).waitFor();
     assert.equal(

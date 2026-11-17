@@ -243,11 +243,12 @@ async function checkEditingPdf(page, artifacts) {
   const result = await page.evaluate(async () => {
     const { createPage } = await import("/src/features/notebook/model.ts");
     const { createNotebookPdf } = await import("/src/features/notebook/pdf-export.ts");
-    const { splitInk } = await import("/src/features/notebook/ink-edit.ts");
+    const { splitInk, insertInkPoint, editInkPoint, deleteInkPoint } = await import("/src/features/notebook/ink-edit.ts");
     const marker = { id: crypto.randomUUID(), tool: "highlighter", color: "#2f65d9", width: 30, smoothing: false,
       points: [[100, 200], [800, 800], [800, 200], [100, 800]], cuts: [[.45, .55]], times: [1, 2, 3, 4] };
-    const edited = { id: crypto.randomUUID(), tool: "pen", color: "#dd2233", width: 8, smoothing: false,
+    const retained = { id: crypto.randomUUID(), tool: "pen", color: "#dd2233", width: 8, smoothing: false,
       points: [[100, 900], [400, 900]], pressures: [.8, .8], controlPoints: [[100, 850], [400, 850]], offset: [200, 0] };
+    const edited = deleteInkPoint(editInkPoint(insertInkPoint(retained, 0), 1, [450, 800]), 0);
     const first = { ...createPage({ paper: "plain", size: "a5" }), html: "<p>اختبار تحرير الحبر</p>", strokes: [marker, edited] };
     const second = { ...first, strokes: splitInk(first.strokes, new Set([marker.id])).strokes };
     const encode = async (sheet) => {
@@ -275,9 +276,10 @@ async function checkEditingPdf(page, artifacts) {
   // Applying .34 twice would change this crossing by tens of RGB levels.
   assert.ok(pixel(after, .45, .5).every((value, i) => Math.abs(value - overlap[i]) <= 1),
     "split marker fragments must retain single-stroke opacity at their crossing");
-  const red = pixel(after, .45, .85), hidden = pixel(after, .15, .9);
-  assert.ok(red[0] > 180 && red[1] < 90 && red[2] < 100, "PDF uses edited nodes and page translation");
+  const red = pixel(after, .525, .825), hidden = pixel(after, .15, .9), removed = pixel(after, .35, .85);
+  assert.ok(red[0] > 180 && red[1] < 90 && red[2] < 100, "PDF uses added/moved nodes and page translation");
   assert.ok(!(hidden[0] > 180 && hidden[1] < 90 && hidden[2] < 100), "PDF does not paint the retained source geometry");
+  assert.ok(!(removed[0] > 180 && removed[1] < 90 && removed[2] < 100), "PDF omits the deleted endpoint's portion");
   writeFileSync(artifacts + "/notebook-fragment-edit.pdf", after.pdf);
 }
 
@@ -343,6 +345,27 @@ async function checkInkEditing(page, artifacts, source) {
   assert.equal(await first.getAttribute("d"), created[0].d, "reset restores capture geometry and position without revealing other fragments");
   await page.getByRole("button", { name: "تراجع الرسم", exact: true }).click();
   assert.equal(await first.getAttribute("d"), numeric);
+  const pointPanel = page.getByLabel("إعدادات نقاط المسار", { exact: true });
+  const pointCount = async () => Number((await pointPanel.locator("strong").textContent()).match(/من (\d+)/)[1]);
+  const originalCount = await pointCount();
+  await page.getByRole("button", { name: "إضافة نقطة للمسار", exact: true }).click();
+  assert.equal(await pointCount(), originalCount + 1);
+  const inserted = await first.getAttribute("d");
+  await handle.focus(); await handle.press("Shift+ArrowUp");
+  const topology = await first.getAttribute("d");
+  assert.notEqual(topology, inserted, "an added node can be edited with the keyboard");
+  await handle.press("Delete");
+  assert.equal(await pointCount(), originalCount);
+  assert.equal(await first.getAttribute("d"), numeric, "removing the added node restores the prior geometry");
+  await handle.press("Control+z"); assert.equal(await first.getAttribute("d"), topology);
+  await handle.press("Control+z"); assert.equal(await first.getAttribute("d"), inserted);
+  await handle.press("Control+z"); assert.equal(await first.getAttribute("d"), numeric);
+  await handle.press("Control+Shift+z"); assert.equal(await first.getAttribute("d"), inserted);
+  await handle.press("Control+Shift+z"); assert.equal(await first.getAttribute("d"), topology);
+  await handle.press("Control+Shift+z"); assert.equal(await first.getAttribute("d"), numeric);
+  await handle.press("Control+z"); assert.equal(await first.getAttribute("d"), topology);
+  assert.equal(await pointCount(), originalCount + 1, "retain an added node for the save/reload assertions");
+  assert.equal(await second.getAttribute("d"), created[1].d);
   await page.screenshot({ path: artifacts + "/notebook-path-edit-tablet.png", fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -354,13 +377,24 @@ async function checkInkEditing(page, artifacts, source) {
   await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: touch.x, y: touch.y - 12 }] });
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false }); await cdp.detach();
-  assert.notEqual(await first.getAttribute("d"), numeric, "a finger can drag the mobile editing handle");
+  assert.notEqual(await first.getAttribute("d"), topology, "a finger can drag the mobile editing handle");
   await page.getByRole("button", { name: "تراجع سريع", exact: true }).click();
-  assert.equal(await first.getAttribute("d"), numeric);
+  assert.equal(await first.getAttribute("d"), topology);
+  await page.getByRole("button", { name: "إضافة نقطة سريعة", exact: true }).click();
+  assert.equal(await pointCount(), originalCount + 2);
+  await page.getByRole("button", { name: "حذف نقطة سريع", exact: true }).click();
+  assert.equal(await first.getAttribute("d"), topology);
+  await page.getByRole("button", { name: "تراجع سريع", exact: true }).click();
+  assert.equal(await pointCount(), originalCount + 2);
+  await page.getByRole("button", { name: "تراجع سريع", exact: true }).click();
+  assert.equal(await first.getAttribute("d"), topology);
+  const pageBar = await page.getByRole("navigation", { name: "شريط صفحات المذكرة", exact: true }).boundingBox();
+  const appBar = await page.getByRole("navigation", { name: "التنقل الرئيسي", exact: true }).boundingBox();
+  assert.ok(pageBar.y >= 0 && pageBar.y + pageBar.height <= appBar.y - 6, "point actions remain above mobile navigation");
   await page.screenshot({ path: artifacts + "/notebook-path-edit-mobile.png" });
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.getByRole("button", { name: "إنهاء تحرير النقاط", exact: true }).click();
-  return { id: created[0].id, path: numeric, sourceId: source.id, sibling: created[1] };
+  return { id: created[0].id, path: topology, sourceId: source.id, sibling: created[1], pointCount: originalCount + 1 };
 }
 async function checkStudy(page, artifacts) {
   await page.getByRole("tab", { name: "ورق", exact: true }).click();

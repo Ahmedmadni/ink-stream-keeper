@@ -23,6 +23,9 @@ const strokeSchema = z.object({
   // Editing geometry is separate from immutable captured samples.
   controlPoints: z.array(z.tuple([z.number().finite().min(-20000).max(20000), z.number().finite().min(-20000).max(20000)]))
     .min(1).max(4000).optional(),
+  // Ordered curve parameters, not capture timestamps. Keep cuts in their
+  // original parameter domain when editing the number of control vertices.
+  controlKnots: z.array(z.number().finite().min(0).max(1)).min(2).max(4000).optional(),
   offset: z.tuple([z.number().finite().min(-10000).max(10000), z.number().finite().min(-10000).max(10000)]).optional(),
   span: z.tuple([z.number().finite().min(0).max(1), z.number().finite().min(0).max(1)]).optional(),
   paintGroup: z.string().uuid().optional(),
@@ -33,7 +36,9 @@ const strokeSchema = z.object({
   pressures: z.array(z.number().finite().min(0).max(1)).min(1).max(4000).optional(),
   smoothing: z.boolean().optional(),
 }).strict().refine((stroke) => (!stroke.pressures || stroke.pressures.length === stroke.points.length) &&
-  (!stroke.controlPoints || stroke.controlPoints.length === stroke.points.length) &&
+  (!stroke.controlPoints || !!stroke.controlKnots || stroke.controlPoints.length === stroke.points.length) &&
+  (!stroke.controlKnots || (!!stroke.controlPoints && stroke.controlPoints.length === stroke.controlKnots.length &&
+    stroke.controlKnots.every((t, i) => i === 0 || t - stroke.controlKnots![i - 1] >= 1e-8))) &&
   (!stroke.span || (stroke.points.length > 1 && stroke.span[0] < stroke.span[1])) &&
   (!stroke.times || (stroke.times.length === stroke.points.length && stroke.times.every((t, i) => i === 0 || t >= stroke.times![i - 1]))) &&
   (!stroke.cuts || (stroke.points.length > 1 && stroke.cuts.every(([a, b], i) => a < b && (i === 0 || a > stroke.cuts![i - 1][1])))), {

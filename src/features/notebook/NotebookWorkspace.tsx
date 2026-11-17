@@ -14,8 +14,8 @@ import { STICKER_GROUPS, stickerIcon, searchStickers } from "./sticker-packs";
 import { InkMark, InkLayer } from "./InkMark";
 import { StickerArtwork, stickerStyle, ScienceAttribution } from "./StickerArtwork";
 import { shapePoints, type ShapeTool, hitStroke, inkBounds, InkHistory, moveInk as translateInk, type Point, type InkBounds } from "./ink";
-import { eraseInkSegments, inkWorldPoint, visibleRanges } from "./ink-segments";
-import { splitInk, editInkPoint, resetInkGeometry, editableInkNodes, nearestInkNode } from "./ink-edit";
+import { eraseInkSegments, inkWorldPoint, inkPoints, visibleRanges } from "./ink-segments";
+import { splitInk, editInkPoint, canInsertInkPoint, insertInkPoint, deleteInkPoint, resetInkGeometry, editableInkNodes, nearestInkNode } from "./ink-edit";
 import { InkPointPanel, InkPointOverlay } from "./InkPoints";
 import { pageLayout, paperStyle } from "./page-layout";
 import { PaperGuides, PAPER_LABELS, TEXTURE_LABELS, paperTextStyle } from "./PaperGuides";
@@ -298,6 +298,7 @@ export function NotebookWorkspace({
   const nodeIndex = nodeIndices.includes(activeNode) ? activeNode : nodeIndices.find((i) => {
     const [x, y] = inkWorldPoint(selectedStroke!, i); return x >= 0 && y >= 0 && x <= 1000 && y <= 1000;
   }) ?? nodeIndices[0] ?? 0;
+  const insertionAfter = selectedStroke ? Math.min(nodeIndex, nodeIndices[nodeIndices.length - 1] - 1, inkPoints(selectedStroke).length - 2) : -1;
   const canSplit = page.strokes.some((s) => selection.has(s.id) && visibleRanges(s).length > 1);
   const isDrawing = group === "draw" || group === "shapes";
   const selected = page.stickers.find((s) => s.id === selectedSticker) ?? null;
@@ -478,6 +479,12 @@ export function NotebookWorkspace({
       [p[0] + (key === "ArrowRight" ? step : key === "ArrowLeft" ? -step : 0),
         p[1] + (key === "ArrowDown" ? step : key === "ArrowUp" ? -step : 0)]));
   };
+  const removeNode = () => {
+    if (applySelectedEdit((s) => deleteInkPoint(s, nodeIndex))) setActiveNode(Math.max(0, nodeIndex - 1));
+  };
+  const insertNode = (after: number) => {
+    if (applySelectedEdit((s) => insertInkPoint(s, after))) setActiveNode(after + 1);
+  };
   const startNode = (event: PointerEvent<SVGCircleElement>) => {
     if (!event.isPrimary || event.button !== 0 || gesture.current || !selectedStroke) return;
     if (event.pointerType === "pen") lastPen.current = Date.now();
@@ -567,6 +574,9 @@ export function NotebookWorkspace({
         }
         if (inCanvas && inkMode === "nodes" && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
           event.preventDefault(); nudgeNode(event.key, event.shiftKey); return;
+        }
+        if (inCanvas && inkMode === "nodes" && ["Delete", "Backspace"].includes(event.key)) {
+          event.preventDefault(); removeNode(); return;
         }
         if (!isDrawing || !(event.ctrlKey || event.metaKey) ||
           (event.target as Element).closest("input,textarea,[contenteditable=true]")) return;
@@ -671,6 +681,8 @@ export function NotebookWorkspace({
           {inkMode === "nodes" && selectedStroke && nodeIndices.length > 0 && <InkPointPanel stroke={selectedStroke}
             indices={nodeIndices} active={nodeIndex} onSelect={setActiveNode}
             onPosition={(position) => applySelectedEdit((s) => editInkPoint(s, nodeIndex, position))}
+            onInsert={insertNode}
+            onDelete={removeNode}
             onReset={() => { applySelectedEdit(resetInkGeometry); }} onDone={() => { finish(); setInkMode("select"); }}/>}
           <p className="text-xs leading-6 text-muted-foreground">
             الضغط يعمل مع الأقلام التي ترسل بيانات ضغط. اختر للممحاة مسح مقطع أو ضربة كاملة، وكلاهما قابل للتراجع.
@@ -933,14 +945,22 @@ export function NotebookWorkspace({
       <nav className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-40 rounded-2xl border border-border bg-card/95 p-3 shadow-lg backdrop-blur md:bottom-2"
         aria-label="شريط صفحات المذكرة">
         {group === "draw" && <div className="mb-2 flex gap-1 overflow-x-auto border-b border-border pb-2" role="group" aria-label="أدوات القلم السريعة">
-          <button type="button" className={controlCls(inkMode === "pen")} aria-label="القلم السريع" onClick={() => { finish(); setInkMode("pen"); }}><PenLine className="size-4"/></button>
-          <button type="button" className={controlCls(inkMode === "eraser")} aria-label="الممحاة السريعة" onClick={() => { finish(); setInkMode("eraser"); }}><Eraser className="size-4"/></button>
+          {inkMode !== "nodes" && <>
+            <button type="button" className={controlCls(inkMode === "pen")} aria-label="القلم السريع" onClick={() => { finish(); setInkMode("pen"); }}><PenLine className="size-4"/></button>
+            <button type="button" className={controlCls(inkMode === "eraser")} aria-label="الممحاة السريعة" onClick={() => { finish(); setInkMode("eraser"); }}><Eraser className="size-4"/></button>
+          </>}
           {inkMode === "eraser" && <select aria-label="نوع الممحاة السريعة" value={eraserKind}
             onChange={(e) => { finish(); setEraserKind(e.target.value as EraserKind); }}
             className="min-h-11 shrink-0 rounded-xl border border-border bg-background px-2 text-xs">
             <option value="segment">مسح جزء</option><option value="stroke">مسار كامل</option>
           </select>}
-          <button type="button" className={controlCls(inkMode === "select")} aria-label="التحديد السريع" onClick={() => { finish(); setInkMode("select"); }}><MousePointer2 className="size-4"/></button>
+          {inkMode !== "nodes" && <button type="button" className={controlCls(inkMode === "select")} aria-label="التحديد السريع" onClick={() => { finish(); setInkMode("select"); }}><MousePointer2 className="size-4"/></button>}
+          {inkMode === "nodes" && selectedStroke && <>
+            <button type="button" className={controlCls(false)} aria-label="إضافة نقطة سريعة" title="إضافة نقطة للمسار"
+              disabled={!canInsertInkPoint(selectedStroke, insertionAfter)} onClick={() => insertNode(insertionAfter)}><Plus className="size-4"/></button>
+            <button type="button" className={controlCls(false) + " text-destructive"} aria-label="حذف نقطة سريع" title="حذف نقطة التحكم"
+              disabled={inkPoints(selectedStroke).length <= 2} onClick={removeNode}><Trash2 className="size-4"/></button>
+          </>}
           {selectedStroke && <button type="button" className={controlCls(inkMode === "nodes")} aria-label={inkMode === "nodes" ? "إنهاء تحرير النقاط السريع" : "تحرير النقاط السريع"}
             disabled={!nodeIndices.length} onClick={() => { if (inkMode === "nodes") { finish(); setInkMode("select"); } else enterNodes(); }}>
             {inkMode === "nodes" ? <Check className="size-4"/> : <Waypoints className="size-4"/>}
