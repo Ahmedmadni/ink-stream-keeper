@@ -245,12 +245,15 @@ async function checkEditingPdf(page, artifacts) {
     const { createNotebookPdf } = await import("/src/features/notebook/pdf-export.ts");
     const { splitInk, insertInkPoint, editInkPoint, deleteInkPoint } = await import("/src/features/notebook/ink-edit.ts");
     const { transformInk } = await import("/src/features/notebook/ink-transform.ts");
+    const { transformFromHandle } = await import("/src/features/notebook/transform-handles.ts");
     const marker = { id: crypto.randomUUID(), tool: "highlighter", color: "#2f65d9", width: 30, smoothing: false,
       points: [[100, 200], [800, 800], [800, 200], [100, 800]], cuts: [[.45, .55]], times: [1, 2, 3, 4] };
     const retained = { id: crypto.randomUUID(), tool: "pen", color: "#dd2233", width: 8, smoothing: false,
       points: [[100, 900], [400, 900]], pressures: [.8, .8], controlPoints: [[100, 850], [400, 850]], offset: [200, 0] };
     const edited = deleteInkPoint(editInkPoint(insertInkPoint(retained, 0), 1, [450, 800]), 0);
-    const transformed = transformInk([edited], new Set([edited.id]), { scale: 1, rotation: 90 }, 210 / 148)[0];
+    const handleOptions = transformFromHandle({ scale: 1, rotation: 0 }, { x: 450, y: 800, width: 150, height: 50 },
+      [625, 825], [525, 825 + 100 / (210 / 148)], "rotate", 210 / 148);
+    const transformed = transformInk([edited], new Set([edited.id]), handleOptions, 210 / 148)[0];
     const first = { ...createPage({ paper: "plain", size: "a5" }), html: "<p>اختبار تحرير الحبر</p>", strokes: [marker, transformed] };
     const second = { ...first, strokes: splitInk(first.strokes, new Set([marker.id])).strokes };
     const encode = async (sheet) => {

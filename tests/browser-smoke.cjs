@@ -642,6 +642,7 @@ const vaultPinWrites = [];
     const partialInk = await require("./notebook-browser-checks.cjs").checkSegmentEraser(page, artifacts);
     let editedInk = await require("./notebook-browser-checks.cjs").checkInkEditing(page, artifacts, partialInk);
     editedInk = await require("./notebook-browser-checks.cjs").checkInkTransforms(page, artifacts, editedInk, () => notes[0].content);
+    editedInk = await require("./notebook-transform-handle-checks.cjs").checkTransformHandles(page, artifacts, editedInk, () => notes[0].content);
     await require("./notebook-browser-checks.cjs").checkStudy(page, artifacts);
     await page.getByRole("button", { name: "إضافة صفحة", exact: true }).click();
     await page.getByRole("tab", { name: "صفحة 2", exact: true }).waitFor();

@@ -18,7 +18,9 @@ import { eraseInkSegments, inkWorldPoint, inkPoints, visibleRanges } from "./ink
 import { splitInk, editInkPoint, canInsertInkPoint, insertInkPoint, deleteInkPoint, resetInkGeometry, editableInkNodes, nearestInkNode } from "./ink-edit";
 import { InkPointPanel, InkPointOverlay } from "./InkPoints";
 import { InkTransformPanel } from "./InkTransform";
+import { InkTransformHandles } from "./InkTransformHandles";
 import type { InkTransformPreview } from "./ink-transform";
+import type { InkTransformDraft } from "./transform-handles";
 import { pageLayout, paperStyle } from "./page-layout";
 import { PaperGuides, PAPER_LABELS, TEXTURE_LABELS, paperTextStyle } from "./PaperGuides";
 import { HandwritingPanel } from "./HandwritingPanel";
@@ -136,13 +138,19 @@ export function NotebookWorkspace({
   const [activeNode, setActiveNode] = useState(0);
   const [transformSession, setTransformSession] = useState<{ pageId: string; source: InkStroke[]; ids: Set<string>; remainingBytes: number } | null>(null);
   const [transformPreview, setTransformPreview] = useState<InkTransformPreview | null>(null);
+  const [transformDraft, setTransformDraft] = useState<InkTransformDraft>({ size: "100", rotation: "0" });
+  const [transformDragging, setTransformDragging] = useState(false);
+  const transformCancelDrag = useRef<(() => void) | null>(null);
   const handleTransformPreview = useCallback((preview: InkTransformPreview) => setTransformPreview(preview), []);
-  const cancelTransform = useCallback(() => { setTransformSession(null); setTransformPreview(null); }, []);
+  const handleTransformGesture = useCallback((cancel: (() => void) | null) => { transformCancelDrag.current = cancel; setTransformDragging(!!cancel); }, []);
+  const cancelTransform = useCallback(() => {
+    transformCancelDrag.current = null; setTransformDragging(false); setTransformSession(null); setTransformPreview(null);
+  }, []);
   useEffect(() => {
     setNodePreview(null); setActiveNode(0);
-    setTransformSession(null); setTransformPreview(null);
+    cancelTransform();
     setInkMode((mode) => mode === "nodes" ? "select" : mode);
-  }, [index, group]);
+  }, [index, group, cancelTransform]);
   const viewport = useRef<HTMLDivElement | null>(null);
   const [viewportWidth, setViewportWidth] = useState(780);
   const [zoom, setZoom] = useState<number | null>(null);
@@ -195,9 +203,9 @@ export function NotebookWorkspace({
     gesture.current = null; liveRef.current = null;
     setLive(null); setErased(new Set()); setErasePreview(null); setEraserPoint(null); setSelection(new Set()); setSelectionBox(null); setOffset(null);
     setNodePreview(null); setActiveNode(0); setInkMode((mode) => mode === "nodes" ? "select" : mode);
-    setTransformSession(null); setTransformPreview(null);
+    cancelTransform();
     setIndex((prev) => Math.min(prev, Math.max(0, (next.book?.pages.length ?? 1) - 1)));
-  }, [content]);
+  }, [content, cancelTransform]);
 
   const commit = (next: Notebook, remember = true) => {
     try {
@@ -298,8 +306,9 @@ export function NotebookWorkspace({
   const layout = pageLayout(page);
   const aspect = pageH / pageW;
   const displayScale = zoom ?? Math.min(1, Math.max(1, viewportWidth) / layout.width);
-  const baseStrokes = group === "draw" && transformSession?.pageId === page.id && transformSession.source === page.strokes
-    ? (transformPreview?.source === transformSession.source ? transformPreview.strokes : transformSession.source)
+  const activeTransform = group === "draw" && transformSession?.pageId === page.id && transformSession.source === page.strokes ? transformSession : null;
+  const baseStrokes = activeTransform
+    ? (transformPreview?.source === activeTransform.source ? transformPreview.strokes : activeTransform.source)
     : nodePreview ? page.strokes.map((s) => s.id === nodePreview.id ? nodePreview : s) : page.strokes;
   const shownStrokes = erasePreview ?? (offset ? translateInk(baseStrokes, selection, offset[0], offset[1], aspect) : baseStrokes);
   const selectedBounds = inkBounds(shownStrokes.filter((s) => selection.has(s.id)), aspect);
@@ -521,13 +530,14 @@ export function NotebookWorkspace({
   const beginTransform = () => {
     finish(); const current = bookRef.current, active = current?.pages[index];
     if (!current || !active || !selection.size) return;
+    setTransformDraft({ size: "100", rotation: "0" }); transformCancelDrag.current = null; setTransformDragging(false);
     setTransformPreview(null); setInkMode("select"); setWarning("");
     setTransformSession({ pageId: active.id, source: active.strokes, ids: new Set(selection),
       remainingBytes: Math.max(0, MAX_NOTEBOOK_BYTES - new TextEncoder().encode(JSON.stringify(current)).byteLength) });
   };
   const applyTransform = (preview: InkTransformPreview) => {
     const current = bookRef.current, active = current?.pages[index];
-    if (!transformSession || !preview.changed || preview.error) return;
+    if (!transformSession || transformCancelDrag.current || transformDragging || !preview.changed || preview.error) return;
     if (!current || !active || active.id !== transformSession.pageId || active.strokes !== transformSession.source || preview.source !== transformSession.source) {
       cancelTransform(); setWarning("تغير الرسم أثناء المعاينة؛ بقي التعديل الأحدث محفوظًا. أعد تحديد الرسم وتحويله."); return;
     }
@@ -593,6 +603,9 @@ export function NotebookWorkspace({
       onKeyDown={(event) => {
         const inCanvas = (event.target as Element).closest("svg[data-ink-editor]");
         if (transformSession) {
+          if (event.key === "Escape" && transformCancelDrag.current) {
+            event.preventDefault(); event.stopPropagation(); transformCancelDrag.current(); return;
+          }
           if (event.key === "Escape" || ((event.ctrlKey || event.metaKey) && ["z", "y"].includes(event.key.toLowerCase()) &&
               !(event.target as Element).closest("input,textarea,[contenteditable=true]"))) {
             event.preventDefault(); cancelTransform();
@@ -647,8 +660,9 @@ export function NotebookWorkspace({
 
       {group === "draw" && (
         <div className="space-y-2 rounded-2xl border border-border bg-card p-3">
-          {transformSession ? <InkTransformPanel source={transformSession.source} ids={transformSession.ids} aspect={aspect}
-            remainingBytes={transformSession.remainingBytes} onPreview={handleTransformPreview} onApply={applyTransform} onCancel={cancelTransform}/> : <>
+          {activeTransform ? <InkTransformPanel source={activeTransform.source} ids={activeTransform.ids} aspect={aspect}
+            remainingBytes={activeTransform.remainingBytes} draft={transformDraft} onDraft={setTransformDraft} dragging={transformDragging}
+            onPreview={handleTransformPreview} onApply={applyTransform} onCancel={cancelTransform}/> : <>
           <div className="flex flex-wrap gap-2" role="group" aria-label="أدوات الرسم">
             <button type="button" className={controlCls(false)} aria-label="تحسين الخط والتعرف العربي"
               onClick={() => { finish(); setRecognitionSource({ page: bookRef.current!.pages[index], selection: new Set(selection) }); }}>
@@ -853,9 +867,9 @@ export function NotebookWorkspace({
         <span>صفحة {index + 1} · {pageW} × {pageH} مم</span>
         <div className="flex items-center gap-1" role="group" aria-label="تكبير صفحة الدفتر">
           <ZoomIn className="mx-1 size-4"/>
-          <button type="button" className={controlCls(zoom === null)} onClick={() => setZoom(null)}>ملاءمة</button>
-          <button type="button" className={controlCls(zoom === 1)} onClick={() => setZoom(1)}>100%</button>
-          <button type="button" className={controlCls(zoom === 1.5)} onClick={() => setZoom(1.5)}>150%</button>
+          <button type="button" className={controlCls(zoom === null)} disabled={transformDragging} onClick={() => setZoom(null)}>ملاءمة</button>
+          <button type="button" className={controlCls(zoom === 1)} disabled={transformDragging} onClick={() => setZoom(1)}>100%</button>
+          <button type="button" className={controlCls(zoom === 1.5)} disabled={transformDragging} onClick={() => setZoom(1.5)}>150%</button>
         </div>
       </div>
       <div ref={viewport} className="w-full overflow-auto rounded-xl bg-secondary/40" dir="ltr" aria-label="منطقة عرض الورقة">
@@ -889,13 +903,19 @@ export function NotebookWorkspace({
               {live && <InkMark stroke={live} aspect={aspect} />}
               {isDrawing && eraserPoint && <circle cx={eraserPoint[0]} cy={eraserPoint[1] * aspect} r={eraserWidth / 2}
                 fill="#4488ff12" stroke="#3275ba" strokeWidth={1.5} strokeDasharray="3 3" pointerEvents="none"/>}
-              {isDrawing && inkMode === "select" && (selectionBox || selectedBounds) && (() => {
+              {isDrawing && !activeTransform && inkMode === "select" && (selectionBox || selectedBounds) && (() => {
                 const b = selectionBox || selectedBounds!;
                 return <rect x={b.x - 5} y={(b.y - 5) * aspect} width={b.width + 10} height={(b.height + 10) * aspect}
                   fill="#4488ff15" stroke="#3275ba" strokeWidth={2} strokeDasharray="8 5" pointerEvents="none"/>;
               })()}
             </svg>
           )}
+          {activeTransform && <InkTransformHandles source={activeTransform.source} ids={activeTransform.ids} aspect={aspect}
+            unitsPerPixel={1000 / (layout.width * displayScale)} draft={transformDraft} error={!!transformPreview?.error}
+            onChange={setTransformDraft} onGesture={handleTransformGesture} allowPointer={(event) => {
+              if (event.pointerType === "pen") lastPen.current = Date.now();
+              return !(event.pointerType === "touch" && (penOnly || Date.now() - lastPen.current < 800));
+            }}/>}
           {isDrawing && inkMode === "nodes" && selectedStroke && nodeIndices.length > 0 && <svg
             viewBox={`0 0 1000 ${1000 * aspect}`} preserveAspectRatio="none" data-ink-editor="nodes"
             role="group" aria-label="نقاط التحكم في المسار" className="pointer-events-none absolute inset-0 z-[35] size-full"
@@ -982,9 +1002,10 @@ export function NotebookWorkspace({
         aria-label="شريط صفحات المذكرة">
         {group === "draw" && <div className="mb-2 flex gap-1 overflow-x-auto border-b border-border pb-2" role="group" aria-label="أدوات القلم السريعة">
           {transformSession ? <>
-            <button type="button" className={controlCls(true)} aria-label="تطبيق التحويل السريع" disabled={!transformPreview?.changed || !!transformPreview.error}
+            <button type="button" className={controlCls(true)} aria-label="تطبيق التحويل السريع" disabled={transformDragging || !transformPreview?.changed || !!transformPreview.error}
               onClick={() => { if (transformPreview) applyTransform(transformPreview); }}><Check className="size-4"/>تطبيق</button>
             <button type="button" className={controlCls(false)} aria-label="إلغاء التحويل السريع" onClick={cancelTransform}><X className="size-4"/>إلغاء</button>
+            {transformPreview?.error && <span role="status" className="self-center px-2 text-xs text-destructive">معاينة غير صالحة</span>}
           </> : <>
           {inkMode !== "nodes" && <>
             <button type="button" className={controlCls(inkMode === "pen")} aria-label="القلم السريع" onClick={() => { finish(); setInkMode("pen"); }}><PenLine className="size-4"/></button>
