@@ -54,6 +54,9 @@ export function InkTransformHandles({ source, ids, aspect, unitsPerPixel, draft,
   const move = (event: PointerEvent<SVGSVGElement>) => {
     const active = drag.current;
     if (!active || active.pointerId !== event.pointerId) return;
+    // Capture release can be pending before lostpointercapture is delivered.
+    // A move/up in that interval must cancel, never complete the draft.
+    if (!active.target.hasPointerCapture(active.pointerId)) { cancel(); return; }
     if (event.pointerType === "pen") allowPointer(event);
     event.preventDefault(); event.stopPropagation();
     const to = point(event); if (!to) { cancel(); return; }

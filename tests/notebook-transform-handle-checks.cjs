@@ -65,6 +65,15 @@ async function checkTransformHandles(page, artifacts, source, readSavedContent) 
   active = await beginMouse(scale(2), 1.1);
   await scale(2).evaluate((el) => el.releasePointerCapture(Number(el.dataset.qaPointer)));
   await page.mouse.up(); await unchanged(baseline, "lost pointer capture restores the whole gesture");
+  active = await beginMouse(scale(2), 1.1);
+  await scale(2).evaluate((el) => {
+    const pointerId = Number(el.dataset.qaPointer);
+    el.releasePointerCapture(pointerId);
+    // Release is pending until the browser processes capture. Exercise an up
+    // in the same task, before lostpointercapture, without a timing delay.
+    el.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerId, pointerType: "mouse", isPrimary: true }));
+  });
+  await page.mouse.up(); await unchanged(baseline, "a pending capture loss cannot finish the gesture");
   active = await beginMouse(scale(2), .9); await page.evaluate(() => window.dispatchEvent(new Event("blur")));
   await page.mouse.up(); await unchanged(baseline, "window blur cancels a held gesture");
 
