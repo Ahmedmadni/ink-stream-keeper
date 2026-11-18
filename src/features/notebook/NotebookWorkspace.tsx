@@ -120,6 +120,7 @@ export function NotebookWorkspace({
   const [inkMode, setInkMode] = useState<InkMode>("pen");
   const [penColor, setPenColor] = useState("#293648");
   const [penWidth, setPenWidth] = useState(4);
+  const [penBrush, setPenBrush] = useState<InkStroke["brush"]>(undefined);
   const [smooth, setSmooth] = useState(true);
   const [stabilization, setStabilization] = useState(0);
   const [focusMode, setFocusMode] = useState(true);
@@ -417,6 +418,7 @@ export function NotebookWorkspace({
       tool: mode, color: mode === "highlighter" ? "#f2c94c" : penColor,
       width: mode === "highlighter" ? penWidth * 4 : penWidth,
       points: [position], smoothing: group === "shapes" ? false : smooth,
+      ...(group === "draw" && mode === "pen" && penBrush ? { brush: penBrush } : {}),
       ...(group === "draw" ? { times: [Math.round(performance.timeOrigin + event.nativeEvent.timeStamp)] } : {}),
       ...(pressured ? { pressures: [event.pressure], ...(sensitivity !== 1 ? { pressureResponse: sensitivity } : {}) } : {}),
     };
@@ -689,11 +691,17 @@ export function NotebookWorkspace({
               disabled={!history.current.canRedo(page.id)} onClick={() => historyStep(true)}><Redo2 className="size-4"/>إعادة</button>
           </div>
           <div className="flex flex-wrap gap-2" role="group" aria-label="أنواع أقلام الكتابة">
-            <button type="button" className={controlCls(stabilization === 0 && inkMode === "pen")} onClick={() => { finish(); setInkMode("pen"); setStabilization(0); setPenWidth(3); }}>قلم دقيق</button>
-            <button type="button" className={controlCls(stabilization === .55 && inkMode === "pen")} onClick={() => { finish(); setInkMode("pen"); setStabilization(.55); setPenWidth(4); setSmooth(true); }}>قلم سلس</button>
-            <button type="button" className={controlCls(stabilization === .75 && inkMode === "pen")} onClick={() => { finish(); setInkMode("pen"); setStabilization(.75); setPenWidth(8); setSmooth(true); setPressureEnabled(true); }}>قلم رسم ناعم</button>
+            <button type="button" className={controlCls(!penBrush && stabilization === 0 && inkMode === "pen")} onClick={() => { finish(); setPenBrush(undefined); setInkMode("pen"); setStabilization(0); setPenWidth(3); }}>قلم دقيق</button>
+            <button type="button" className={controlCls(!penBrush && stabilization === .55 && inkMode === "pen")} onClick={() => { finish(); setPenBrush(undefined); setInkMode("pen"); setStabilization(.55); setPenWidth(4); setSmooth(true); }}>قلم سلس</button>
+            <button type="button" className={controlCls(!penBrush && stabilization === .75 && inkMode === "pen")} onClick={() => { finish(); setPenBrush(undefined); setInkMode("pen"); setStabilization(.75); setPenWidth(8); setSmooth(true); setPressureEnabled(true); }}>قلم رسم ناعم</button>
           </div>
-          <p className="text-xs text-muted-foreground">القلم السلس وقلم الرسم يستخدمان Perfect Freehand لتثبيت المسار، مع الاحتفاظ بعينات الأصل. ليست فرش خامات أو تعرفًا على الحروف.</p>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="خامات الرسم">
+            <button type="button" className={controlCls(!penBrush && inkMode === "pen")} aria-pressed={!penBrush && inkMode === "pen"}
+              onClick={() => { finish(); setPenBrush(undefined); setInkMode("pen"); }}>حبر مصمت</button>
+            <button type="button" className={controlCls(penBrush === "pencil" && inkMode === "pen")} aria-pressed={penBrush === "pencil" && inkMode === "pen"}
+              onClick={() => { finish(); setPenBrush("pencil"); setInkMode("pen"); setPenWidth(8); setPenColor("#4b5563"); setStabilization(.55); setSmooth(true); }}>قلم رصاص</button>
+          </div>
+          <p className="text-xs text-muted-foreground">قلم الرصاص بخامة حبيبية ثابتة على الورق. التنعيم يحسن المسار، ولا يتعرف على الحروف. الإعدادات للرسم الجديد.</p>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <label className="flex items-center gap-2">لون القلم
               <input type="color" aria-label="لون قلم الدفتر" value={penColor} onChange={(e) => setPenColor(e.target.value)} />
@@ -729,7 +737,7 @@ export function NotebookWorkspace({
                 disabled={!pressureEnabled} onClick={() => { finish(); setSensitivity(value); }}>{label}</button>
             ))}
           </div>
-          <PenResponsePreview response={sensitivity} width={penWidth} color={penColor} enabled={pressureEnabled}/>
+          <PenResponsePreview response={sensitivity} width={penWidth} color={penColor} enabled={pressureEnabled} brush={penBrush}/>
           {inkMode === "eraser" && <div className="space-y-2 rounded-xl bg-secondary/50 p-3">
             <div className="flex flex-wrap gap-2" role="group" aria-label="نوع ممحاة الحبر">
               <button type="button" aria-label="مسح جزء من المسار" aria-pressed={eraserKind === "segment"}

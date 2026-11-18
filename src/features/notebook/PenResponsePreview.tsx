@@ -1,11 +1,11 @@
 import { InkMark } from "./InkMark";
 import type { InkStroke } from "./model";
 
-export function PenResponsePreview({ response, width, color, enabled }: {
-  response: number; width: number; color: string; enabled: boolean;
+export function PenResponsePreview({ response, width, color, enabled, brush }: {
+  response: number; width: number; color: string; enabled: boolean; brush?: InkStroke["brush"];
 }) {
   const stroke: InkStroke = {
-    id: "dd32f56d-3561-4bb2-86e9-b7f6fd5c003a", tool: "pen", color, width: width * 3,
+    id: "dd32f56d-3561-4bb2-86e9-b7f6fd5c003a", tool: "pen", color, width: width * 3, brush,
     points: Array.from({ length: 41 }, (_, i) => [35 + i * 23, 55 + Math.sin(i / 6) * 18]),
     ...(enabled ? { pressures: Array.from({ length: 41 }, (_, i) => Math.sin(i / 40 * Math.PI) ** 2), pressureResponse: response } : {}),
   };

@@ -654,6 +654,8 @@ const vaultPinWrites = [];
     await page.getByRole("status").filter({ hasText: "النص يتجاوز مساحة هذه الورقة" }).waitFor();
     await secondPageEditor.fill("");
     await page.getByRole("status").filter({ hasText: "النص يتجاوز مساحة هذه الورقة" }).waitFor({ state: "hidden" });
+    const vaultPencil = await require("./notebook-pencil-checks.cjs").drawPencil(page);
+    await page.getByRole("tab", { name: "كتابة", exact: true }).click();
     assert.equal(await page.getByRole("tab", { name: /^صفحة [12]$/ }).count(), 2);
     await page.getByRole("button", { name: "تكرار الصفحة", exact: true }).click();
     await page.getByRole("tab", { name: "صفحة 3", exact: true }).waitFor();
@@ -679,8 +681,10 @@ const vaultPinWrites = [];
     assert.ok(searchablePages[0].text.includes("مساحة"), "opt-in PDF contains the keyboard text in source and native bundles");
     await searchableOption.uncheck();
 
-    if (process.env.MEMOFLOW_BROWSER_NATIVE_BUNDLE !== "1")
+    if (process.env.MEMOFLOW_BROWSER_NATIVE_BUNDLE !== "1") {
       await require("./notebook-browser-checks.cjs").checkPdf(page, artifacts);
+      await require("./notebook-pencil-pdf.cjs").checkPencilPdf(page, artifacts);
+    }
     const notebookDeadline = Date.now() + 20000;
     while (!notes[0].content.includes("data-mf-notebook-v1")) {
       if (Date.now() > notebookDeadline) throw Error("Notebook was not saved remotely");
@@ -750,6 +754,10 @@ const vaultPinWrites = [];
       .getByRole("link", { name: "الخزنة" }).click();
     await page.getByRole("button", { name: "عرض المذكرة المحمية" }).click();
     await page.getByRole("tab", { name: "صفحة 2", exact: true }).waitFor();
+    await page.getByRole("tab", { name: "صفحة 2", exact: true }).click();
+    assert.equal(await page.locator('[data-notebook-paper] path[data-ink-brush="pencil"]').getAttribute("d"), vaultPencil.d,
+      "pencil geometry survives real vault encrypt/decrypt and secure rendering");
+    assert.equal(await page.locator('[data-notebook-paper] pattern[data-pencil-grain="1"]').count(), 1);
     await page.getByRole("tab", { name: "صفحة 1", exact: true }).click();
     await page.getByText("مساحة هادئة لأفكاري الجديدة", { exact: false }).waitFor();
     assert.equal(await page.locator(`[data-notebook-paper] [data-stroke-id="${editedInk.id}"]`).getAttribute("d"), editedInk.path,

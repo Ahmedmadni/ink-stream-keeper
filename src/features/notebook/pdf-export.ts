@@ -48,7 +48,10 @@ export async function renderNotebookPage(page: NotebookPage, { searchable = fals
   host.inert = true;
   host.style.cssText = "position:fixed;left:-20000px;top:0;pointer-events:none;z-index:-1";
   const template = document.createElement("template");
-  template.innerHTML = renderToStaticMarkup(createElement(PageArtwork, { page, remoteImages: true }));
+  // Export is a separate React render root inside the live document. Prefix
+  // useId paint-server references so they cannot collide with hydrated artwork.
+  template.innerHTML = renderToStaticMarkup(createElement(PageArtwork, { page, remoteImages: true }),
+    { identifierPrefix: "mf-pdf-" + crypto.randomUUID() + "-" });
   const sheet = template.content.firstElementChild as HTMLElement;
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), 20_000);

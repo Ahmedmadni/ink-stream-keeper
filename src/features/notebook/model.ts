@@ -38,9 +38,11 @@ const strokeSchema = z.object({
   // New captures retain raw pressure. Older strokes already contain the old
   // response; absence must keep their rendering unchanged.
   pressureResponse: z.number().finite().min(.5).max(1.5).optional(),
+  brush: z.literal("pencil").optional(),
   smoothing: z.boolean().optional(),
 }).strict().refine((stroke) => (!stroke.pressures || stroke.pressures.length === stroke.points.length) &&
   (stroke.pressureResponse === undefined || (stroke.tool === "pen" && !!stroke.pressures)) &&
+  (stroke.brush === undefined || stroke.tool === "pen") &&
   (!stroke.controlPoints || !!stroke.controlKnots || stroke.controlPoints.length === stroke.points.length) &&
   (!stroke.controlKnots || (!!stroke.controlPoints && stroke.controlPoints.length === stroke.controlKnots.length &&
     stroke.controlKnots.every((t, i) => i === 0 || t - stroke.controlKnots![i - 1] >= 1e-8))) &&
