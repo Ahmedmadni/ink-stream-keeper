@@ -26,11 +26,41 @@ async function checkStudioSpace(page, artifacts, readSaved) {
   const stroke=book.pages.at(-1).strokes[0];assert.equal(stroke.controlPoints.length,stroke.points.length);assert.notDeepEqual(stroke.controlPoints,stroke.points);assert.equal(stroke.times.length,stroke.points.length);
   await page.reload();await page.getByRole("tab",{name:"صفحة 2",exact:true}).click();assert.equal(await ink.first().getAttribute("d"),d);
   assert.ok(await page.locator('[data-notebook-paper] [aria-label="ملصق fl-stethoscope"] svg path').count()>0);
+  await page.getByRole("tab",{name:"أقلام",exact:true}).click();
+  const preview=page.getByRole("img",{name:"معاينة توضيحية لاستجابة الضغط",exact:true}).locator("path");
+  const balanced=await preview.getAttribute("d");
+  await page.getByRole("button",{name:"ضغط خفيف",exact:true}).click();
+  assert.notEqual(await preview.getAttribute("d"),balanced);
+  await canvas.scrollIntoViewIfNeeded();
+  const penBox=await canvas.boundingBox(), penBar=await page.getByRole("navigation",{name:"شريط صفحات المذكرة",exact:true}).boundingBox();
+  const px=penBox.x+penBox.width*.2, py=Math.max(190,Math.min(penBox.y+penBox.height*.3,penBar.y-60));
+  const cdp=await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchMouseEvent",{type:"mousePressed",x:px,y:py,button:"left",buttons:1,pointerType:"pen",force:.2});
+  for (const [i,force] of [[1,.4],[2,.8],[3,.1]]) await cdp.send("Input.dispatchMouseEvent",{type:"mouseMoved",x:px+i*20,y:py+i*3,button:"left",buttons:1,pointerType:"pen",force});
+  await cdp.send("Input.dispatchMouseEvent",{type:"mouseReleased",x:px+60,y:py+9,button:"left",pointerType:"pen"});await cdp.detach();
+  assert.equal(await ink.count(),2);
+  const pressuredPath=await ink.last().getAttribute("d");
+  await page.getByRole("status").filter({hasText:/^(تم الحفظ في الخادم|محفوظة في الخادم)$/}).waitFor({timeout:20000});
+  const saved=JSON.parse(Buffer.from(readSaved().match(/data-json="([^"]+)"/)[1],"base64").toString()).pages.at(-1).strokes.at(-1);
+  assert.equal(saved.pressureResponse,.6);assert.ok(Math.abs(saved.pressures[0]-.2)<1e-6,"raw .2 must not be replaced with pow(.2,.6)");
+  assert.ok(saved.pressures.some(p=>Math.abs(p-.8)<1e-6));
+  assert.ok(saved.pressures.some(p=>Math.abs(p-.1)<1e-6));
+  await page.getByRole("button",{name:"ضغط قوي",exact:true}).click();
+  assert.equal(await ink.last().getAttribute("d"),pressuredPath,"new-stroke settings must not redraw saved ink");
+  await page.getByRole("button",{name:"ضغط متوازن",exact:true}).click();
+  await page.reload();await page.getByRole("tab",{name:"صفحة 2",exact:true}).click();
+  assert.equal(await page.locator('[data-notebook-paper] path[data-stroke-id]').last().getAttribute("d"),pressuredPath);
   await page.setViewportSize({width:390,height:844});
   // Reload starts in the writing group. Selecting pens leaves focus mode.
   await page.getByRole("tab",{name:"أقلام",exact:true}).click();await page.getByRole("button",{name:"وضع التركيز",exact:true}).click();
   await page.screenshot({path:artifacts+"/studio-focus-mobile.png"});
-  const compact=await page.getByRole("navigation",{name:"شريط صفحات المذكرة",exact:true}).boundingBox();assert.ok(compact.height<200);
+  for (const width of [320,390]) {
+    await page.setViewportSize({width,height:844});
+    const compact=await page.getByRole("navigation",{name:"شريط صفحات المذكرة",exact:true}).boundingBox();assert.ok(compact.height<=80,"focus page strip must fit one row");
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2));
+    assert.ok(await page.getByRole("button",{name:"نسخ المذكرة إلى الخزنة",exact:true}).isVisible());
+    await page.getByRole("status").filter({hasText:/^(تم الحفظ في الخادم|محفوظة في الخادم)$/}).waitFor({timeout:20000});
+  }
   page.once("dialog",dialog=>dialog.accept());await page.getByRole("button",{name:"حذف الصفحة",exact:true}).click();
   await page.setViewportSize({width:1024,height:768});await page.getByRole("tab",{name:"أقلام",exact:true}).click();
 }

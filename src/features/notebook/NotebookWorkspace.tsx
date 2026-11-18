@@ -12,6 +12,7 @@ import {
 } from "./model";
 import { STICKER_GROUPS, stickerIcon, searchStickers } from "./sticker-packs";
 import { stabilizePen } from "./pen-stabilizer";
+import { PenResponsePreview } from "./PenResponsePreview";
 import { InkMark, InkLayer } from "./InkMark";
 import { StickerArtwork, stickerStyle, ScienceAttribution } from "./StickerArtwork";
 import { shapePoints, type ShapeTool, hitStroke, inkBounds, InkHistory, moveInk as translateInk, type Point, type InkBounds } from "./ink";
@@ -417,7 +418,7 @@ export function NotebookWorkspace({
       width: mode === "highlighter" ? penWidth * 4 : penWidth,
       points: [position], smoothing: group === "shapes" ? false : smooth,
       ...(group === "draw" ? { times: [Math.round(performance.timeOrigin + event.nativeEvent.timeStamp)] } : {}),
-      ...(pressured ? { pressures: [Math.pow(Math.max(.05, event.pressure), sensitivity)] } : {}),
+      ...(pressured ? { pressures: [event.pressure], ...(sensitivity !== 1 ? { pressureResponse: sensitivity } : {}) } : {}),
     };
     setLive(liveRef.current);
   };
@@ -457,7 +458,7 @@ export function NotebookWorkspace({
           const stroke = liveRef.current;
           liveRef.current = { ...stroke, points: [...stroke.points, next],
             ...(stroke.times ? { times: [...stroke.times, Math.max(stroke.times[stroke.times.length - 1], Math.round(performance.timeOrigin + sample.timeStamp))] } : {}),
-            ...(stroke.pressures ? { pressures: [...stroke.pressures, Math.pow(Math.max(.05, sample.pressure), sensitivity)] } : {}) };
+            ...(stroke.pressures ? { pressures: [...stroke.pressures, sample.pressure] } : {}) };
         }
       }
       active.last = next;
@@ -715,12 +716,20 @@ export function NotebookWorkspace({
             <label className="flex items-center gap-2">استجابة الضغط
               <input type="range" aria-label="استجابة ضغط القلم" min={.5} max={1.5} step={.1} value={sensitivity}
                 disabled={!pressureEnabled} onChange={(e) => setSensitivity(Number(e.target.value))} />
+              <output>{sensitivity.toFixed(1)}</output>
             </label>
             {inkMode === "eraser" && <label className="flex items-center gap-2">عرض الممحاة
               <input type="range" aria-label="عرض ممحاة المسارات" min={6} max={60} value={eraserWidth}
                 onChange={(e) => setEraserWidth(Number(e.target.value))}/>
             </label>}
           </div>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="إعدادات استجابة الضغط">
+            {([{ value: .6, label: "ضغط خفيف" }, { value: 1, label: "ضغط متوازن" }, { value: 1.4, label: "ضغط قوي" }]).map(({ value, label }) => (
+              <button key={value} type="button" className={controlCls(sensitivity === value)} aria-pressed={sensitivity === value}
+                disabled={!pressureEnabled} onClick={() => { finish(); setSensitivity(value); }}>{label}</button>
+            ))}
+          </div>
+          <PenResponsePreview response={sensitivity} width={penWidth} color={penColor} enabled={pressureEnabled}/>
           {inkMode === "eraser" && <div className="space-y-2 rounded-xl bg-secondary/50 p-3">
             <div className="flex flex-wrap gap-2" role="group" aria-label="نوع ممحاة الحبر">
               <button type="button" aria-label="مسح جزء من المسار" aria-pressed={eraserKind === "segment"}
@@ -1016,7 +1025,7 @@ export function NotebookWorkspace({
           setIndex(current.pages.length); setGroup("text"); setSelection(new Set());
           return true;
         }}/>}
-      <nav className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-40 rounded-2xl border border-border bg-card/95 p-3 shadow-lg backdrop-blur md:bottom-2"
+      <nav className={"sticky bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-40 rounded-2xl border border-border bg-card/95 p-3 shadow-lg backdrop-blur md:bottom-2 " + (focusMode && !pagePreviews ? "grid grid-cols-[auto_minmax(0,1fr)] gap-2 sm:block" : "")}
         aria-label="شريط صفحات المذكرة">
         {!focusMode && group === "draw" && <div className="mb-2 flex gap-1 overflow-x-auto border-b border-border pb-2" role="group" aria-label="أدوات القلم السريعة">
           {transformSession ? <>
@@ -1051,15 +1060,15 @@ export function NotebookWorkspace({
           <button type="button" className={controlCls(false)} aria-label="إعادة سريعة" disabled={!history.current.canRedo(page.id)} onClick={() => historyStep(true)}><Redo2 className="size-4"/></button>
           </>}
         </div>}
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <strong className="text-sm">الصفحات ({book.pages.length})</strong>
-          <button type="button" className="min-h-11 rounded-lg px-2 text-xs" aria-label="عرض مصغرات الصفحات" aria-pressed={pagePreviews} onClick={() => setPagePreviews(!pagePreviews)}>{pagePreviews ? "شريط مختصر" : "مصغرات"}</button>
+        <div className={(focusMode && !pagePreviews ? "sm:mb-2 " : "mb-2 ") + "flex items-center justify-between gap-2"}>
+          <strong className={(focusMode && !pagePreviews ? "hidden sm:block " : "") + "text-sm"}>الصفحات ({book.pages.length})</strong>
+          <button type="button" className="flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-lg px-2 text-xs" aria-label="عرض مصغرات الصفحات" aria-pressed={pagePreviews} onClick={() => setPagePreviews(!pagePreviews)}><Layers className="size-4 sm:hidden"/><span className={focusMode && !pagePreviews ? "hidden sm:inline" : ""}>{pagePreviews ? "شريط مختصر" : "مصغرات"}</span></button>
           <div className="flex gap-1">
             <button type="button" aria-label="تكرار الصفحة" title="تكرار الصفحة"
-              onClick={duplicatePage} disabled={!!transformSession} className="grid size-10 place-items-center rounded-xl bg-secondary disabled:opacity-40"><Copy className="size-4" /></button>
+              onClick={duplicatePage} disabled={!!transformSession} className="grid size-11 place-items-center rounded-xl bg-secondary disabled:opacity-40"><Copy className="size-4" /></button>
             <button type="button" aria-label="حذف الصفحة" title="حذف الصفحة"
               onClick={removePage} disabled={book.pages.length === 1 || !!transformSession}
-              className="grid size-10 place-items-center rounded-xl bg-secondary text-destructive disabled:opacity-40">
+              className="grid size-11 place-items-center rounded-xl bg-secondary text-destructive disabled:opacity-40">
               <Trash2 className="size-4"/>
             </button>
           </div>
@@ -1073,12 +1082,12 @@ export function NotebookWorkspace({
               className={"flex min-h-11 min-w-12 flex-col items-center justify-center gap-1 rounded-xl border-2 p-1.5 " +
                 (index === n ? "border-primary bg-primary-soft" : "border-border bg-background")}>
               {pagePreviews && <PageMiniature page={p} />}
-              <span className="text-xs">صفحة {n + 1}</span>
+              <span className="whitespace-nowrap text-xs"><span className={focusMode && !pagePreviews ? "hidden sm:inline" : ""}>صفحة </span>{n + 1}</span>
             </button>
           ))}
           <button type="button" onClick={addPage} disabled={!!transformSession} aria-label="إضافة صفحة" title="إضافة صفحة"
-            className="flex min-h-11 min-w-20 items-center justify-center gap-1 rounded-xl border-2 border-dashed border-primary/35 text-primary disabled:opacity-40">
-            <Plus className="size-6"/><span className="text-xs">صفحة جديدة</span>
+            className={"flex min-h-11 items-center justify-center gap-1 rounded-xl border-2 border-dashed border-primary/35 text-primary disabled:opacity-40 " + (focusMode && !pagePreviews ? "min-w-11 sm:min-w-20" : "min-w-20")}>
+            <Plus className="size-6"/><span className={(focusMode && !pagePreviews ? "hidden sm:inline " : "") + "whitespace-nowrap text-xs"}>صفحة جديدة</span>
           </button>
         </div>
       </nav>

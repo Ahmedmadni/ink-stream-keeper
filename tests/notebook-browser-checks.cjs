@@ -154,6 +154,8 @@ async function checkPdf(page, artifacts) {
       points: [[300, 700], [400, 750], [600, 700]], pressures: [.2, 1, .4], smoothing: true }];
     first.strokes.push({ id: crypto.randomUUID(), tool: "pen", color: "#ef7800", width: 8,
       points: [[100, 900], [700, 900]], pressures: [.5, .5], smoothing: false, cuts: [[.45, .55]] });
+    first.strokes.push({ id: crypto.randomUUID(), tool: "pen", color: "#713bc9", width: 20,
+      points: [[120, 600], [400, 600]], pressures: [.25, .25], pressureResponse: .5, smoothing: false });
     const second = createPage({ size: "letter", paper: "ledger" });
     second.html = '<p><span style="font-family:Aref Ruqaa">الصفحة الثانية — كتابة عربية بخط رقعة</span></p>';
     second.stickers = [{ id: crypto.randomUUID(), kind: "sci-neuron", x: .5, y: .5, scale: .24, color: "#224466", rotation: 25, presentation: "cutout" }];
@@ -209,6 +211,15 @@ async function checkPdf(page, artifacts) {
   assert.ok(green > 1000, "embedded image must be visible in PDF");
   assert.ok(blue > 1000, "accounting sticker must be visible in PDF");
   const width = Number(header[1]), height = Number(header[2]);
+  // The soft response radius is 6.25 page-width units; legacy is 4.375.
+  // Check pixels outside the legacy footprint but inside the displayed one.
+  let softPressurePixels=0;
+  for(let y=Math.ceil(height*.6+width*.0048);y<=Math.floor(height*.6+width*.0057);y++)
+    for(let x=Math.ceil(width*.2);x<=Math.floor(width*.3);x++){
+      const o=(y*width+x)*3;
+      if(pixels[o]>90&&pixels[o]<140&&pixels[o+1]>35&&pixels[o+1]<85&&pixels[o+2]>175)softPressurePixels++;
+    }
+  assert.ok(softPressurePixels>20,"PDF must apply the saved pressure response instead of reverting to legacy pressure");
   let visibleOrange = 0, gapOrange = 0;
   for (let y = Math.floor(height * .89); y <= Math.ceil(height * .91); y++)
     for (let x = Math.floor(width * .15); x <= Math.ceil(width * .41); x++) {

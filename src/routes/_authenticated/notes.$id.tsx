@@ -158,7 +158,7 @@ function NoteEditor({ note }: { note: Note }) {
         </button>
       </header>
 
-      <div className="px-5 pt-4">
+      <div className="px-5 pt-2 sm:pt-4">
         {snapshot.localError && !["clean", "saved"].includes(snapshot.state) && (
           <p
             role="alert"
@@ -239,10 +239,10 @@ function NoteEditor({ note }: { note: Note }) {
             onChange={(e) => controller.edit({ title: e.target.value })}
             placeholder="بدون عنوان"
             aria-label="عنوان الملاحظة"
-            className="w-full bg-transparent text-2xl font-extrabold leading-tight outline-none placeholder:text-muted-foreground/50"
+            className="w-full bg-transparent text-xl font-extrabold leading-tight outline-none placeholder:text-muted-foreground/50 sm:text-2xl"
           />
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="mt-2 flex flex-wrap items-center gap-2 sm:mt-3">
           {cat && (
             <span className="rounded-full bg-primary-soft px-3 py-1 text-xs font-semibold text-primary">
               {cat.name}
@@ -251,9 +251,6 @@ function NoteEditor({ note }: { note: Note }) {
           <span className="text-xs text-muted-foreground">
             آخر تعديل {formatRelative(tsOf(note.updated_at))}
           </span>
-        </div>
-
-        <div className="mt-3">
           <button type="button" aria-label="نسخ المذكرة إلى الخزنة"
             disabled={saveVaultCopy.isPending}
             onClick={async () => {
@@ -289,11 +286,12 @@ function NoteEditor({ note }: { note: Note }) {
             }}
             className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card px-3 text-sm font-semibold text-foreground disabled:opacity-50">
             <ShieldPlus className="size-4 text-primary" />
-            {saveVaultCopy.isPending ? "تشفير النسخة..." : "نسخ المذكرة إلى الخزنة"}
+            <span className="hidden sm:inline">{saveVaultCopy.isPending ? "تشفير النسخة..." : "نسخ المذكرة إلى الخزنة"}</span>
+            <span className="sm:hidden">{saveVaultCopy.isPending ? "تشفير..." : "نسخ للخزنة"}</span>
           </button>
         </div>
 
-        <div className="mt-5">
+        <div className="mt-3 sm:mt-5">
           <NotebookWorkspace
             content={draft}
             onChange={(html) => controller.edit({ content: html })}

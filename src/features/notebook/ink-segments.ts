@@ -36,7 +36,8 @@ function pressureAt(stroke: InkStroke, t: number): number {
 function segments(stroke: InkStroke, aspect: number): Segment[] {
   const count = inkPoints(stroke).length, knots = inkKnots(stroke);
   const p = inkWorldPoints(stroke).map(([x, y], i): Center => ({ x, y: y * aspect, t: knots[i],
-    r: stroke.width * (stroke.pressures && stroke.tool === "pen" ? .25 + .75 * (stroke.controlKnots ? pressureAt(stroke, knots[i]) : stroke.pressures[i]) : 1) / 2 }));
+    r: stroke.width * (stroke.pressures && stroke.tool === "pen" ? .25 + .75 * Math.pow(
+      stroke.controlKnots ? pressureAt(stroke, knots[i]) : stroke.pressures[i], stroke.pressureResponse ?? 1) : 1) / 2 }));
   if (count < 2) return [{ a: p[0], b: p[0] }];
   if (stroke.smoothing === false || count < 3) return p.slice(1).map((b, i) => ({ a: p[i], b }));
   let a = p[0]; const result: Segment[] = [];
@@ -52,6 +53,7 @@ function evaluate(s: Segment, t: number): Center {
   return { ...p, t: s.a.t + (s.b.t - s.a.t) * t };
 }
 const cache = new WeakMap<InkStroke["points"], { pressures: InkStroke["pressures"]; width: number;
+  pressureResponse: InkStroke["pressureResponse"];
   smoothing: boolean | undefined; tool: InkStroke["tool"]; aspect: number; segments: Segment[]; samples: Center[];
   dx: number; dy: number;
   knots: InkStroke["controlKnots"];
@@ -59,7 +61,7 @@ const cache = new WeakMap<InkStroke["points"], { pressures: InkStroke["pressures
 function geometry(stroke: InkStroke, aspect: number) {
   const key = stroke.controlPoints ?? stroke.points, [dx, dy] = stroke.offset ?? [0, 0];
   const old = cache.get(key);
-  if (old && old.pressures === stroke.pressures && old.width === stroke.width && old.smoothing === stroke.smoothing &&
+  if (old && old.pressures === stroke.pressures && old.pressureResponse === stroke.pressureResponse && old.width === stroke.width && old.smoothing === stroke.smoothing &&
       old.tool === stroke.tool && old.aspect === aspect && old.dx === dx && old.dy === dy && old.knots === stroke.controlKnots) return old;
   const curves = segments(stroke, aspect), samples = [curves[0].a];
   const pressured = !!stroke.pressures && stroke.tool === "pen";
@@ -78,7 +80,7 @@ function geometry(stroke: InkStroke, aspect: number) {
     bounds.left = Math.min(bounds.left, x); bounds.right = Math.max(bounds.right, x);
     bounds.top = Math.min(bounds.top, y * aspect); bounds.bottom = Math.max(bounds.bottom, y * aspect);
   }
-  const value = { pressures: stroke.pressures, width: stroke.width, smoothing: stroke.smoothing, tool: stroke.tool,
+  const value = { pressures: stroke.pressures, pressureResponse: stroke.pressureResponse, width: stroke.width, smoothing: stroke.smoothing, tool: stroke.tool,
     aspect, segments: curves, samples, bounds, dx, dy, knots: stroke.controlKnots };
   cache.set(key, value); return value;
 }
