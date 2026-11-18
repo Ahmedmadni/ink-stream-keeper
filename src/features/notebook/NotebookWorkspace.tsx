@@ -14,6 +14,8 @@ import { STICKER_GROUPS, stickerIcon, searchStickers } from "./sticker-packs";
 import { stabilizePen } from "./pen-stabilizer";
 import { PenResponsePreview } from "./PenResponsePreview";
 import { PenFavorites } from "./PenFavorites";
+import { InkStyleDialog,type InkStyleSession } from "./InkStyleDialog";
+import type { InkStylePreview } from "./ink-style";
 import { InkMark, InkLayer } from "./InkMark";
 import { StickerArtwork, stickerStyle, ScienceAttribution } from "./StickerArtwork";
 import { shapePoints, type ShapeTool, hitStroke, inkBounds, InkHistory, moveInk as translateInk, type Point, type InkBounds } from "./ink";
@@ -140,6 +142,7 @@ export function NotebookWorkspace({
   const [eraserPoint, setEraserPoint] = useState<Point | null>(null);
   const [erased, setErased] = useState<Set<string>>(new Set());
   const [selection, setSelection] = useState<Set<string>>(new Set());
+  const [styleSession,setStyleSession]=useState<InkStyleSession|null>(null);
   const [selectionBox, setSelectionBox] = useState<InkBounds | null>(null);
   const [offset, setOffset] = useState<Point | null>(null);
   const [nodePreview, setNodePreview] = useState<InkStroke | null>(null);
@@ -156,6 +159,7 @@ export function NotebookWorkspace({
   }, []);
   useEffect(() => {
     setNodePreview(null); setActiveNode(0);
+    setStyleSession(null);
     cancelTransform();
     setInkMode((mode) => mode === "nodes" ? "select" : mode);
   }, [index, group, cancelTransform]);
@@ -212,6 +216,7 @@ export function NotebookWorkspace({
     gesture.current = null; liveRef.current = null;
     setLive(null); setErased(new Set()); setErasePreview(null); setEraserPoint(null); setSelection(new Set()); setSelectionBox(null); setOffset(null);
     setNodePreview(null); setActiveNode(0); setInkMode((mode) => mode === "nodes" ? "select" : mode);
+    setStyleSession(null);
     cancelTransform();
     setIndex((prev) => Math.min(prev, Math.max(0, (next.book?.pages.length ?? 1) - 1)));
   }, [content, cancelTransform]);
@@ -537,6 +542,21 @@ export function NotebookWorkspace({
       setSelection(new Set([result.created[0]])); setInkMode("select"); setActiveNode(0);
     } catch (error) { setWarning(error instanceof Error ? error.message : "تعذر فصل الأجزاء؛ بقي الأصل محفوظًا."); }
   };
+  const beginStyle = () => {
+    finish();const current=bookRef.current,active=current?.pages[index];
+    if(!current||!active||!selection.size)return;
+    setStyleSession({pageId:active.id,source:active.strokes,ids:new Set(selection),aspect,
+      remainingBytes:Math.max(0,MAX_NOTEBOOK_BYTES-new TextEncoder().encode(JSON.stringify(current)).byteLength)});
+  };
+  const applyStyle = (preview:InkStylePreview) => {
+    const current=bookRef.current,active=current?.pages[index];
+    if(!styleSession||!preview.changed||preview.error)return false;
+    if(!current||!active||active.id!==styleSession.pageId||active.strokes!==styleSession.source||preview.source!==styleSession.source){
+      setStyleSession(null);setWarning("تغير الحبر أثناء المعاينة؛ أعد تحديده لتعديل النمط.");return false;
+    }
+    const saved=commit({...current,pages:current.pages.map(p=>p.id===active.id?{...p,strokes:preview.strokes}:p)});
+    if(saved)setStyleSession(null);return saved;
+  };
   const beginTransform = () => {
     finish(); const current = bookRef.current, active = current?.pages[index];
     if (!current || !active || !selection.size) return;
@@ -611,6 +631,7 @@ export function NotebookWorkspace({
   return (
     <section className="space-y-3" aria-label="دفتر المذكرة متعدد الصفحات"
       onKeyDown={(event) => {
+        if(styleSession)return;
         const inCanvas = (event.target as Element).closest("svg[data-ink-editor]");
         if (transformSession) {
           if (event.key === "Escape" && transformCancelDrag.current) {
@@ -762,6 +783,7 @@ export function NotebookWorkspace({
             <button type="button" className={controlCls(false)} disabled={!canSplit} onClick={separateSelection}><Scissors className="size-4"/>فصل الأجزاء الممسوحة</button>
             <button type="button" className={controlCls(false)} disabled={!selectedStroke || !nodeIndices.length} onClick={enterNodes}><Waypoints className="size-4"/>تحرير نقاط المسار</button>
             <button type="button" className={controlCls(false)} disabled={!selection.size} onClick={beginTransform}><RotateCw className="size-4"/>تغيير الحجم والتدوير</button>
+            <button type="button" className={controlCls(false)} disabled={!selection.size} onClick={beginStyle}><Brush className="size-4"/>تعديل نمط الحبر</button>
             <button type="button" className={controlCls(false)} disabled={!selection.size} onClick={() => {
               updatePage((p) => ({ ...p, strokes: p.strokes.filter((s) => !selection.has(s.id)) })); setSelection(new Set());
             }}><Trash2 className="size-4"/>حذف المحدد ({selection.size})</button>
@@ -1110,6 +1132,7 @@ export function NotebookWorkspace({
           </button>
         </div>
       </nav>
+      {styleSession&&<InkStyleDialog session={styleSession} onApply={applyStyle} onCancel={()=>setStyleSession(null)}/>}
     </section>
   );
 }
