@@ -323,11 +323,24 @@ async function checkInkEditing(page, artifacts, source) {
     });
   };
   await page.getByRole("button", { name: "تحديد وتحريك", exact: true }).click();
-  const pick = await screenPoint(path(source.id)); await page.mouse.click(pick.x, pick.y);
+  // Path-length positions can lie on the outline edge and miss hit testing
+  // under another Chromium rasterizer. Aim through the center of a retained
+  // fragment and verify the intended source was selected before splitting.
+  await path(source.id).evaluate((el) => el.scrollIntoView({ block: "center" }));
+  const sourceBounds = await path(source.id).boundingBox();
+  let picked = false;
+  for (const fraction of [.18, .82, .3, .7]) {
+    await page.mouse.click(sourceBounds.x + sourceBounds.width * fraction, sourceBounds.y + sourceBounds.height / 2);
+    picked = await path(source.id).evaluate((el) => el.style.filter.includes("drop-shadow"));
+    if (picked) break;
+  }
+  assert.ok(picked, "the cut stroke is selected through its visible centerline");
   const before = await paths.evaluateAll((els) => els.map((el) => ({ id: el.dataset.strokeId, d: el.getAttribute("d") })));
   await page.getByRole("button", { name: "فصل الأجزاء الممسوحة", exact: true }).click();
   assert.equal(await paths.count(), before.length + 1);
   assert.equal(await path(source.id).count(), 0);
+  for (const other of before.filter((stroke) => stroke.id !== source.id))
+    assert.equal(await path(other.id).getAttribute("d"), other.d, "uncut strokes retain their paint when splitting the selection");
   const oldIds = new Set(before.map((s) => s.id));
   const created = (await paths.evaluateAll((els) => els.map((el) => ({ id: el.dataset.strokeId, d: el.getAttribute("d") })))).filter((s) => !oldIds.has(s.id));
   assert.equal(created.length, 2);
