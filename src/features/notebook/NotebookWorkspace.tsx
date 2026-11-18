@@ -13,6 +13,7 @@ import {
 import { STICKER_GROUPS, stickerIcon, searchStickers } from "./sticker-packs";
 import { stabilizePen } from "./pen-stabilizer";
 import { PenResponsePreview } from "./PenResponsePreview";
+import { PenFavorites } from "./PenFavorites";
 import { InkMark, InkLayer } from "./InkMark";
 import { StickerArtwork, stickerStyle, ScienceAttribution } from "./StickerArtwork";
 import { shapePoints, type ShapeTool, hitStroke, inkBounds, InkHistory, moveInk as translateInk, type Point, type InkBounds } from "./ink";
@@ -99,12 +100,13 @@ function readInitial(content: string): { book: Notebook | null; error: string } 
   catch { return { book: null, error: "تنسيق صفحات المذكرة غير صالح. لن يتم تعديل بياناتها حتى تُستعاد نسخة صحيحة." }; }
 }
 export function NotebookWorkspace({
-  content, onChange, onAddAttachment, filename,
+  content, onChange, onAddAttachment, filename, preferenceScope,
 }: {
   content: string;
   onChange: (html: string) => void;
   onAddAttachment?: (file: File) => void;
   filename: string;
+  preferenceScope?: string;
 }) {
   const [initial] = useState(() => readInitial(content));
   const [book, setBook] = useState<Notebook | null>(initial.book);
@@ -631,6 +633,10 @@ export function NotebookWorkspace({
         if (inCanvas && inkMode === "nodes" && ["Delete", "Backspace"].includes(event.key)) {
           event.preventDefault(); removeNode(); return;
         }
+        if (inCanvas && !gesture.current && !event.ctrlKey && !event.metaKey && !event.altKey && !event.repeat) {
+          const tool=({KeyP:"pen",KeyE:"eraser",KeyV:"select",KeyH:"highlighter"} as const)[event.code as "KeyP"|"KeyE"|"KeyV"|"KeyH"];
+          if(tool){event.preventDefault();setGroup("draw");setInkMode(tool);return;}
+        }
         if (!isDrawing || !(event.ctrlKey || event.metaKey) ||
           (event.target as Element).closest("input,textarea,[contenteditable=true]")) return;
         const key = event.key.toLowerCase();
@@ -690,6 +696,10 @@ export function NotebookWorkspace({
             <button type="button" className={controlCls(false)} aria-label="إعادة الرسم"
               disabled={!history.current.canRedo(page.id)} onClick={() => historyStep(true)}><Redo2 className="size-4"/>إعادة</button>
           </div>
+          {preferenceScope && <PenFavorites key={preferenceScope} scope={preferenceScope}
+            value={{color:penColor,width:penWidth,brush:penBrush??"solid",smooth,stabilization,pressureEnabled,sensitivity}}
+            onUse={(pen)=>{finish();setInkMode("pen");setPenColor(pen.color);setPenWidth(pen.width);setPenBrush(pen.brush==="solid"?undefined:pen.brush);
+              setSmooth(pen.smooth);setStabilization(pen.stabilization);setPressureEnabled(pen.pressureEnabled);setSensitivity(pen.sensitivity);}}/>}
           <div className="flex flex-wrap gap-2" role="group" aria-label="أنواع أقلام الكتابة">
             <button type="button" className={controlCls(!penBrush && stabilization === 0 && inkMode === "pen")} onClick={() => { finish(); setPenBrush(undefined); setInkMode("pen"); setStabilization(0); setPenWidth(3); }}>قلم دقيق</button>
             <button type="button" className={controlCls(!penBrush && stabilization === .55 && inkMode === "pen")} onClick={() => { finish(); setPenBrush(undefined); setInkMode("pen"); setStabilization(.55); setPenWidth(4); setSmooth(true); }}>قلم سلس</button>
@@ -763,6 +773,7 @@ export function NotebookWorkspace({
             onDelete={removeNode}
             onReset={() => { applySelectedEdit(resetInkGeometry); }} onDone={() => { finish(); setInkMode("select"); }}/>}
           <p className="text-xs leading-6 text-muted-foreground">
+            عند تركيز مساحة الرسم: P قلم، E ممحاة، V تحديد، H مظلل.
             الضغط يعمل مع الأقلام التي ترسل بيانات ضغط. اختر للممحاة مسح مقطع أو ضربة كاملة، وكلاهما قابل للتراجع.
             للتحديد اسحب إطارًا حول الرسم، ثم اسحب أي خط محدد لتحريكه. تنعيم المسار لا يتعرف على الحروف العربية.
           </p>
