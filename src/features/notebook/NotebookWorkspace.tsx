@@ -176,6 +176,7 @@ export function NotebookWorkspace({
   const [startingFontSize, setStartingFontSize] = useState(16);
   const [startingTexture, setStartingTexture] = useState<NotebookPage["texture"]>("smooth");
   const [exporting, setExporting] = useState(false);
+  const [searchablePdf, setSearchablePdf] = useState(false);
   const [activeTextEditor, setActiveTextEditor] = useState<Editor | null>(null);
   const [textOverflow, setTextOverflow] = useState(false);
   const handleEditor = useCallback((editor: Editor | null) => setActiveTextEditor(editor), []);
@@ -590,7 +591,7 @@ export function NotebookWorkspace({
     setExporting(true); setWarning("");
     try {
       const { downloadNotebookPdf } = await import("./pdf-export");
-      await downloadNotebookPdf(bookRef.current!, filename);
+      await downloadNotebookPdf(bookRef.current!, filename, { searchable: searchablePdf });
     } catch (error) {
       setWarning(error instanceof Error ? error.message : "تعذر تصدير ملف PDF.");
     } finally { setExporting(false); }
@@ -857,6 +858,12 @@ export function NotebookWorkspace({
           </div>
           <PaperFineControls value={page} onChange={(value) => updatePage((p) => ({ ...p, lineSpacing: p.lineSpacing ?? 32, fontSize: p.fontSize ?? 16, texture: p.texture ?? "smooth", ...value }))}/>
           <p className="text-xs leading-6 text-muted-foreground">تُحفظ إعدادات كل صفحة. تباعد السطور يضبط ارتفاع سطور النص الأساسي أيضًا. التقسيمات خلفيات للكتابة والرسم، ويمكن وضع النص والملصقات فوقها.</p>
+          <fieldset className="space-y-2 rounded-xl border border-border p-3">
+            <legend className="px-1 text-sm font-semibold">تصدير PDF</legend>
+            <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={searchablePdf} disabled={exporting}
+              aria-label="تضمين نص الكيبورد للبحث والنسخ في PDF" onChange={(event) => setSearchablePdf(event.target.checked)}/>طبقة بحث نصية · تجريبية</label>
+            <p className="text-xs leading-6 text-muted-foreground">تخص كلمات الكيبورد فقط؛ لا تتعرف على الحبر أو الصور والملصقات. قد تختلف المسافات وترتيب العربية والتشكيل عند النسخ أو البحث بجملة كاملة بين قارئات PDF؛ راجع الناتج قبل مشاركته. التصدير المصور هو الافتراضي، ولا يتغير محتوى المذكرة.</p>
+          </fieldset>
         </div>
       )}
 

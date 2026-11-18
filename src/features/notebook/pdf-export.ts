@@ -4,10 +4,11 @@ import { getFontEmbedCSS, toCanvas } from "html-to-image";
 import { validateNotebook, type Notebook, type NotebookPage } from "./model";
 import { pageLayout } from "./page-layout";
 import { PageArtwork } from "./PageArtwork";
+import { collectPdfText } from "./pdf-text";
+import { buildNotebookPdf, MAX_EXPORT_BYTES } from "./pdf-writer";
+export type PdfExportOptions = { searchable?: boolean };
 
-const encoder = new TextEncoder();
 export const PDF_DPI = 216;
-const MAX_EXPORT_BYTES = 80 * 1024 * 1024;
 
 function dataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -39,7 +40,7 @@ async function embedPageImages(sheet: HTMLElement, signal: AbortSignal) {
 /** Browser text shaping and the very same sheet geometry/CSS as the editor.
  * Never flatten rich HTML to textContent: tables, inline styles, Arabic joining,
  * lists and embedded images are rendered together before the ink/sticker layers. */
-export async function renderNotebookPage(page: NotebookPage) {
+export async function renderNotebookPage(page: NotebookPage, { searchable = false }: PdfExportOptions = {}) {
   const layout = pageLayout(page);
   const host = document.createElement("div");
   host.setAttribute("aria-hidden", "true");
@@ -70,6 +71,7 @@ export async function renderNotebookPage(page: NotebookPage) {
     // html-to-image includes only fonts used by this sheet. Reusing the first
     // page's CSS silently drops a different Arabic font on later pages. Font
     // resource bytes are already cached internally; collect each page's set.
+    const text = searchable ? collectPdfText(content, sheet, layout.widthMm * 72 / 25.4, layout.heightMm * 72 / 25.4) : [];
     const fontEmbedCSS = await getFontEmbedCSS(sheet);
     if (!fontEmbedCSS.includes("data:")) throw new Error("تعذر تضمين خط العربية في PDF. أعد فتح التطبيق وحاول مجددًا.");
     canvas = await toCanvas(sheet, { width: layout.width, height: layout.height,
@@ -86,7 +88,7 @@ export async function renderNotebookPage(page: NotebookPage) {
     const stream = new Blob([rgb]).stream().pipeThrough(new CompressionStream("deflate"));
     const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
     return { bytes, width: canvas.width, height: canvas.height,
-      widthPt: layout.widthMm * 72 / 25.4, heightPt: layout.heightMm * 72 / 25.4, fontEmbedCSS };
+      widthPt: layout.widthMm * 72 / 25.4, heightPt: layout.heightMm * 72 / 25.4, fontEmbedCSS, text };
   } finally {
     clearTimeout(timer); abort.abort(); host.remove();
     if (canvas) { canvas.width = 0; canvas.height = 0; }
@@ -94,47 +96,7 @@ export async function renderNotebookPage(page: NotebookPage) {
 }
 
 type RasterPage = Awaited<ReturnType<typeof renderNotebookPage>>;
-/** Minimal ISO PDF 1.4 writer with per-page lossless RGB images and exact physical page sizes. */
-function buildPdf(pages: RasterPage[]): Blob {
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  const offsets: number[] = [0];
-  const push = (bytes: Uint8Array) => { chunks.push(bytes); total += bytes.length; };
-  const write = (s: string) => push(encoder.encode(s));
-  const obj = (id: number, body: string, data?: Uint8Array) => {
-    offsets[id] = total;
-    write(String(id) + " 0 obj\n" + body);
-    if (data) { write("\nstream\n"); push(data); write("\nendstream"); }
-    write("\nendobj\n");
-  };
-  write("%PDF-1.4\n");
-  obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
-  const refs = pages.map((_, i) => String(3 + i * 3) + " 0 R").join(" ");
-  obj(2, "<< /Type /Pages /Count " + pages.length + " /Kids [" + refs + "] >>");
-  pages.forEach((p, i) => {
-    const pageId = 3 + i * 3;
-    const contentId = pageId + 1, imageId = pageId + 2;
-    const w = p.widthPt.toFixed(3), h = p.heightPt.toFixed(3);
-    obj(pageId, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " + w + " " + h +
-      "] /Resources << /XObject << /Sheet " + imageId + " 0 R >> >> /Contents " + contentId + " 0 R >>");
-    const command = "q\n" + w + " 0 0 " + h + " 0 0 cm\n/Sheet Do\nQ\n";
-    obj(contentId, "<< /Length " + encoder.encode(command).length + " >>", encoder.encode(command));
-    obj(imageId, "<< /Type /XObject /Subtype /Image /Width " + p.width +
-      " /Height " + p.height + " /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length " +
-      p.bytes.length + " >>", p.bytes);
-  });
-  const xref = total;
-  const count = 2 + pages.length * 3;
-  write("xref\n0 " + (count + 1) + "\n0000000000 65535 f \n");
-  for (let i = 1; i <= count; i++)
-    write(String(offsets[i]).padStart(10, "0") + " 00000 n \n");
-  write("trailer\n<< /Size " + (count + 1) + " /Root 1 0 R >>\nstartxref\n" + xref + "\n%%EOF");
-  const result = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.length; }
-  return new Blob([result.buffer], { type: "application/pdf" });
-}
-export async function createNotebookPdf(book: Notebook): Promise<Blob> {
+export async function createNotebookPdf(book: Notebook, options: PdfExportOptions = {}): Promise<Blob> {
   if (typeof document === "undefined") throw new Error("تصدير PDF يتطلب واجهة التطبيق.");
   if (typeof CompressionStream === "undefined")
     throw new Error("تصدير PDF عالي الدقة يحتاج إصدارًا أحدث من المتصفح أو Android System WebView.");
@@ -143,7 +105,7 @@ export async function createNotebookPdf(book: Notebook): Promise<Blob> {
   let totalBytes = 0;
   for (let i = 0; i < valid.pages.length; i++) {
     try {
-      const page = await renderNotebookPage(valid.pages[i]);
+      const page = await renderNotebookPage(valid.pages[i], options);
       totalBytes += page.bytes.length;
       if (totalBytes > MAX_EXPORT_BYTES) throw new Error("حجم PDF كبير جدًا للجهاز. صدّر الدفتر على أجزاء أصغر.");
       pages.push(page);
@@ -151,10 +113,10 @@ export async function createNotebookPdf(book: Notebook): Promise<Blob> {
       throw new Error(`صفحة ${i + 1}: ${error instanceof Error ? error.message : "تعذر تصدير الصفحة."}`);
     }
   }
-  return buildPdf(pages);
+  return buildNotebookPdf(pages);
 }
-export async function downloadNotebookPdf(book: Notebook, title: string) {
-  const file = await createNotebookPdf(book);
+export async function downloadNotebookPdf(book: Notebook, title: string, options: PdfExportOptions = {}) {
+  const file = await createNotebookPdf(book, options);
   const filename = (title.replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").trim().slice(0, 80) || "MemoFlow") + ".pdf";
   const [{ files }, { isNative }] = await Promise.all([
     import("@/services/files"), import("@/services/platform"),

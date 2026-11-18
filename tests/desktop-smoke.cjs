@@ -713,6 +713,10 @@ const vaultEntries = [
     assert.deepEqual(studioSaved().points, studioCapture);
     await page.reload(); await page.getByRole("tab", { name: "صفحة 2", exact: true }).click();
     assert.equal(await studioStroke.getAttribute("d"), studioDirectPath);
+    await page.getByRole("tab", { name: "ورق", exact: true }).click();
+    const studioSearch = page.getByLabel("تضمين نص الكيبورد للبحث والنسخ في PDF", { exact: true });
+    assert.equal(await studioSearch.isChecked(), false);
+    await studioSearch.check();
     const studioPdfPath = resolve(artifacts, "notebook-packaged-windows.pdf");
     const pdfCompleted = desktop.evaluate(({ session }, output) => new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error("Packaged PDF export did not complete")), 45000);
@@ -727,9 +731,11 @@ const vaultEntries = [
     await page.getByRole("button", { name: "تصدير صفحات الدفتر PDF", exact: true }).click();
     await pdfCompleted;
     const studioPdf = readFileSync(studioPdfPath);
-    assert.equal(studioPdf.subarray(0, 8).toString(), "%PDF-1.4");
+    assert.equal(studioPdf.subarray(0, 8).toString(), "%PDF-1.7");
     assert.ok(studioPdf.includes(Buffer.from("/Count 2")));
     assert.ok(studioPdf.includes(Buffer.from("/FlateDecode")));
+    const studioExtracted = await require("./pdf-text-reader.cjs").extractPdfText(studioPdf);
+    assert.ok(studioExtracted[1].text.includes("اختبار الدفتر في نسخة ويندوز المجمعة"));
     await page.screenshot({ path: resolve(artifacts, "notebook-packaged-windows.png"), fullPage: true });
     console.log("PASS: packaged Notebook Studio pages, ink vertices, direct transform handles/cancellation/undo, autosave/reload and lossless Arabic PDF export.");
     await page.goto("memoflow://app/settings");

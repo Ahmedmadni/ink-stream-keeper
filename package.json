@@ -128,6 +128,7 @@
     "eslint-plugin-react-refresh": "^0.4.26",
     "globals": "^15.15.0",
     "nitro": "3.0.260603-beta",
+    "pdfjs-dist": "5.4.624",
     "playwright": "1.58.2",
     "postgres": "^3.4.9",
     "prettier": "^3.9.10",

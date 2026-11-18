@@ -662,8 +662,20 @@ const vaultPinWrites = [];
     await page.getByRole("button", { name: "تصدير صفحات الدفتر PDF" }).click();
     const pdf = await downloadPending;
     const pdfBytes = readFileSync(await pdf.path());
-    assert.equal(pdfBytes.subarray(0, 8).toString("utf8"), "%PDF-1.4");
+    assert.equal(pdfBytes.subarray(0, 8).toString("utf8"), "%PDF-1.7");
     assert.ok(pdfBytes.includes(Buffer.from("/Count 2")));
+    assert.ok(!pdfBytes.includes(Buffer.from("/ToUnicode")), "default export remains image-only");
+    await page.getByRole("tab", { name: "ورق", exact: true }).click();
+    const searchableOption = page.getByLabel("تضمين نص الكيبورد للبحث والنسخ في PDF", { exact: true });
+    assert.equal(await searchableOption.isChecked(), false);
+    await searchableOption.check();
+    const searchDownload = page.waitForEvent("download", { timeout: 25000 });
+    await page.getByRole("button", { name: "تصدير صفحات الدفتر PDF" }).click();
+    const searchBytes = readFileSync(await (await searchDownload).path());
+    const searchablePages = await require("./pdf-text-reader.cjs").extractPdfText(searchBytes);
+    assert.ok(searchablePages[0].text.includes("مساحة"), "opt-in PDF contains the keyboard text in source and native bundles");
+    await searchableOption.uncheck();
+
     if (process.env.MEMOFLOW_BROWSER_NATIVE_BUNDLE !== "1")
       await require("./notebook-browser-checks.cjs").checkPdf(page, artifacts);
     const notebookDeadline = Date.now() + 20000;
@@ -984,7 +996,7 @@ const vaultPinWrites = [];
       file: window.__nativeCalls.find((c) => c.plugin === "Filesystem" && c.method === "writeFile").options,
       share: window.__nativeCalls.find((c) => c.plugin === "Share" && c.method === "share").options,
     }));
-    assert.equal(Buffer.from(pdfDelivery.file.data, "base64").subarray(0, 8).toString(), "%PDF-1.4");
+    assert.equal(Buffer.from(pdfDelivery.file.data, "base64").subarray(0, 8).toString(), "%PDF-1.7");
     assert.equal(pdfDelivery.file.encoding, undefined, "binary PDF must not be written as UTF-8 text");
     assert.deepEqual(pdfDelivery.share.files, ["content://fixture/notebook.pdf"]);
     assert.ok(!pdfDelivery.share.text.includes("مشفّرة"), "an ordinary exported PDF must not be described as encrypted");

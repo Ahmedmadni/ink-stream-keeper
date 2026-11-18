@@ -159,7 +159,7 @@ async function checkPdf(page, artifacts) {
     second.stickers = [{ id: crypto.randomUUID(), kind: "sci-neuron", x: .5, y: .5, scale: .24, color: "#224466", rotation: 25, presentation: "cutout" }];
     await document.fonts.load('20px "Aref Ruqaa"', "كتابة عربية");
     if (!document.fonts.check('20px "Aref Ruqaa"', "كتابة عربية")) throw new Error("Local Ruqaa font failed to load");
-    const blob = await createNotebookPdf({ version: 1, pages: [first, second] });
+    const blob = await createNotebookPdf({ version: 1, pages: [first, second] }, { searchable: true });
     const bytes = new Uint8Array(await blob.arrayBuffer()); let binary = "";
     for (let i = 0; i < bytes.length; i += 16384) binary += String.fromCharCode(...bytes.subarray(i, i + 16384));
     const referenceBlob = await createNotebookPdf({ version: 1, pages: [second] });
@@ -180,6 +180,11 @@ async function checkPdf(page, artifacts) {
   assert.equal(securePreviewRequests, 0, "secure preview sanitization must never initiate external requests");
   const pdf = Buffer.from(result.pdf, "base64");
   writeFileSync(artifacts + "/notebook-rich-arabic.pdf", pdf);
+  const extracted = await require("./pdf-text-reader.cjs").extractPdfText(pdf);
+  assert.ok(extracted[0].text.includes("قيد محاسبي"));
+  assert.ok(extracted[0].text.includes("VAT 15%"));
+  assert.ok(extracted[0].text.includes("إيراد المشروع"));
+  assert.ok(extracted[1].text.includes("الصفحة الثانية"));
   assert.ok(result.overflow, "overflow is reported rather than silently cropped");
   assert.ok(result.missingImage, "unavailable external images must stop export");
   assert.ok(!result.safe.includes("https://") && !result.safe.includes("script"), "secure reader cannot request remote resources");
