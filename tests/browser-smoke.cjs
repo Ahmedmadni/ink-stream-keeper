@@ -655,7 +655,9 @@ const vaultPinWrites = [];
     await secondPageEditor.fill("");
     await page.getByRole("status").filter({ hasText: "النص يتجاوز مساحة هذه الورقة" }).waitFor({ state: "hidden" });
     const vaultPencil = await require("./notebook-pencil-checks.cjs").drawPencil(page);
+    const vaultDot = await require("./notebook-stationary.cjs").drawStationaryDot(page);
     await require("./notebook-ink-style.cjs").stylePencilForVault(page);
+    const vaultDotPath = await page.locator(`[data-notebook-paper] path[data-stroke-id="${vaultDot.id}"]`).getAttribute("d");
     await page.getByRole("tab", { name: "كتابة", exact: true }).click();
     assert.equal(await page.getByRole("tab", { name: /^صفحة [12]$/ }).count(), 2);
     await page.getByRole("button", { name: "تكرار الصفحة", exact: true }).click();
@@ -670,6 +672,7 @@ const vaultPinWrites = [];
     const pdfBytes = readFileSync(await pdf.path());
     writeFileSync(resolve(artifacts,"notebook-restyled-ui.pdf"),pdfBytes);
     require("./notebook-ink-style.cjs").assertStyledPdf(pdfBytes);
+    require("./notebook-stationary.cjs").assertStationaryPdf(pdfBytes,vaultDotPath);
     assert.equal(pdfBytes.subarray(0, 8).toString("utf8"), "%PDF-1.7");
     assert.ok(pdfBytes.includes(Buffer.from("/Count 2")));
     assert.ok(!pdfBytes.includes(Buffer.from("/ToUnicode")), "default export remains image-only");
@@ -760,6 +763,8 @@ const vaultPinWrites = [];
     await page.getByRole("tab", { name: "صفحة 2", exact: true }).click();
     assert.equal(await page.locator('[data-notebook-paper] path[data-ink-brush="pencil"]').getAttribute("d"), vaultPencil.d,
       "pencil geometry survives real vault encrypt/decrypt and secure rendering");
+    assert.equal(await page.locator(`[data-notebook-paper] path[data-stroke-id="${vaultDot.id}"]`).getAttribute("d"),vaultDotPath,
+      "stationary pressure ink remains visible after vault encryption/decryption");
     assert.equal(await page.locator('[data-notebook-paper] path[data-ink-brush="pencil"]').getAttribute("stroke-width"),"12");
     assert.equal(await page.locator('[data-notebook-paper] pattern rect').first().getAttribute("fill"),"#f04372");
     assert.equal(await page.locator('[data-notebook-paper] pattern[data-pencil-grain="1"]').count(), 1);

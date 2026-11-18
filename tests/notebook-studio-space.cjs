@@ -53,6 +53,7 @@ async function checkStudioSpace(page, artifacts, readSaved) {
   await require("./notebook-pencil-checks.cjs").checkPencil(page,artifacts,readSaved);
   await require("./notebook-pen-favorites.cjs").checkPenFavorites(page,readSaved);
   await require("./notebook-ink-style.cjs").checkInkStyles(page,artifacts,readSaved);
+  await require("./notebook-stationary.cjs").checkStationaryPen(page,readSaved);
   await page.setViewportSize({width:390,height:844});
   // Reload starts in the writing group. Selecting pens leaves focus mode.
   await page.getByRole("tab",{name:"أقلام",exact:true}).click();await page.getByRole("button",{name:"وضع التركيز",exact:true}).click();

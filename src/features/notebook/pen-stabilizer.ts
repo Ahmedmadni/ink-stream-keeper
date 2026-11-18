@@ -6,6 +6,7 @@ import type { InkStroke } from "./model";
 export function stabilizePen(stroke: InkStroke, strength: number, aspect: number): InkStroke {
   if (!strength || stroke.tool !== "pen" || stroke.points.length < 3 || stroke.controlPoints || stroke.cuts || stroke.span) return stroke;
   if (!Number.isFinite(strength) || strength < 0 || strength > 1 || !Number.isFinite(aspect) || aspect <= 0) return stroke;
+  if(stroke.points.every(([x,y])=>x===stroke.points[0][0]&&y===stroke.points[0][1]))return stroke;
   const points = getStrokePoints(stroke.points.map(([x, y]) => [x, y * aspect]), { size: stroke.width, streamline: strength, last: true });
   if (points.length < 2) return stroke;
   const controlPoints = stroke.points.map((original, i): [number, number] => {

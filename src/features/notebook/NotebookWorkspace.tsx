@@ -16,6 +16,7 @@ import { PenResponsePreview } from "./PenResponsePreview";
 import { PenFavorites } from "./PenFavorites";
 import { InkStyleDialog,type InkStyleSession } from "./InkStyleDialog";
 import type { InkStylePreview } from "./ink-style";
+import {shouldCaptureInkSample} from "./ink-capture";
 import { InkMark, InkLayer } from "./InkMark";
 import { StickerArtwork, stickerStyle, ScienceAttribution } from "./StickerArtwork";
 import { shapePoints, type ShapeTool, hitStroke, inkBounds, InkHistory, moveInk as translateInk, type Point, type InkBounds } from "./ink";
@@ -459,8 +460,7 @@ export function NotebookWorkspace({
       } else if (liveRef.current && group === "shapes") {
         liveRef.current = { ...liveRef.current, points: shapePoints(active.start, next, shapeTool, aspect) };
       } else if (liveRef.current) {
-        const prev = liveRef.current.points[liveRef.current.points.length - 1];
-        if (Math.hypot(next[0] - prev[0], (next[1] - prev[1]) * aspect) >= .35) {
+        if (shouldCaptureInkSample(liveRef.current,next,aspect,sample)) {
           if (liveRef.current.points.length >= 4000) {
             finish(); setWarning("تم حفظ المسار الطويل. ارفع القلم لبدء مسار جديد."); return;
           }

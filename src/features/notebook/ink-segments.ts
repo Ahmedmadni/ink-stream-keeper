@@ -163,6 +163,16 @@ export function cutInkPath(stroke: InkStroke, aspect = 1): string {
 }
 export function inkOutline(centers: Center[]): string {
   if (!centers.length) return "";
+  // Coincident samples are valid: a stationary pen can change pressure and
+  // edited vertices can collapse. Merge only this paint copy, keeping the
+  // largest visible disk; never rewrite capture or cut-parameter samples.
+  const distinct:Center[]=[];
+  for(const p of centers){
+    const last=distinct[distinct.length-1];
+    if(last&&last.x===p.x&&last.y===p.y){if(p.r>last.r)distinct[distinct.length-1]={...last,r:p.r};}
+    else distinct.push(p);
+  }
+  centers=distinct;
   if (centers.length === 1) {
     const { x, y, r } = centers[0];
     return `M ${f(x - r)} ${f(y)} a ${f(r)} ${f(r)} 0 1 0 ${f(r * 2)} 0 a ${f(r)} ${f(r)} 0 1 0 ${f(-r * 2)} 0`;
