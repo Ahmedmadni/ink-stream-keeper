@@ -39,7 +39,10 @@ function segments(stroke: InkStroke, aspect: number): Segment[] {
     r: stroke.width * (stroke.pressures && stroke.tool === "pen" ? .25 + .75 * Math.pow(
       stroke.controlKnots ? pressureAt(stroke, knots[i]) : stroke.pressures[i], stroke.pressureResponse ?? 1) : 1) / 2 }));
   if (count < 2) return [{ a: p[0], b: p[0] }];
-  if (stroke.smoothing === false || count < 3) return p.slice(1).map((b, i) => ({ a: p[i], b }));
+  // A stationary mark accumulates disks. Smoothing its pressure as a curve
+  // can shrink a previously painted disk when the user relaxes pressure.
+  if (stroke.smoothing === false || count < 3 || p.every(point=>point.x===p[0].x&&point.y===p[0].y))
+    return p.slice(1).map((b, i) => ({ a: p[i], b }));
   let a = p[0]; const result: Segment[] = [];
   for (let i = 1; i < count - 1; i++) {
     const b = { ...midpoint(p[i], p[i + 1]), t: knots[i] };

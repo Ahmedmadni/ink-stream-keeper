@@ -16,6 +16,8 @@ test("stationary pressure paints a visible disk without rewriting capture",()=>{
   }
   expect(source).toEqual(raw);const p=createPage();p.strokes=[source];
   expect(parseNotebook(serializeNotebook({version:1,pages:[p]}))!.pages[0].strokes[0]).toEqual(source);
+  const relaxed={...source,pressures:[.2,.8,.1],smoothing:true};
+  expect(inkShape(relaxed).d).toBe(inkShape({...source,points:[[100,100]],pressures:[.8],times:[1]}).d);
 });
 test("coincident edited controls stay visible with clipping and offset",()=>{
   const source:InkStroke={...s(),points:[[100,200],[200,300],[300,400]],controlPoints:[[400,400],[400,400],[400,400]],
