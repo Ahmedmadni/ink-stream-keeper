@@ -1,6 +1,6 @@
 import { MAX_PDF_TEXT_GLYPHS, pdfUnicodeHex, type PdfTextGlyph } from "./pdf-text";
 export const MAX_EXPORT_BYTES = 80 * 1024 * 1024;
-export type PdfRasterPage = { bytes: Uint8Array; width: number; height: number; widthPt: number; heightPt: number; text?: PdfTextGlyph[] };
+export type PdfRasterPage = { bytes: Uint8Array; width: number; height: number; widthPt: number; heightPt: number; text?: PdfTextGlyph[]; licenseText?: string };
 const encoder = new TextEncoder();
 const number = (n: number) => Number(n.toFixed(6)).toString();
 
@@ -12,6 +12,9 @@ export function buildNotebookPdf(pages: PdfRasterPage[]): Blob {
   if (!pages.length || pages.length > 36) throw new Error("عدد صفحات PDF غير صالح.");
   const chunks: Uint8Array[] = [], offsets: number[] = [0];
   let total = 0, next = 3 + pages.length * 3, glyphCount = 0;
+  const licenses = [...new Set(pages.map((p) => p.licenseText).filter((s): s is string => !!s))].join("\n\n");
+  if (licenses.length > 16000) throw new Error("إشعار ترخيص PDF كبير جدًا.");
+  const licenseId = licenses ? next++ : null;
   const push = (bytes: Uint8Array) => {
     if (total + bytes.length > MAX_EXPORT_BYTES) throw new Error("حجم PDF كبير جدًا للجهاز. صدّر الدفتر على أجزاء أصغر.");
     chunks.push(bytes); total += bytes.length;
@@ -80,10 +83,11 @@ export function buildNotebookPdf(pages: PdfRasterPage[]): Blob {
     }
     stream(f.cmap, map + "endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend");
   }
+  if (licenseId) obj(licenseId, `<< /Subject <FEFF${pdfUnicodeHex(licenses)}> >>`);
   const xref = total;
   write(`xref\n0 ${next}\n0000000000 65535 f \n`);
   for (let i = 1; i < next; i++) { if (!offsets[i]) throw new Error("بنية PDF غير مكتملة."); write(String(offsets[i]).padStart(10, "0") + " 00000 n \n"); }
-  write(`trailer\n<< /Size ${next} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`);
+  write(`trailer\n<< /Size ${next} /Root 1 0 R${licenseId ? ` /Info ${licenseId} 0 R` : ""} >>\nstartxref\n${xref}\n%%EOF`);
   const result = new Uint8Array(total); let offset = 0;
   for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.length; }
   return new Blob([result.buffer], { type: "application/pdf" });

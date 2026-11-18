@@ -6,6 +6,7 @@ export const PAPER_SIZES = ["a4", "a5", "letter", "square"] as const;
 export const PAPER_TINTS = ["white", "ivory", "mint", "blue", "rose"] as const;
 export const PAPER_TEXTURES = ["smooth", "grain", "linen"] as const;
 export const STICKER_TYPES = [
+  "fl-stethoscope", "fl-syringe", "fl-pill", "fl-microscope", "fl-abacus", "fl-moneybag", "fl-chart", "fl-coins", "fl-books", "fl-graduation", "fl-memo", "fl-lightbulb",
   "stethoscope", "heart-pulse", "pill", "microscope", "flask-conical",
   "dna", "atom", "book-open", "graduation-cap", "lightbulb", "pencil-ruler",
   "calculator", "chart-no-axes-combined", "wallet", "receipt", "landmark",

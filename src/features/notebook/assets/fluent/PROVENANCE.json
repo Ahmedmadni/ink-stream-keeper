@@ -1,0 +1,79 @@
+{
+  "repository": "microsoft/fluentui-emoji",
+  "commit": "1ffb34c752ecf5d402f04cfb4b392c77f57c54bc",
+  "license": "MIT",
+  "assets": [
+    {
+      "id": "fl-stethoscope",
+      "label": "سماعة ملونة",
+      "path": "assets/Stethoscope/Flat/stethoscope_flat.svg",
+      "sha256": "0fc113046a5f3e6f2898d3af54e958896227170b33fa18d3044336114363351f"
+    },
+    {
+      "id": "fl-syringe",
+      "label": "حقنة ملونة",
+      "path": "assets/Syringe/Flat/syringe_flat.svg",
+      "sha256": "75f2978925714c8d3e273038943fec6a4e8306bf19cc71cc0b820573ffae0a3d"
+    },
+    {
+      "id": "fl-pill",
+      "label": "علاج ملون",
+      "path": "assets/Pill/Flat/pill_flat.svg",
+      "sha256": "d1b28405690bcaed66046937e62d5f40d80428a84265a99fb5f6f5fd16e34edd"
+    },
+    {
+      "id": "fl-microscope",
+      "label": "مجهر ملون",
+      "path": "assets/Microscope/Flat/microscope_flat.svg",
+      "sha256": "600554164fd9b06b59670ba169c368ab2ab56b87e3fc2de7ff820aab9e985ff5"
+    },
+    {
+      "id": "fl-abacus",
+      "label": "عداد محاسبي",
+      "path": "assets/Abacus/Flat/abacus_flat.svg",
+      "sha256": "2607947d66ebec1165917b518947d5e6f08f1dd7f939293f42b10fcdbf6d2e06"
+    },
+    {
+      "id": "fl-moneybag",
+      "label": "حقيبة نقود",
+      "path": "assets/Money bag/Flat/money_bag_flat.svg",
+      "sha256": "4da969956b28cb2075af99deaa14f0861dc2cfd919628fe3c71739476b836444"
+    },
+    {
+      "id": "fl-chart",
+      "label": "رسم النمو",
+      "path": "assets/Chart increasing/Flat/chart_increasing_flat.svg",
+      "sha256": "a306f410105d146d616d5c8e86032c2abe25195ab3e0734746ca05d88855e9d8"
+    },
+    {
+      "id": "fl-coins",
+      "label": "عملة ذهبية",
+      "path": "assets/Coin/Flat/coin_flat.svg",
+      "sha256": "ea473ad6d7d38f5476c13c3bd32c15393f8e59503e2269f724f70f4e5c107f4f"
+    },
+    {
+      "id": "fl-books",
+      "label": "كتب ملونة",
+      "path": "assets/Books/Flat/books_flat.svg",
+      "sha256": "41e2686cdc526bfa41ea599e2a74378f3a02788ff7e8cd1b9ad0a39ea157000c"
+    },
+    {
+      "id": "fl-graduation",
+      "label": "قبعة تخرج",
+      "path": "assets/Graduation cap/Flat/graduation_cap_flat.svg",
+      "sha256": "8bd1f157195b278cfea4e5b852df232c4ca89dc6eb2174b1f1473ad1c0102be1"
+    },
+    {
+      "id": "fl-memo",
+      "label": "ورقة كتابة",
+      "path": "assets/Memo/Flat/memo_flat.svg",
+      "sha256": "c25d823ddb3ed0d9c66eff249456ff681244dbb1c9a7d19785864607f46a4f3a"
+    },
+    {
+      "id": "fl-lightbulb",
+      "label": "فكرة ملونة",
+      "path": "assets/Light bulb/Flat/light_bulb_flat.svg",
+      "sha256": "3e746a9b94051287b263e518e1f156cbfbffb45b5e0a6db6570b99d4c8c56484"
+    }
+  ]
+}

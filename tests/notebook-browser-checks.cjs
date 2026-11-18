@@ -157,6 +157,7 @@ async function checkPdf(page, artifacts) {
     const second = createPage({ size: "letter", paper: "ledger" });
     second.html = '<p><span style="font-family:Aref Ruqaa">الصفحة الثانية — كتابة عربية بخط رقعة</span></p>';
     second.stickers = [{ id: crypto.randomUUID(), kind: "sci-neuron", x: .5, y: .5, scale: .24, color: "#224466", rotation: 25, presentation: "cutout" }];
+    second.stickers.push({ id: crypto.randomUUID(), kind: "fl-stethoscope", x: .8, y: .75, scale: .15, color: "#224466", presentation: "cutout" });
     await document.fonts.load('20px "Aref Ruqaa"', "كتابة عربية");
     if (!document.fonts.check('20px "Aref Ruqaa"', "كتابة عربية")) throw new Error("Local Ruqaa font failed to load");
     const blob = await createNotebookPdf({ version: 1, pages: [first, second] }, { searchable: true });
@@ -190,6 +191,8 @@ async function checkPdf(page, artifacts) {
   assert.ok(!result.safe.includes("https://") && !result.safe.includes("script"), "secure reader cannot request remote resources");
   assert.ok(pdf.includes(Buffer.from("/MediaBox [0 0 595.276 419.528]")), "A5 landscape physical dimensions");
   assert.ok(pdf.includes(Buffer.from("/MediaBox [0 0 612.000 792.000]")), "Letter physical dimensions");
+  const license = require("node:fs").readFileSync(require("node:path").resolve(__dirname, "../src/features/notebook/assets/fluent/LICENSE.txt"), "utf8");
+  assert.ok(pdf.includes(Buffer.from(Buffer.from(license, "utf16le").swap16().toString("hex").toUpperCase())), "export retains the full MIT license in document properties");
   const header = /\/Subtype \/Image \/Width (\d+) \/Height (\d+)[\s\S]*?\/Filter \/FlateDecode \/Length (\d+) >>\nstream\n/.exec(pdf.toString("latin1"));
   assert.ok(header, "lossless PDF image must be present");
   const start = header.index + header[0].length;

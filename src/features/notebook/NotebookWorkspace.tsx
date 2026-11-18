@@ -11,6 +11,7 @@ import {
   type Notebook, type NotebookPage, type InkStroke, type PageSticker,
 } from "./model";
 import { STICKER_GROUPS, stickerIcon, searchStickers } from "./sticker-packs";
+import { stabilizePen } from "./pen-stabilizer";
 import { InkMark, InkLayer } from "./InkMark";
 import { StickerArtwork, stickerStyle, ScienceAttribution } from "./StickerArtwork";
 import { shapePoints, type ShapeTool, hitStroke, inkBounds, InkHistory, moveInk as translateInk, type Point, type InkBounds } from "./ink";
@@ -119,6 +120,9 @@ export function NotebookWorkspace({
   const [penColor, setPenColor] = useState("#293648");
   const [penWidth, setPenWidth] = useState(4);
   const [smooth, setSmooth] = useState(true);
+  const [stabilization, setStabilization] = useState(0);
+  const [focusMode, setFocusMode] = useState(true);
+  const [pagePreviews, setPagePreviews] = useState(false);
   const [live, setLive] = useState<InkStroke | null>(null);
   const liveRef = useRef<InkStroke | null>(null);
   const history = useRef(new InkHistory());
@@ -346,7 +350,7 @@ export function NotebookWorkspace({
       if (p.id !== activeGesture.pageId) return p;
       if (activeGesture.mode === "nodes" && activeGesture.nodeDraft && activeGesture.nodeDraft !== activeGesture.nodeSource)
         return { ...p, strokes: p.strokes.map((s) => s.id === activeGesture.nodeDraft!.id ? activeGesture.nodeDraft! : s) };
-      if (stroke?.points.length) return { ...p, strokes: [...p.strokes, stroke] };
+      if (stroke?.points.length) return { ...p, strokes: [...p.strokes, group === "draw" ? stabilizePen(stroke, stabilization, aspect) : stroke] };
       if (activeGesture.mode === "eraser" && activeGesture.partialStrokes && activeGesture.partialStrokes !== p.strokes)
         return { ...p, strokes: activeGesture.partialStrokes };
       if (activeGesture.mode === "eraser" && activeGesture.erased.size)
@@ -549,7 +553,7 @@ export function NotebookWorkspace({
       if (p.stickers.length >= 120) { setWarning("الصفحة تحتوي الحد الأقصى من الملصقات."); return p; }
       const stamp: PageSticker = {
         id: crypto.randomUUID(), kind, color: "#3275ba",
-        presentation: kind.startsWith("sci-") ? "cutout" : "badge", rotation: 0,
+        presentation: (kind.startsWith("sci-") || kind.startsWith("fl-")) ? "cutout" : "badge", rotation: 0,
         x: 0.35 + ((p.stickers.length % 5) * 0.08), y: 0.35 + ((p.stickers.length % 4) * 0.07),
         scale: 0.12,
       };
@@ -637,9 +641,10 @@ export function NotebookWorkspace({
             <h2 className="text-base font-bold">دفتر المذاكرة</h2>
             <p className="text-xs text-muted-foreground">{book.pages.length} صفحة · {SIZE_LABELS[page.size]} · {PAPER_LABELS[page.paper]}</p>
           </div>
+          <button type="button" aria-label="وضع التركيز" aria-pressed={focusMode} className={controlCls(focusMode)} onClick={() => { finish(); setFocusMode(!focusMode); }} title={focusMode ? "إظهار الأدوات" : "توسيع الورقة"}><ScanLine className="size-4"/><span className="hidden sm:inline">{focusMode ? "إظهار الأدوات" : "توسيع الورقة"}</span></button>
           <button type="button" disabled={exporting || !!transformSession} onClick={() => { void exportPdf(); }}
             className={controlCls(false)} aria-label="تصدير صفحات الدفتر PDF">
-            <FileDown className="size-4" /> {exporting ? "تصدير..." : "تصدير PDF"}
+            <FileDown className="size-4" /><span className="hidden sm:inline">{exporting ? "تصدير..." : "تصدير PDF"}</span>
           </button>
         </div>
         <div className="mt-3 grid grid-cols-5 gap-1" role="tablist" aria-label="مجموعات أدوات الدفتر">
@@ -651,16 +656,16 @@ export function NotebookWorkspace({
             ["paper", "ورق", Layers],
           ] as const).map(([key, label, Icon]) => (
             <button type="button" role="tab" key={key} aria-selected={group === key}
-              onClick={() => { finish(); if (key !== group) cancelTransform(); setGroup(key); setSelectedSticker(null); }}
-              className={"flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 font-semibold sm:flex-row sm:gap-2 " + (group === key ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground hover:bg-accent")}>
+              onClick={() => { finish(); if (key !== group) cancelTransform(); setFocusMode(false); setGroup(key); setSelectedSticker(null); }}
+              className={"flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-xl px-1 py-2 font-semibold " + (group === key ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground hover:bg-accent")}>
               <Icon className="size-4 shrink-0" /><span className="text-xs">{label}</span>
             </button>
           ))}
         </div>
       </header>
 
-      {group === "draw" && (
-        <div className="space-y-2 rounded-2xl border border-border bg-card p-3">
+      {!focusMode && group === "draw" && (
+        <div className="max-h-64 space-y-2 overflow-y-auto rounded-2xl border border-border bg-card p-3">
           {activeTransform ? <InkTransformPanel source={activeTransform.source} ids={activeTransform.ids} aspect={aspect}
             remainingBytes={activeTransform.remainingBytes} draft={transformDraft} onDraft={setTransformDraft} dragging={transformDragging}
             onPreview={handleTransformPreview} onApply={applyTransform} onCancel={cancelTransform}/> : <>
@@ -682,6 +687,12 @@ export function NotebookWorkspace({
             <button type="button" className={controlCls(false)} aria-label="إعادة الرسم"
               disabled={!history.current.canRedo(page.id)} onClick={() => historyStep(true)}><Redo2 className="size-4"/>إعادة</button>
           </div>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="أنواع أقلام الكتابة">
+            <button type="button" className={controlCls(stabilization === 0 && inkMode === "pen")} onClick={() => { finish(); setInkMode("pen"); setStabilization(0); setPenWidth(3); }}>قلم دقيق</button>
+            <button type="button" className={controlCls(stabilization === .55 && inkMode === "pen")} onClick={() => { finish(); setInkMode("pen"); setStabilization(.55); setPenWidth(4); setSmooth(true); }}>قلم سلس</button>
+            <button type="button" className={controlCls(stabilization === .75 && inkMode === "pen")} onClick={() => { finish(); setInkMode("pen"); setStabilization(.75); setPenWidth(8); setSmooth(true); setPressureEnabled(true); }}>قلم رسم ناعم</button>
+          </div>
+          <p className="text-xs text-muted-foreground">القلم السلس وقلم الرسم يستخدمان Perfect Freehand لتثبيت المسار، مع الاحتفاظ بعينات الأصل. ليست فرش خامات أو تعرفًا على الحروف.</p>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <label className="flex items-center gap-2">لون القلم
               <input type="color" aria-label="لون قلم الدفتر" value={penColor} onChange={(e) => setPenColor(e.target.value)} />
@@ -741,7 +752,7 @@ export function NotebookWorkspace({
           </>}
         </div>
       )}
-      {group === "shapes" && <div className="space-y-3 rounded-2xl border border-border bg-card p-3">
+      {!focusMode && group === "shapes" && <div className="max-h-64 space-y-3 overflow-y-auto rounded-2xl border border-border bg-card p-3">
         <div className="flex flex-wrap gap-2" role="group" aria-label="أشكال الرسم الهندسي">
           {([["line", "خط", Minus], ["arrow", "سهم", ArrowUpRight], ["rectangle", "مستطيل", Square], ["ellipse", "دائرة وبيضاوي", Circle]] as const).map(([key, label, Icon]) =>
             <button type="button" key={key} className={controlCls(shapeTool === key)} aria-pressed={shapeTool === key}
@@ -755,8 +766,8 @@ export function NotebookWorkspace({
         </div>
         <p className="text-xs text-muted-foreground">اسحب على الورقة لرسم الشكل. يمكنك تحديده وتحريكه أو مسحه من مجموعة الأقلام.</p>
       </div>}
-      {group === "stickers" && (
-        <div className="space-y-3 rounded-2xl border border-border bg-card p-3">
+      {!focusMode && group === "stickers" && (
+        <div className="max-h-64 space-y-3 overflow-y-auto rounded-2xl border border-border bg-card p-3">
           <div className="flex flex-wrap gap-2">
             {STICKER_GROUPS.map((pack) => (
               <button type="button" key={pack.id} aria-pressed={stickerGroup === pack.id}
@@ -769,13 +780,13 @@ export function NotebookWorkspace({
             <input type="search" aria-label="بحث الملصقات" value={stickerQuery} onChange={(e) => setStickerQuery(e.target.value)}
               placeholder="ابحث: عظام، محاسبة، neuron..." className="min-h-11 w-full bg-transparent text-sm outline-none"/>
           </label>
-          <div className="grid max-h-80 grid-cols-4 gap-2 overflow-y-auto sm:grid-cols-7" aria-label="مكتبة الملصقات">
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-7" aria-label="مكتبة الملصقات">
             {searchStickers(stickerQuery, stickerGroup).map(([kind, label]) => {
               const Icon = stickerIcon(kind);
               return <button type="button" key={kind} title={label} aria-label={"إضافة ملصق " + label}
                 onClick={() => addSticker(kind)}
                 className="flex min-h-24 flex-col items-center justify-center gap-1 rounded-xl border border-border bg-secondary/60 p-2 hover:border-primary">
-                <span className="grid size-12 place-items-center rounded-xl bg-[#f6faff] text-[#2564ad]"><Icon size={kind.startsWith("sci-") ? 42 : 25} strokeWidth={1.9}/></span>
+                <span className="grid size-12 place-items-center rounded-xl bg-[#f6faff] text-[#2564ad]"><Icon size={(kind.startsWith("sci-") || kind.startsWith("fl-")) ? 42 : 25} strokeWidth={1.9}/></span>
                 <span className="text-center text-[10px] leading-4">{label}</span>
               </button>;
             })}
@@ -796,8 +807,8 @@ export function NotebookWorkspace({
                   }))} />
               </label>
               <input type="color" aria-label="لون الملصق" value={selected.color}
-                disabled={selected.kind.startsWith("sci-") && (selected.presentation ?? "cutout") === "cutout"}
-                title={selected.kind.startsWith("sci-") ? "لتغيير لون خلفية الرسم فعّل خلفية الختم أولًا" : "لون الملصق"}
+                disabled={(selected.kind.startsWith("sci-") || selected.kind.startsWith("fl-")) && (selected.presentation ?? "cutout") === "cutout"}
+                title={(selected.kind.startsWith("sci-") || selected.kind.startsWith("fl-")) ? "لتغيير لون خلفية الرسم فعّل خلفية الختم أولًا" : "لون الملصق"}
                 onChange={(e) => updatePage((p) => ({
                   ...p, stickers: p.stickers.map((s) => s.id === selected.id ? { ...s, color: e.target.value } : s),
                 }))} />
@@ -807,20 +818,20 @@ export function NotebookWorkspace({
                 <span dir="ltr">{selected.rotation ?? 0}°</span>
               </label>
               <button type="button" className={controlCls(false)} onClick={() => updatePage((p) => ({ ...p,
-                stickers: p.stickers.map((s) => s.id === selected.id ? { ...s, presentation: (s.presentation ?? (s.kind.startsWith("sci-") ? "cutout" : "badge")) === "badge" ? "cutout" : "badge" } : s),
+                stickers: p.stickers.map((s) => s.id === selected.id ? { ...s, presentation: (s.presentation ?? ((s.kind.startsWith("sci-") || s.kind.startsWith("fl-")) ? "cutout" : "badge")) === "badge" ? "cutout" : "badge" } : s),
               }))}>تبديل خلفية الملصق</button>
               <button type="button" className={controlCls(false)} onClick={() => {
                 updatePage((p) => ({ ...p, stickers: p.stickers.filter((s) => s.id !== selected.id) }));
                 setSelectedSticker(null);
               }}><Trash2 className="size-4"/>حذف الملصق</button>
-              {selected.kind.startsWith("sci-") && <p className="w-full text-xs text-muted-foreground">ألوان الرسم العلمي الأصلية محفوظة. يمكنك تلوين خلفيته بعد تفعيل الختم.</p>}
+              {(selected.kind.startsWith("sci-") || selected.kind.startsWith("fl-")) && <p className="w-full text-xs text-muted-foreground">ألوان الملصق الأصلية محفوظة. يمكنك تلوين خلفيته بعد تفعيل الختم.</p>}
             </div>
           )}
           <p className="text-xs text-muted-foreground">اضغط لإضافة الملصق، واسحبه على الصفحة لتحريك موضعه.</p>
         </div>
       )}
-      {group === "paper" && (
-        <div className="space-y-3 rounded-2xl border border-border bg-card p-3">
+      {!focusMode && group === "paper" && (
+        <div className="max-h-64 space-y-3 overflow-y-auto rounded-2xl border border-border bg-card p-3">
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6" role="group" aria-label="خلفيات الورق">
             {PAPER_TYPES.map((p) => (
               <button type="button" key={p} aria-pressed={page.paper === p}
@@ -867,7 +878,7 @@ export function NotebookWorkspace({
         </div>
       )}
 
-      {group === "text" && activeTextEditor && (
+      {!focusMode && group === "text" && activeTextEditor && (
         <CompactToolbar editor={activeTextEditor} onAddAttachment={onAddAttachment} />
       )}
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2 text-xs">
@@ -907,7 +918,7 @@ export function NotebookWorkspace({
               className={"absolute inset-0 z-20 size-full " + (isDrawing ? transformSession ? "cursor-default" : "cursor-crosshair" : "pointer-events-none")}
               style={{ touchAction: isDrawing && !transformSession && !penOnly ? "none" : "pan-x pan-y" }}>
               <InkLayer strokes={shownStrokes.filter((s) => !erased.has(s.id))} aspect={aspect} selected={isDrawing ? selection : undefined}/>
-              {live && <InkMark stroke={live} aspect={aspect} />}
+              {live && <InkMark stroke={group === "draw" ? stabilizePen(live, stabilization, aspect) : live} aspect={aspect} />}
               {isDrawing && eraserPoint && <circle cx={eraserPoint[0]} cy={eraserPoint[1] * aspect} r={eraserWidth / 2}
                 fill="#4488ff12" stroke="#3275ba" strokeWidth={1.5} strokeDasharray="3 3" pointerEvents="none"/>}
               {isDrawing && !activeTransform && inkMode === "select" && (selectionBox || selectedBounds) && (() => {
@@ -1007,7 +1018,7 @@ export function NotebookWorkspace({
         }}/>}
       <nav className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-40 rounded-2xl border border-border bg-card/95 p-3 shadow-lg backdrop-blur md:bottom-2"
         aria-label="شريط صفحات المذكرة">
-        {group === "draw" && <div className="mb-2 flex gap-1 overflow-x-auto border-b border-border pb-2" role="group" aria-label="أدوات القلم السريعة">
+        {!focusMode && group === "draw" && <div className="mb-2 flex gap-1 overflow-x-auto border-b border-border pb-2" role="group" aria-label="أدوات القلم السريعة">
           {transformSession ? <>
             <button type="button" className={controlCls(true)} aria-label="تطبيق التحويل السريع" disabled={transformDragging || !transformPreview?.changed || !!transformPreview.error}
               onClick={() => { if (transformPreview) applyTransform(transformPreview); }}><Check className="size-4"/>تطبيق</button>
@@ -1042,6 +1053,7 @@ export function NotebookWorkspace({
         </div>}
         <div className="mb-2 flex items-center justify-between gap-2">
           <strong className="text-sm">الصفحات ({book.pages.length})</strong>
+          <button type="button" className="min-h-11 rounded-lg px-2 text-xs" aria-label="عرض مصغرات الصفحات" aria-pressed={pagePreviews} onClick={() => setPagePreviews(!pagePreviews)}>{pagePreviews ? "شريط مختصر" : "مصغرات"}</button>
           <div className="flex gap-1">
             <button type="button" aria-label="تكرار الصفحة" title="تكرار الصفحة"
               onClick={duplicatePage} disabled={!!transformSession} className="grid size-10 place-items-center rounded-xl bg-secondary disabled:opacity-40"><Copy className="size-4" /></button>
@@ -1058,14 +1070,14 @@ export function NotebookWorkspace({
               disabled={!!transformSession}
               aria-label={"صفحة " + (n + 1)}
               onClick={() => { finish(); setIndex(n); setSelectedSticker(null); setSelection(new Set()); }}
-              className={"flex min-w-20 flex-col items-center gap-1 rounded-xl border-2 p-1.5 " +
+              className={"flex min-h-11 min-w-12 flex-col items-center justify-center gap-1 rounded-xl border-2 p-1.5 " +
                 (index === n ? "border-primary bg-primary-soft" : "border-border bg-background")}>
-              <PageMiniature page={p} />
+              {pagePreviews && <PageMiniature page={p} />}
               <span className="text-xs">صفحة {n + 1}</span>
             </button>
           ))}
           <button type="button" onClick={addPage} disabled={!!transformSession} aria-label="إضافة صفحة" title="إضافة صفحة"
-            className="flex min-w-20 flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-primary/35 text-primary disabled:opacity-40">
+            className="flex min-h-11 min-w-20 items-center justify-center gap-1 rounded-xl border-2 border-dashed border-primary/35 text-primary disabled:opacity-40">
             <Plus className="size-6"/><span className="text-xs">صفحة جديدة</span>
           </button>
         </div>

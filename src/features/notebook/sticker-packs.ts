@@ -5,12 +5,14 @@ import {
   Wallet, Receipt, Landmark, Coins, CircleCheckBig, CalendarCheck, NotebookPen,
   Star, Target, Brain, Bone, Syringe, Thermometer, Hospital, Bandage, ScanEye, Ear, FileSpreadsheet, Scale, PiggyBank, CreditCard, BriefcaseBusiness, BadgeDollarSign, HandCoins, ChartPie, TrendingDown, CircleDollarSign, StickyNote, AlarmClock, Bookmark, Flag, ListChecks, NotebookTabs, BookMarked, Presentation, ClipboardList, Ruler,
 } from "lucide-react";
+import { FLUENT_ART, FLUENT_ITEMS } from "./fluent-art";
 import { SCIENCE_ART, SCIENCE_ITEMS } from "./science-art";
 import type { PageSticker } from "./model";
 
 /** Curated from the already-installed Lucide library (ISC + Feather MIT).
  * No artwork is scraped, linked at runtime or copied from stock websites. */
 export const STICKER_GROUPS = [
+  { id: "fluent", label: "ملصقات ملونة", items: FLUENT_ITEMS },
   {
     id: "medical", label: "طب وعلوم",
     items: [
@@ -122,6 +124,7 @@ const ICONS: Record<PageSticker["kind"], ComponentType<{ size?: number | string;
   "clipboard-list": ClipboardList,
   "ruler": Ruler,
   ...SCIENCE_ART,
+  ...FLUENT_ART,
 };
 export function stickerIcon(kind: PageSticker["kind"]) {
   return ICONS[kind];

@@ -1,5 +1,7 @@
 import { Code2, ExternalLink } from "lucide-react";
 import { APP_VERSION, DEVELOPER_NAME, DEVELOPER_URL } from "@/lib/app-info";
+import fluentLicense from "@/features/notebook/assets/fluent/LICENSE.txt?raw";
+import penLicense from "@/features/notebook/assets/fluent/PERFECT_FREEHAND_LICENSE.txt?raw";
 
 export function AboutApp() {
   return (
@@ -29,6 +31,8 @@ export function AboutApp() {
         <p>تجربة التعرف العربي في أندرويد تستخدم Google ML Kit محليًا بعد تنزيل نموذج اللغة. لا يرسل المحرك الحبر أو النص الناتج إلى Google؛ قد يرسل مقاييس أداء واستخدام ويتصل لتحديث النماذج.</p>
         <a className="underline" href="https://developers.google.com/ml-kit/terms" target="_blank" rel="noopener noreferrer">شروط ML Kit والخصوصية</a>
         <p>الرسومات العلمية: SciSVG — Saveena Solanki، CC BY 4.0. الملصقات الخطية: Lucide، ISC/MIT. خط عارف رقعة: SIL Open Font License 1.1.</p>
+        <p>الملصقات الملونة: Microsoft Fluent Emoji — MIT. تثبيت القلم: Perfect Freehand — MIT.</p>
+        <details><summary>تراخيص Fluent Emoji وPerfect Freehand</summary><pre dir="ltr" className="max-h-56 overflow-auto whitespace-pre-wrap text-[10px]">{fluentLicense + "\n\n" + penLicense}</pre></details>
         <a className="underline" href="https://github.com/SaveenaSolanki/SciSVG" target="_blank" rel="noopener noreferrer">مصدر الرسومات العلمية</a>
       </details>
     </div>

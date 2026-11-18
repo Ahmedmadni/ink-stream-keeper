@@ -29,6 +29,13 @@ describe("notebook PDF container and optional Unicode layer", () => {
     const records = s.slice(xref).split("\n"); const n = Number(records[1].split(" ")[1]);
     for (let id = 1; id < n; id++) { const offset = Number(records[id + 2].slice(0, 10)); expect(s.slice(offset)).toStartWith(id + " 0 obj"); }
   });
+  test("artwork license survives in document properties without an extra page", async () => {
+    const license = "Copyright MIT test";
+    const pdf = await buildNotebookPdf([{...page(), licenseText: license}, {...page(), licenseText: license}]).text();
+    expect(pdf).toContain("/Count 2"); expect(pdf).toContain("/Info ");
+    expect(pdf.split(pdfUnicodeHex(license)).length).toBe(2);
+    expect(() => buildNotebookPdf([{...page(), licenseText: "x".repeat(16001)}])).toThrow();
+  });
   test("invalid glyph geometry and malformed replacement blocks fail closed", () => {
     for (const g of [{ ...glyph(), x: -1 }, { ...glyph(), height: 0 }, { ...glyph(), height: 1e-300 }, { ...glyph(), width: Infinity }, glyph("word"), glyph("\ud800"),
       { ...glyph(), endText: true }, { ...glyph(), actualText: "unclosed" }])

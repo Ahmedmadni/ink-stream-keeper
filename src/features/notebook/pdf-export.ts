@@ -6,6 +6,7 @@ import { pageLayout } from "./page-layout";
 import { PageArtwork } from "./PageArtwork";
 import { collectPdfText } from "./pdf-text";
 import { buildNotebookPdf, MAX_EXPORT_BYTES } from "./pdf-writer";
+import fluentLicense from "./assets/fluent/LICENSE.txt?raw";
 export type PdfExportOptions = { searchable?: boolean };
 
 export const PDF_DPI = 216;
@@ -88,7 +89,8 @@ export async function renderNotebookPage(page: NotebookPage, { searchable = fals
     const stream = new Blob([rgb]).stream().pipeThrough(new CompressionStream("deflate"));
     const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
     return { bytes, width: canvas.width, height: canvas.height,
-      widthPt: layout.widthMm * 72 / 25.4, heightPt: layout.heightMm * 72 / 25.4, fontEmbedCSS, text };
+      widthPt: layout.widthMm * 72 / 25.4, heightPt: layout.heightMm * 72 / 25.4, fontEmbedCSS, text,
+      licenseText: page.stickers.some((s) => s.kind.startsWith("fl-")) ? fluentLicense : undefined };
   } finally {
     clearTimeout(timer); abort.abort(); host.remove();
     if (canvas) { canvas.width = 0; canvas.height = 0; }

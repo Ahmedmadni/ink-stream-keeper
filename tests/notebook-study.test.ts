@@ -10,15 +10,27 @@ import { recognitionInput, recognizedTextPage } from "../src/features/notebook/h
 import { shapePoints } from "../src/features/notebook/ink";
 
 describe("study templates and licensed stickers", () => {
-  test("all 70 catalog entries have unique IDs, a renderer and an Arabic label", () => {
+  test("all 82 catalog entries have unique IDs, a renderer and an Arabic label", () => {
     const entries = STICKER_GROUPS.flatMap<readonly [typeof STICKER_TYPES[number], string]>((group) => group.items);
-    expect(entries).toHaveLength(70);
-    expect(new Set(entries.map(([kind]) => kind)).size).toBe(70);
+    expect(entries).toHaveLength(82);
+    expect(new Set(entries.map(([kind]) => kind)).size).toBe(82);
     expect(new Set(entries.map(([kind]) => kind))).toEqual(new Set(STICKER_TYPES));
     for (const [kind, label] of entries) { expect(label.length).toBeGreaterThan(1); expect(stickerIcon(kind)).toBeDefined(); }
     expect(searchStickers("neuron", "accounting")[0][0]).toBe("sci-neuron");
     expect(searchStickers("ميزان", "study").some(([kind]) => kind === "scale")).toBe(true);
     expect(searchStickers("لا توجد نتيجة لهذا النص", "medical")).toHaveLength(0);
+  });
+  test("Fluent assets retain pinned provenance and contain no active/external resources", () => {
+    const base = new URL("../src/features/notebook/assets/fluent/", import.meta.url);
+    const manifest = JSON.parse(readFileSync(new URL("PROVENANCE.json", base), "utf8"));
+    expect(manifest.commit).toBe("1ffb34c752ecf5d402f04cfb4b392c77f57c54bc"); expect(manifest.assets).toHaveLength(12);
+    for (const item of manifest.assets) {
+      const svg = readFileSync(new URL(item.id.slice(3) + ".svg", base), "utf8");
+      expect(createHash("sha256").update(svg).digest("hex")).toBe(item.sha256);
+      expect(svg).not.toMatch(/<script|foreignObject|\bhref=|\bon[a-z]+=/i);
+      expect(svg).toContain('viewBox="0 0 32 32"');
+    }
+    expect(readFileSync(new URL("LICENSE.txt", base), "utf8")).toContain("Copyright (c) Microsoft Corporation");
   });
   test("every bundled science SVG is self-contained and preserves provenance", () => {
     const manifest = JSON.parse(readFileSync(new URL("../src/features/notebook/assets/scisvg/manifest.json", import.meta.url), "utf8"));

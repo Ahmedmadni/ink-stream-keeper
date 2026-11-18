@@ -22,7 +22,7 @@ import art19 from "./assets/scisvg/heatmap.svg?raw";
 type Props = { size?: number | string; strokeWidth?: number; color?: string; className?: string };
 // Only audited, locally bundled CC BY 4.0 SVGs enter this renderer. Never use
 // this function with user HTML/SVG. Original artwork and provenance are retained.
-function artwork(raw: string): ComponentType<Props> {
+export function artwork(raw: string): ComponentType<Props> {
   const viewBox = /viewBox="([^"]+)"/.exec(raw)?.[1] || "0 0 512 512";
   const body = raw.replace(/^[\s\S]*?<svg\b[^>]*>/, "").replace(/<\/svg>\s*$/, "");
   const ids = [...body.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
