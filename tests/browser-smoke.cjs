@@ -6,7 +6,8 @@ const assert = require("node:assert/strict");
 const root = resolve(__dirname, "..");
 const artifacts = resolve(root, ".qa-results");
 mkdirSync(artifacts, { recursive: true });
-const baseUrl = "http://127.0.0.1:4173";
+const nativeBundle = process.env.MEMOFLOW_BROWSER_NATIVE_BUNDLE === "1";
+const baseUrl = "http://127.0.0.1:" + (nativeBundle ? 4174 : 4173);
 const env = readFileSync(root + "/.env", "utf8");
 const url = env.match(/^VITE_SUPABASE_URL=["']?([^"'\n]+)/m)[1];
 const origin = new URL(url).origin;
@@ -174,13 +175,15 @@ const vaultEntries = [
     password_ct: secret.ct,
   },
 ];
+let allowNoteCopy = false;
 let failVaultPinWrite = false;
 const vaultPinWrites = [];
 
 (async () => {
+  const serverToken = require("node:crypto").randomUUID();
   const server = spawn(
     process.execPath,
-    [
+    process.env.MEMOFLOW_BROWSER_NATIVE_BUNDLE === "1" ? [resolve(root, "tests/serve-native-bundle.cjs")] : [
       resolve(root, "node_modules/vite/bin/vite.js"),
       "dev",
       "--host",
@@ -189,7 +192,7 @@ const vaultPinWrites = [];
       "4173",
       "--strictPort",
     ],
-    { cwd: root, stdio: ["ignore", "pipe", "pipe"] },
+    { cwd: root, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, MEMOFLOW_BROWSER_SERVER_TOKEN: serverToken } },
   );
   let logs = "";
   server.stdout.on("data", (chunk) => (logs += chunk));
@@ -198,13 +201,15 @@ const vaultPinWrites = [];
   try {
     const deadline = Date.now() + 30000;
     while (true) {
+      if (server.exitCode !== null) throw Error("Acceptance server exited: " + logs);
       try {
         const response = await fetch(baseUrl);
-        if (response.ok) break;
+        if (response.ok && (!nativeBundle || response.headers.get("X-MemoFlow-Test-Server") === serverToken)) break;
       } catch {}
       if (Date.now() > deadline) throw Error("Dev server did not start");
       await new Promise((r) => setTimeout(r, 250));
     }
+    if (nativeBundle) console.log("Verified generated native SPA server identity on port 4174.");
     browser = await chromium.launch({
       headless: true,
       executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
@@ -219,6 +224,7 @@ const vaultPinWrites = [];
         : [],
     });
     const context = await browser.newContext({
+      acceptDownloads: true,
       viewport: { width: 390, height: 844 },
       deviceScaleFactor: 1,
       timezoneId: "Asia/Riyadh",
@@ -230,7 +236,7 @@ const vaultPinWrites = [];
     await context.route("**/*", async (route) => {
       const req = route.request(),
         u = new URL(req.url());
-      if (u.origin === "http://127.0.0.1:4173") return route.continue();
+      if (u.origin === baseUrl) return route.continue();
       if (u.origin !== origin) return route.abort();
       if (u.pathname.startsWith("/auth/v1/"))
         return route.fulfill({ json: u.pathname.endsWith("/user") ? user : session });
@@ -241,7 +247,17 @@ const vaultPinWrites = [];
           if (req.method() === "PATCH") profile = { ...profile, ...req.postDataJSON() };
           result = profile;
         }
-        if (table === "notes") result = u.searchParams.has("id") ? notes[0] : notes;
+        if (table === "notes") {
+          if (req.method() === "PATCH") {
+            const patch = req.postDataJSON();
+            if (u.searchParams.get("updated_at") !== "eq." + notes[0].updated_at)
+              return route.fulfill({ json: null });
+            Object.assign(notes[0], patch, {
+              updated_at: new Date(Date.parse(notes[0].updated_at) + 1000).toISOString(),
+            });
+            result = { title: notes[0].title, content: notes[0].content, updated_at: notes[0].updated_at };
+          } else result = u.searchParams.has("id") ? notes[0] : notes;
+        }
         if (table === "categories") result = categories;
         if (table === "tasks") {
           if (req.method() === "PATCH") {
@@ -288,8 +304,21 @@ const vaultPinWrites = [];
           } else result = vaultSettings;
         }
         if (table === "vault_entries") {
-          if (req.method() === "POST")
-            return route.fulfill({ status: 500, json: { message: "Fixture write failure" } });
+          if (req.method() === "POST") {
+            if (!allowNoteCopy)
+              return route.fulfill({ status: 500, json: { message: "Fixture write failure" } });
+            allowNoteCopy = false;
+            const row = req.postDataJSON();
+            assert.equal(row.user_id, user.id);
+            assert.ok(!row.notes.includes("data-mf-notebook-v1"));
+            assert.ok(!row.notes.includes("أفكار الأسبوع"));
+            vaultEntries.push({
+              ...row, id: row.id || "77777777-7777-4777-8777-777777777777",
+              created_at: "2026-11-15T04:00:00.000Z",
+              updated_at: "2026-11-15T04:00:00.000Z",
+            });
+            return route.fulfill({ status: 201, json: [] });
+          }
           result = vaultEntries;
         }
         return route.fulfill({ json: result });
@@ -299,7 +328,7 @@ const vaultPinWrites = [];
     page = await context.newPage();
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
-    await page.goto("http://127.0.0.1:4173/notes");
+    await page.goto(`${baseUrl}/notes`);
     await page.getByText("أفكار الأسبوع", { exact: true }).waitFor();
     await page.evaluate(() => document.fonts.ready);
     assert.equal(
@@ -575,7 +604,7 @@ const vaultPinWrites = [];
       );
     }
     await page.setViewportSize({ width: 1024, height: 768 });
-    await page.goto("http://127.0.0.1:4173/notes");
+    await page.goto(`${baseUrl}/notes`);
     await page.getByText("أفكار الأسبوع", { exact: true }).waitFor();
     assert.ok(await page.getByRole("navigation", { name: "التنقل الجانبي" }).isVisible());
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
@@ -588,6 +617,93 @@ const vaultPinWrites = [];
       await page.getByRole("textbox", { name: "عنوان الملاحظة" }).inputValue(),
       "أفكار الأسبوع",
     );
+    // Notebook Studio: paper, pen, licensed accounting stickers, PDF and reload.
+    await page.getByRole("button", { name: "إنشاء دفتر بالصفحات" }).click();
+    await page.getByRole("tab", { name: "ورق", exact: true }).click();
+    for (const [label, value] of [["سادة", "plain"], ["مسطرة", "lined"], ["منقّطة", "dots"], ["كورنيل", "cornell"], ["جدول محاسبي", "ledger"]]) {
+      await page.getByRole("button", { name: label, exact: true }).click();
+      assert.equal(await page.locator("[data-notebook-paper]").getAttribute("data-notebook-paper"), value);
+    }
+    await page.getByRole("button", { name: "مربعات", exact: true }).click();
+    await page.getByRole("tab", { name: "ملصقات", exact: true }).click();
+    await page.getByRole("button", { name: "محاسبة وأعمال", exact: true }).click();
+    await page.getByRole("button", { name: "إضافة ملصق آلة حاسبة" }).click();
+    await page.getByRole("tab", { name: "أقلام", exact: true }).click();
+    const drawing = page.getByRole("img", { name: "مساحة الرسم بالقلم" });
+    await drawing.waitFor();
+    await drawing.scrollIntoViewIfNeeded();
+    const bounds = await drawing.boundingBox();
+    assert.ok(bounds);
+    await page.mouse.move(bounds.x + bounds.width * .42, bounds.y + bounds.height * .57);
+    await page.mouse.down();
+    await page.mouse.move(bounds.x + bounds.width * .47, bounds.y + bounds.height * .61, { steps: 8 });
+    await page.mouse.up();
+    await require("./notebook-browser-checks.cjs").checkInk(page);
+    const partialInk = await require("./notebook-browser-checks.cjs").checkSegmentEraser(page, artifacts);
+    let editedInk = await require("./notebook-browser-checks.cjs").checkInkEditing(page, artifacts, partialInk);
+    editedInk = await require("./notebook-browser-checks.cjs").checkInkTransforms(page, artifacts, editedInk, () => notes[0].content);
+    editedInk = await require("./notebook-transform-handle-checks.cjs").checkTransformHandles(page, artifacts, editedInk, () => notes[0].content);
+    await require("./notebook-browser-checks.cjs").checkStudy(page, artifacts);
+    await page.getByRole("button", { name: "إضافة صفحة", exact: true }).click();
+    await page.getByRole("tab", { name: "صفحة 2", exact: true }).waitFor();
+    const secondPageEditor = page.locator("[data-notebook-paper] .ProseMirror");
+    await secondPageEditor.fill("نص زائد ".repeat(2000));
+    await page.getByRole("status").filter({ hasText: "النص يتجاوز مساحة هذه الورقة" }).waitFor();
+    await secondPageEditor.fill("");
+    await page.getByRole("status").filter({ hasText: "النص يتجاوز مساحة هذه الورقة" }).waitFor({ state: "hidden" });
+    assert.equal(await page.getByRole("tab", { name: /^صفحة [12]$/ }).count(), 2);
+    await page.getByRole("button", { name: "تكرار الصفحة", exact: true }).click();
+    await page.getByRole("tab", { name: "صفحة 3", exact: true }).waitFor();
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.getByRole("button", { name: "حذف الصفحة", exact: true }).click();
+    assert.equal(await page.getByRole("tab", { name: /^صفحة [123]$/ }).count(), 2);
+    await page.getByRole("tab", { name: "صفحة 1", exact: true }).click();
+    const downloadPending = page.waitForEvent("download", { timeout: 25000 });
+    await page.getByRole("button", { name: "تصدير صفحات الدفتر PDF" }).click();
+    const pdf = await downloadPending;
+    const pdfBytes = readFileSync(await pdf.path());
+    assert.equal(pdfBytes.subarray(0, 8).toString("utf8"), "%PDF-1.7");
+    assert.ok(pdfBytes.includes(Buffer.from("/Count 2")));
+    assert.ok(!pdfBytes.includes(Buffer.from("/ToUnicode")), "default export remains image-only");
+    await page.getByRole("tab", { name: "ورق", exact: true }).click();
+    const searchableOption = page.getByLabel("تضمين نص الكيبورد للبحث والنسخ في PDF", { exact: true });
+    assert.equal(await searchableOption.isChecked(), false);
+    await searchableOption.check();
+    const searchDownload = page.waitForEvent("download", { timeout: 25000 });
+    await page.getByRole("button", { name: "تصدير صفحات الدفتر PDF" }).click();
+    const searchBytes = readFileSync(await (await searchDownload).path());
+    const searchablePages = await require("./pdf-text-reader.cjs").extractPdfText(searchBytes);
+    assert.ok(searchablePages[0].text.includes("مساحة"), "opt-in PDF contains the keyboard text in source and native bundles");
+    await searchableOption.uncheck();
+
+    if (process.env.MEMOFLOW_BROWSER_NATIVE_BUNDLE !== "1")
+      await require("./notebook-browser-checks.cjs").checkPdf(page, artifacts);
+    const notebookDeadline = Date.now() + 20000;
+    while (!notes[0].content.includes("data-mf-notebook-v1")) {
+      if (Date.now() > notebookDeadline) throw Error("Notebook was not saved remotely");
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    await page.reload();
+    await page.getByRole("tab", { name: "صفحة 2", exact: true }).waitFor();
+    await page.getByRole("tab", { name: "صفحة 1", exact: true }).click();
+    await page.getByRole("tab", { name: "ملصقات", exact: true }).click();
+    assert.equal(await page.locator(`[data-notebook-paper] [data-stroke-id="${editedInk.id}"]`).getAttribute("d"), editedInk.path,
+      "split, moved and edited fragments survive autosave and reload");
+    assert.equal(await page.locator(`[data-notebook-paper] [data-stroke-id="${editedInk.sibling.id}"]`).getAttribute("d"), editedInk.sibling.d);
+    assert.equal(await page.locator(`[data-notebook-paper] [data-stroke-id="${editedInk.sourceId}"]`).count(), 0);
+    const retainedBook = JSON.parse(Buffer.from(notes[0].content.match(/data-json="([^"]+)"/)[1], "base64").toString("utf8"));
+    const retained = retainedBook.pages[0].strokes.find((s) => s.id === editedInk.id);
+    const sibling = retainedBook.pages[0].strokes.find((s) => s.id === editedInk.sibling.id);
+    assert.equal(retained.controlPoints.length, editedInk.pointCount);
+    assert.equal(retained.controlKnots.length, editedInk.pointCount);
+    assert.deepEqual(retained.points, sibling.points, "topology changes preserve the original captured points");
+    assert.deepEqual(retained.pressures, sibling.pressures);
+    assert.deepEqual(retained.times, sibling.times);
+    assert.equal(retained.controlPoints.length, retained.points.length + 1);
+    assert.equal(await page.getByRole("button", { name: "ملصق calculator" }).count(), 1);
+    const paperInk = await page.locator("[data-notebook-paper] .prose-mf").evaluate((element) => getComputedStyle(element).color);
+    assert.equal(paperInk, "rgb(23, 38, 59)", "paper must have dark legible ink even in dark app theme");
+    await page.screenshot({ path: artifacts + "/notebook-studio-tablet.png", fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
     await page
       .getByRole("navigation", { name: "التنقل الرئيسي" })
@@ -615,6 +731,26 @@ const vaultPinWrites = [];
     for (const digit of "123456")
       await page.getByRole("button", { name: digit, exact: true }).click();
     await page.getByText("حساب تجريبي", { exact: true }).waitFor();
+    // Copy the paged note to the encrypted vault; the normal note is preserved.
+    // Use in-app navigation: a full browser reload intentionally locks the
+    // ephemeral vault key, which must never be persisted to storage.
+    await page.getByRole("navigation", { name: "التنقل الرئيسي" })
+      .getByRole("link", { name: "المذكرات" }).click();
+    await page.getByRole("link", { name: /أفكار الأسبوع/ }).click();
+    await page.getByRole("button", { name: "نسخ المذكرة إلى الخزنة" }).waitFor();
+    allowNoteCopy = true;
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.getByRole("button", { name: "نسخ المذكرة إلى الخزنة" }).click();
+    await page.getByText("حُفظت نسخة مشفّرة في الخزنة.", { exact: false }).waitFor();
+    assert.ok(notes[0].content.includes("data-mf-notebook-v1"));
+    await page.getByRole("navigation", { name: "التنقل الرئيسي" })
+      .getByRole("link", { name: "الخزنة" }).click();
+    await page.getByRole("button", { name: "عرض المذكرة المحمية" }).click();
+    await page.getByRole("tab", { name: "صفحة 2", exact: true }).waitFor();
+    await page.getByRole("tab", { name: "صفحة 1", exact: true }).click();
+    await page.getByText("مساحة هادئة لأفكاري الجديدة", { exact: false }).waitFor();
+    assert.equal(await page.locator(`[data-notebook-paper] [data-stroke-id="${editedInk.id}"]`).getAttribute("d"), editedInk.path,
+      "authenticated vault copy renders the same edited topology after encryption and decryption");
     await page.getByRole("button", { name: "حساب جديد", exact: true }).click();
     await page.getByLabel("العنوان", { exact: true }).fill("حساب محفوظ في النموذج");
     await page.getByPlaceholder("••••••••", { exact: true }).fill("Fixture-New-Secret");
@@ -708,6 +844,9 @@ const vaultPinWrites = [];
         MemoFlowAppLock: ["getStatus", "lock", "unlock", "configure", "changePin"],
         MemoFlowAuth: ["getLaunchUrl", "addListener", "removeListener"],
         MemoFlowBackup: ["getStatus"],
+        MemoFlowHandwriting: ["getStatus", "downloadModel", "deleteModel", "recognize", "cancel"],
+        Filesystem: ["rmdir", "writeFile"],
+        Share: ["canShare", "share"],
         MemoFlowFloating: ["checkPermission", "show", "hide"],
         MemoFlowDeviceSettings: ["openNotifications"],
         LocalNotifications: [
@@ -729,6 +868,19 @@ const vaultPinWrites = [];
         nativePromise: async (plugin, method, options) => {
           window.__nativeCalls.push({ plugin, method, options });
           const state = window.__nativeState;
+          if (plugin === "MemoFlowHandwriting") {
+            if (method === "getStatus") return { supported: true, ready: state.inkReady || false, experimental: true, language: "ar" };
+            if (method === "downloadModel") { state.inkReady = true; return {}; }
+            if (method === "deleteModel") { state.inkReady = false; return {}; }
+            if (method === "recognize") {
+              if (state.holdInk) return new Promise((resolve) => { state.finishInk = resolve; });
+              return { candidates: ["قيد محاسبي ١٥٠٠ ريال", "قيد محاسبي 1500 ريال"], language: "ar" };
+            }
+            if (method === "cancel" && state.finishInk) { state.finishInk({ candidates: ["نتيجة متأخرة"], language: "ar" }); state.finishInk = null; }
+            return {};
+          }
+          if (plugin === "Share" && method === "canShare") return { value: true };
+          if (plugin === "Filesystem" && method === "writeFile") return { uri: "content://fixture/notebook.pdf" };
           if (plugin === "MemoFlowAppLock" && method === "changePin") {
             if (options.currentPin !== (state.appPin ?? "123456"))
               throw new Error("رمز التطبيق الحالي غير صحيح");
@@ -837,6 +989,42 @@ const vaultPinWrites = [];
     await page.goto(`${baseUrl}/vault`);
     await page.getByLabel("رمز الخزنة", { exact: true }).fill("654321");
     await page.getByText("حساب تجريبي", { exact: true }).waitFor();
+    await page.goto(`${baseUrl}/notes/` + notes[0].id);
+    await page.getByRole("button", { name: "تصدير صفحات الدفتر PDF", exact: true }).click();
+    await page.waitForFunction(() => window.__nativeCalls.some((c) => c.plugin === "Share" && c.method === "share"));
+    const pdfDelivery = await page.evaluate(() => ({
+      file: window.__nativeCalls.find((c) => c.plugin === "Filesystem" && c.method === "writeFile").options,
+      share: window.__nativeCalls.find((c) => c.plugin === "Share" && c.method === "share").options,
+    }));
+    assert.equal(Buffer.from(pdfDelivery.file.data, "base64").subarray(0, 8).toString(), "%PDF-1.7");
+    assert.equal(pdfDelivery.file.encoding, undefined, "binary PDF must not be written as UTF-8 text");
+    assert.deepEqual(pdfDelivery.share.files, ["content://fixture/notebook.pdf"]);
+    assert.ok(!pdfDelivery.share.text.includes("مشفّرة"), "an ordinary exported PDF must not be described as encrypted");
+    await page.getByRole("tab", { name: "أقلام", exact: true }).click();
+    const originalStrokes = await page.locator("[data-notebook-paper] [data-stroke-id]").count();
+    await page.getByRole("button", { name: "تحسين الخط والتعرف العربي", exact: true }).click();
+    const handwritingDialog = page.getByRole("dialog");
+    await handwritingDialog.getByRole("button", { name: "تنزيل نموذج العربية", exact: true }).click();
+    await handwritingDialog.getByRole("button", { name: "اقتراح نص من الحبر", exact: true }).click();
+    await handwritingDialog.getByLabel("النص المقترح للكتابة", { exact: true }).fill("قيد محاسبي ١٥٠٠ ريال بعد المراجعة");
+    await handwritingDialog.getByRole("button", { name: "حفظ صفحة بالنص المنسق", exact: true }).click();
+    await page.getByRole("tab", { name: "صفحة 3", exact: true }).waitFor();
+    await page.locator("[data-notebook-paper] .ProseMirror").getByText("قيد محاسبي ١٥٠٠ ريال بعد المراجعة", { exact: true }).waitFor();
+    assert.ok(await page.locator("[data-notebook-paper] .ProseMirror span").evaluate((e) => getComputedStyle(e).fontFamily.includes("Aref Ruqaa")));
+    await page.screenshot({ path: artifacts + "/handwriting-reviewed-native.png", fullPage: true });
+    await page.getByRole("tab", { name: "صفحة 1", exact: true }).click();
+    assert.equal(await page.locator("[data-notebook-paper] [data-stroke-id]").count(), originalStrokes, "reviewed text must preserve original ink");
+    await page.getByRole("tab", { name: "أقلام", exact: true }).click();
+    await page.getByRole("button", { name: "تحسين الخط والتعرف العربي", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "إزالة نموذج العربية من الجهاز", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "تنزيل نموذج العربية", exact: true }).click();
+    await page.evaluate(() => { window.__nativeState.holdInk = true; });
+    await page.getByRole("dialog").getByRole("button", { name: "اقتراح نص من الحبر", exact: true }).click();
+    await page.getByRole("button", { name: "إغلاق التعرف على الخط", exact: true }).click();
+    await page.getByRole("dialog").waitFor({ state: "hidden" });
+    assert.equal(await page.getByRole("tab", { name: /^صفحة [123]$/ }).count(), 3, "late recognition output cannot add a page after cancellation");
+    await page.screenshot({ path: artifacts + "/handwriting-ink-preserved-native.png", fullPage: true });
+
     // This fixture changes a web SSR page into Android on the client. React's
     // expected SSR mismatch is absent from the real Android build (local SPA).
     assert.deepEqual(

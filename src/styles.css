@@ -5,6 +5,19 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* One logical page across the editor, PDF renderer and secure reader. The
+ * viewport scales the entire sheet, so ink cannot drift relative to text. */
+.notebook-content { left: 6%; right: 6%; top: 7%; bottom: 6%; padding: 4px; }
+.notebook-content .prose-mf { font-size: 15px; line-height: 1.625; min-height: 0; overflow-wrap: anywhere; }
+.notebook-content > .prose-mf { height: 100%; }
+.notebook-sheet .prose-mf { color: #17263b; }
+.notebook-sheet { --color-border: #cbd5e1; --color-foreground: #17263b; --color-primary: #2564ad;
+  --color-primary-soft: #e3efff; --color-muted: #e9eef4; --color-secondary: #edf2f7; }
+.notebook-sheet .prose-mf mark { background: #ffeb96; }
+.notebook-sheet .prose-mf img { box-shadow: none; }
+.notebook-sheet[style*="--notebook-line-height"] .prose-mf { font-size: var(--notebook-font-size); line-height: var(--notebook-line-height); }
+.notebook-sheet[style*="--notebook-line-height"] .prose-mf p { margin: 0; }
+
 /*
  * MemoFlow Design System — Arabic-first, RTL, professional blue identity.
  * Quiet surfaces, clear hierarchy, bundled IBM Plex Sans Arabic.
@@ -459,7 +472,9 @@
 /* Global scrollbar polish */
 html,
 body {
-  overflow-x: hidden;
+  /* Clip horizontal spill without creating a nested scroll container that
+     prevents notebook/desktop sticky controls from following the viewport. */
+  overflow-x: clip;
 }
 
 /* Frosting is reserved for transient surfaces and explicit navigation. */
@@ -509,4 +524,21 @@ select:focus-visible {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+
+/* Notebook paper is a light, physical writing surface in BOTH light/dark app themes.
+   Keep typing ink readable and make the caret independent from global text colors. */
+[data-notebook-paper] .prose-mf {
+  color: #17263b;
+  caret-color: #17263b;
+}
+[data-notebook-paper] .prose-mf a { color: #205eb7; }
+[data-notebook-paper] .prose-mf blockquote {
+  color: #17263b;
+  background: rgba(214, 228, 246, .68);
+}
+[data-notebook-paper] .prose-mf p.is-editor-empty:first-child::before {
+  color: #667b90;
+  opacity: 1;
 }

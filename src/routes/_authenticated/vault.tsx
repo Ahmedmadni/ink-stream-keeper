@@ -45,6 +45,8 @@ import {
   type VaultEntry,
 } from "@/lib/vault";
 import { PinPad } from "@/components/PinPad";
+import { VaultSecureNotePreview } from "@/features/notebook/VaultSecureNotePreview";
+import { isVaultNoteCopy, parseVaultNoteCopy } from "@/features/notebook/vault-note";
 import { androidAutofill, type AutofillStatus } from "@/services/autofill";
 
 export const Route = createFileRoute("/_authenticated/vault")({
@@ -680,6 +682,12 @@ function EntryRow({
   const Icon = cat ? (iconMap[cat.icon] ?? KeyRound) : KeyRound;
   const [shown, setShown] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const isNoteCopy = isVaultNoteCopy(entry.notes);
+  const [noteVisible, setNoteVisible] = useState(false);
+  let secureNote: ReturnType<typeof parseVaultNoteCopy> = null;
+  if (isNoteCopy) {
+    try { secureNote = parseVaultNoteCopy(entry.notes); } catch { /* Corrupt data stays encrypted. */ }
+  }
   const del = useDeleteVaultEntry();
 
   const reveal = async () => {
@@ -717,13 +725,13 @@ function EntryRow({
           {entry.url && <p className="truncate text-[10px] text-primary">{entry.url}</p>}
         </div>
         <div className="flex items-center gap-1">
-          <button
+          {!isNoteCopy && <button
             onClick={onEdit}
             className="grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-secondary"
             aria-label="تعديل"
           >
             <Pencil className="size-4" />
-          </button>
+          </button>}
           <button
             disabled={del.isPending}
             onClick={() => {
@@ -739,7 +747,7 @@ function EntryRow({
           </button>
         </div>
       </div>
-      <div className="mt-3 flex items-center gap-2 rounded-xl bg-secondary px-3 py-2">
+      {!isNoteCopy && <div className="mt-3 flex items-center gap-2 rounded-xl bg-secondary px-3 py-2">
         <code className="min-w-0 flex-1 truncate font-mono text-xs">{shown ?? "••••••••••"}</code>
         <button
           onClick={reveal}
@@ -755,7 +763,19 @@ function EntryRow({
         >
           {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
         </button>
-      </div>
+      </div>}
+      {isNoteCopy && (
+        <div className="mt-3">
+          <button type="button" onClick={() => setNoteVisible((v) => !v)}
+            className="min-h-11 w-full rounded-xl bg-primary-soft px-3 text-sm font-semibold text-primary">
+            {noteVisible ? "إخفاء المذكرة المحمية" : "عرض المذكرة المحمية"}
+          </button>
+          {noteVisible && secureNote && <VaultSecureNotePreview copy={secureNote} />}
+          {noteVisible && !secureNote && <p role="alert" className="mt-2 text-xs text-destructive">
+            بيانات هذه المذكرة المحمية غير صالحة. لم نحذف نسختها المشفرة.
+          </p>}
+        </div>
+      )}
     </div>
   );
 }

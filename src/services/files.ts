@@ -113,9 +113,9 @@ export const files: FilesService = {
         });
         await Share.share({
           title,
-          text: "نسخة احتياطية مشفّرة من MemoFlow",
+          text: title,
           files: [result.uri],
-          dialogTitle: "حفظ النسخة أو مشاركتها",
+          dialogTitle: "حفظ الملف أو مشاركته",
         });
         return "shared";
       } catch (error) {

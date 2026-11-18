@@ -28,6 +28,10 @@ jobs:
       - run: bun run build
       - run: bunx playwright install --with-deps chromium
       - run: bun run test:browser
+      - name: Exercise the bundled native SPA and Android PDF bridge
+        run: |
+          bun run build:native
+          MEMOFLOW_BROWSER_NATIVE_BUNDLE=1 node tests/browser-smoke.cjs
       - run: bun run build:web-release
       - run: node scripts/verify-web-server.mjs
       - name: Package runnable web release
@@ -45,7 +49,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MemoFlow-UI-Checks
-          path: .qa-results/*.png
+          path: |
+            .qa-results/*.png
+            .qa-results/notebook-*.pdf
           include-hidden-files: true
           if-no-files-found: ignore
 
@@ -172,6 +178,8 @@ jobs:
         if: always()
         with:
           name: MemoFlow-Windows-UI-Checks
-          path: .qa-results/*.png
+          path: |
+            .qa-results/*.png
+            .qa-results/notebook-*.pdf
           include-hidden-files: true
           if-no-files-found: ignore

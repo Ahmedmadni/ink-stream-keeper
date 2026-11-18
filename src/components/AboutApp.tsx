@@ -24,6 +24,13 @@ export function AboutApp() {
       >
         موقع المطوّر <ExternalLink className="size-4" />
       </a>
+      <details className="mt-4 text-xs leading-6 text-muted-foreground">
+        <summary className="cursor-pointer">التعرف على الخط وتراخيص الرسومات</summary>
+        <p>تجربة التعرف العربي في أندرويد تستخدم Google ML Kit محليًا بعد تنزيل نموذج اللغة. لا يرسل المحرك الحبر أو النص الناتج إلى Google؛ قد يرسل مقاييس أداء واستخدام ويتصل لتحديث النماذج.</p>
+        <a className="underline" href="https://developers.google.com/ml-kit/terms" target="_blank" rel="noopener noreferrer">شروط ML Kit والخصوصية</a>
+        <p>الرسومات العلمية: SciSVG — Saveena Solanki، CC BY 4.0. الملصقات الخطية: Lucide، ISC/MIT. خط عارف رقعة: SIL Open Font License 1.1.</p>
+        <a className="underline" href="https://github.com/SaveenaSolanki/SciSVG" target="_blank" rel="noopener noreferrer">مصدر الرسومات العلمية</a>
+      </details>
     </div>
   );
 }

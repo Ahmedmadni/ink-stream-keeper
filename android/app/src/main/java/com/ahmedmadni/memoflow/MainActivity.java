@@ -14,6 +14,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(MemoFlowAutofillPlugin.class);
         registerPlugin(MemoFlowFloatingPlugin.class);
         registerPlugin(MemoFlowDeviceSettingsPlugin.class);
+        registerPlugin(MemoFlowHandwritingPlugin.class);
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         // Keep CSS sizing deterministic; the responsive scale is controlled by the bundled UI.

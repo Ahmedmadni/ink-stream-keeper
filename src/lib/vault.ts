@@ -3,6 +3,8 @@ import { useSyncExternalStore } from "react";
 import { vaultSession } from "@/features/vault/session";
 import { changeVaultPinWithStore } from "@/features/vault/change-pin";
 import { announceVaultPinChange } from "@/features/vault/pin-events";
+import { isVaultNoteCopy } from "@/features/notebook/vault-note";
+import { verifyStoredVaultNoteCopy, type EncryptedNoteCopyRow } from "@/features/notebook/verify-vault-copy";
 import { supabase } from "@/integrations/supabase/client";
 import {
   decryptVaultField,
@@ -285,6 +287,7 @@ export function useAddVaultEntry() {
   const qc = useQueryClient();
   return useMutation({
     gcTime: 0, // Mutation input includes plaintext from the active form.
+    mutationKey: ["vault", "add-entry"],
     mutationFn: async (input: {
       categoryId: string | null;
       label: string;
@@ -301,7 +304,9 @@ export function useAddVaultEntry() {
         encryptEntryMetadata(input, key),
       ]);
       vaultSession.assertCurrent(userId, key);
+      const id = crypto.randomUUID();
       const { error } = await supabase.from("vault_entries").insert({
+        id,
         user_id: userId,
         category_id: input.categoryId,
         ...metadata,
@@ -309,6 +314,16 @@ export function useAddVaultEntry() {
         password_ct: enc.ct,
       });
       if (error) throw error;
+      vaultSession.assertCurrent(userId, key);
+      if (isVaultNoteCopy(input.notes)) {
+        const { data, error: readError } = await supabase.from("vault_entries").select("*")
+          .eq("id", id).eq("user_id", userId);
+        vaultSession.assertCurrent(userId, key);
+        if (readError) throw new Error("قد تكون النسخة حُفظت، لكن تعذرت قراءتها للتحقق. الأصل لم يُحذف؛ راجع الخزنة قبل إعادة النسخ.");
+        await verifyStoredVaultNoteCopy((data as EncryptedNoteCopyRow[] | null)?.find((row) => row.id === id),
+          { id, userId, label: input.label, notes: input.notes }, key);
+        vaultSession.assertCurrent(userId, key);
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: vaultKeys.entries }),
   });

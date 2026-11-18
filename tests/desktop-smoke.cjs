@@ -178,6 +178,13 @@ const vaultEntries = [
       if (table === "vault_entries") return route.fulfill({ json: vaultEntries });
       if (table === "notes") {
         const id = url.searchParams.get("id");
+        if (route.request().method() === "PATCH") {
+          const row = notes.find((n) => n.id === id?.slice(3));
+          if (!row || url.searchParams.get("updated_at") !== "eq." + row.updated_at)
+            return route.fulfill({ json: [] });
+          Object.assign(row, route.request().postDataJSON(), { updated_at: new Date().toISOString() });
+          return route.fulfill({ json: [row] });
+        }
         return route.fulfill({
           json: id?.startsWith("eq.") ? (notes.find((n) => n.id === id.slice(3)) ?? null) : notes,
         });
@@ -583,6 +590,154 @@ const vaultEntries = [
       ),
       1,
     );
+    // Exercise the actual packaged Notebook Studio, including persisted pages
+    // and the bundled PDF renderer/fonts rather than only source-level tests.
+    await page.goto("memoflow://app/notes/ffffffff-ffff-4fff-8fff-ffffffffffff");
+    await page.getByRole("button", { name: "إنشاء دفتر بالصفحات", exact: true }).click();
+    await page.getByRole("button", { name: "إضافة صفحة", exact: true }).click();
+    await page.getByRole("tab", { name: "صفحة 2", exact: true }).waitFor();
+    await page.locator("[data-notebook-paper] .ProseMirror").fill("اختبار الدفتر في نسخة ويندوز المجمعة");
+    const studioDeadline = Date.now() + 20000;
+    while (!notes.find((n) => n.id.startsWith("ffffffff")).content.includes("اختبار الدفتر")) {
+      if (Date.now() > studioDeadline) throw new Error("Packaged notebook did not autosave");
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    await page.reload();
+    await page.getByRole("tab", { name: "صفحة 2", exact: true }).click();
+    await page.locator("[data-notebook-paper] .ProseMirror").getByText("اختبار الدفتر في نسخة ويندوز المجمعة", { exact: true }).waitFor();
+    await page.getByRole("tab", { name: "أقلام", exact: true }).click();
+    const studioCanvas = page.getByRole("img", { name: "مساحة الرسم بالقلم", exact: true });
+    await studioCanvas.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    const canvasBox = await studioCanvas.boundingBox();
+    const barBox = await page.getByRole("navigation", { name: "شريط صفحات المذكرة", exact: true }).boundingBox();
+    const inkY = Math.max(190, Math.min(barBox.y - 45, canvasBox.y + canvasBox.height * .45));
+    const inkX = canvasBox.x + canvasBox.width * .2;
+    await page.mouse.move(inkX, inkY); await page.mouse.down();
+    await page.mouse.move(inkX + canvasBox.width * .35, inkY + 15, { steps: 8 }); await page.mouse.up();
+    const studioStroke = page.locator("[data-notebook-paper] [data-stroke-id]");
+    assert.equal(await studioStroke.count(), 1);
+    const studioRawPath = await studioStroke.getAttribute("d");
+    await page.getByRole("button", { name: "تحديد وتحريك", exact: true }).click();
+    await page.getByRole("button", { name: "تحديد كل الرسم", exact: true }).click();
+    await page.getByRole("button", { name: "تحرير نقاط المسار", exact: true }).click();
+    const studioPointPanel = page.getByLabel("إعدادات نقاط المسار", { exact: true });
+    const studioCount = async () => Number((await studioPointPanel.locator("strong").textContent()).match(/من (\d+)/)[1]);
+    const studioOriginalCount = await studioCount();
+    await page.getByRole("button", { name: "إضافة نقطة للمسار", exact: true }).click();
+    assert.equal(await studioCount(), studioOriginalCount + 1);
+    const studioHandle = page.locator("[data-active-ink-node]");
+    await studioHandle.focus(); await studioHandle.press("Shift+ArrowUp");
+    const studioEditedPath = await studioStroke.getAttribute("d");
+    assert.notEqual(studioEditedPath, studioRawPath);
+    await studioHandle.press("Delete");
+    assert.equal(await studioCount(), studioOriginalCount);
+    assert.equal(await studioStroke.getAttribute("d"), studioRawPath);
+    await studioHandle.press("Control+z");
+    assert.equal(await studioStroke.getAttribute("d"), studioEditedPath);
+    const studioSaved = () => {
+      const row = notes.find((n) => n.id.startsWith("ffffffff"));
+      const match = row.content.match(/data-json="([^"]+)"/);
+      return match && JSON.parse(Buffer.from(match[1], "base64").toString("utf8")).pages[1].strokes[0];
+    };
+    const studioInkDeadline = Date.now() + 20000;
+    const studioEditSaved = () => {
+      const stroke = studioSaved();
+      return stroke?.controlKnots?.length === studioOriginalCount + 1 &&
+        Math.abs(stroke.controlPoints[1][1] - ((stroke.points[0][1] + stroke.points[1][1]) / 2 - 10)) < 1e-7;
+    };
+    while (!studioEditSaved()) {
+      if (Date.now() > studioInkDeadline) throw new Error("Packaged edited topology did not autosave");
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    await page.reload();
+    await page.getByRole("tab", { name: "صفحة 2", exact: true }).click();
+    assert.equal(await page.locator("[data-notebook-paper] [data-stroke-id]").getAttribute("d"), studioEditedPath);
+    const studioCapture = studioSaved().points;
+    await page.getByRole("tab", { name: "أقلام", exact: true }).click();
+    await page.getByRole("button", { name: "تحديد وتحريك", exact: true }).click();
+    await page.getByRole("button", { name: "تحديد كل الرسم", exact: true }).click();
+    await page.getByRole("button", { name: "تغيير الحجم والتدوير", exact: true }).click();
+    await page.getByLabel("حجم الرسم المحدد بالمئة", { exact: true }).fill("75");
+    const studioAngle = page.getByLabel("زاوية تدوير الرسم المحدد", { exact: true });
+    await studioAngle.fill("30");
+    const studioTransformedPath = await studioStroke.getAttribute("d");
+    assert.notEqual(studioTransformedPath, studioEditedPath);
+    await studioAngle.press("Escape");
+    assert.equal(await studioStroke.getAttribute("d"), studioEditedPath);
+    await page.getByRole("button", { name: "تغيير الحجم والتدوير", exact: true }).click();
+    await page.getByLabel("حجم الرسم المحدد بالمئة", { exact: true }).fill("75"); await studioAngle.fill("30");
+    await page.getByRole("button", { name: "تطبيق تحويل الرسم", exact: true }).click();
+    assert.equal(await studioStroke.getAttribute("d"), studioTransformedPath);
+    await page.getByRole("button", { name: "تراجع الرسم", exact: true }).click();
+    assert.equal(await studioStroke.getAttribute("d"), studioEditedPath);
+    await page.getByRole("button", { name: "إعادة الرسم", exact: true }).click();
+    assert.equal(await studioStroke.getAttribute("d"), studioTransformedPath);
+    await page.getByRole("status").filter({ hasText: /^(تم الحفظ في الخادم|محفوظة في الخادم)$/ }).waitFor({ timeout: 20000 });
+    assert.deepEqual(studioSaved().points, studioCapture);
+    await page.reload(); await page.getByRole("tab", { name: "صفحة 2", exact: true }).click();
+    assert.equal(await studioStroke.getAttribute("d"), studioTransformedPath);
+    await page.getByRole("tab", { name: "أقلام", exact: true }).click();
+    await page.getByRole("button", { name: "تحديد وتحريك", exact: true }).click();
+    await page.getByRole("button", { name: "تحديد كل الرسم", exact: true }).click();
+    await page.getByRole("button", { name: "تغيير الحجم والتدوير", exact: true }).click();
+    const studioHandles = page.getByRole("group", { name: "مقابض التحويل المباشر", exact: true });
+    const studioScaleHandle = studioHandles.locator('[data-transform-handle="scale"][data-transform-corner="2"]');
+    const studioRotateHandle = studioHandles.locator('[data-transform-handle="rotate"]');
+    await studioScaleHandle.focus(); await studioScaleHandle.press("ArrowUp");
+    await studioRotateHandle.focus(); await studioRotateHandle.press("Shift+ArrowRight");
+    assert.equal(await page.getByLabel("حجم الرسم المحدد بالمئة", { exact: true }).inputValue(), "101");
+    assert.equal(await studioAngle.inputValue(), "15");
+    const studioHandleBaseline = await studioStroke.getAttribute("d");
+    const studioScreen = (locator) => locator.evaluate((el) => {
+      const point = new DOMPoint(el.cx.baseVal.value, el.cy.baseVal.value).matrixTransform(el.getScreenCTM());
+      return { x: point.x, y: point.y };
+    });
+    await studioScaleHandle.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    let studioGrip = await studioScreen(studioScaleHandle);
+    await studioScaleHandle.evaluate((el) => el.addEventListener("pointerdown", (event) => { el.dataset.qaPointer = String(event.pointerId); }, { once: true }));
+    await page.mouse.move(studioGrip.x, studioGrip.y); await page.mouse.down();
+    await page.mouse.move(studioGrip.x + 12, studioGrip.y + 10, { steps: 4 });
+    assert.ok(await page.getByRole("button", { name: "تطبيق تحويل الرسم", exact: true }).isDisabled());
+    await studioHandles.dispatchEvent("pointercancel", { pointerId: Number(await studioScaleHandle.getAttribute("data-qa-pointer")), pointerType: "mouse", isPrimary: true });
+    await page.mouse.up(); assert.equal(await studioStroke.getAttribute("d"), studioHandleBaseline);
+    studioGrip = await studioScreen(studioScaleHandle);
+    const studioCenter = await studioScreen(studioHandles.locator("[data-transform-center]"));
+    await page.mouse.move(studioGrip.x, studioGrip.y); await page.mouse.down();
+    await page.mouse.move(studioCenter.x + (studioGrip.x - studioCenter.x) * .95, studioCenter.y + (studioGrip.y - studioCenter.y) * .95, { steps: 4 });
+    await page.mouse.up();
+    const studioDirectPath = await studioStroke.getAttribute("d"); assert.notEqual(studioDirectPath, studioHandleBaseline);
+    await page.getByRole("button", { name: "تطبيق تحويل الرسم", exact: true }).click();
+    await page.getByRole("button", { name: "تراجع الرسم", exact: true }).click(); assert.equal(await studioStroke.getAttribute("d"), studioTransformedPath);
+    await page.getByRole("button", { name: "إعادة الرسم", exact: true }).click(); assert.equal(await studioStroke.getAttribute("d"), studioDirectPath);
+    await page.getByRole("status").filter({ hasText: /^(تم الحفظ في الخادم|محفوظة في الخادم)$/ }).waitFor({ timeout: 20000 });
+    assert.deepEqual(studioSaved().points, studioCapture);
+    await page.reload(); await page.getByRole("tab", { name: "صفحة 2", exact: true }).click();
+    assert.equal(await studioStroke.getAttribute("d"), studioDirectPath);
+    await page.getByRole("tab", { name: "ورق", exact: true }).click();
+    const studioSearch = page.getByLabel("تضمين نص الكيبورد للبحث والنسخ في PDF", { exact: true });
+    assert.equal(await studioSearch.isChecked(), false);
+    await studioSearch.check();
+    const studioPdfPath = resolve(artifacts, "notebook-packaged-windows.pdf");
+    const pdfCompleted = desktop.evaluate(({ session }, output) => new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("Packaged PDF export did not complete")), 45000);
+      session.defaultSession.once("will-download", (_event, item) => {
+        item.setSavePath(output);
+        item.once("done", (_event, state) => {
+          clearTimeout(timer);
+          state === "completed" ? resolve(true) : reject(new Error("Packaged PDF export: " + state));
+        });
+      });
+    }), studioPdfPath);
+    await page.getByRole("button", { name: "تصدير صفحات الدفتر PDF", exact: true }).click();
+    await pdfCompleted;
+    const studioPdf = readFileSync(studioPdfPath);
+    assert.equal(studioPdf.subarray(0, 8).toString(), "%PDF-1.7");
+    assert.ok(studioPdf.includes(Buffer.from("/Count 2")));
+    assert.ok(studioPdf.includes(Buffer.from("/FlateDecode")));
+    const studioExtracted = await require("./pdf-text-reader.cjs").extractPdfText(studioPdf);
+    assert.ok(studioExtracted[1].text.includes("اختبار الدفتر في نسخة ويندوز المجمعة"));
+    await page.screenshot({ path: resolve(artifacts, "notebook-packaged-windows.png"), fullPage: true });
+    console.log("PASS: packaged Notebook Studio pages, ink vertices, direct transform handles/cancellation/undo, autosave/reload and lossless Arabic PDF export.");
     await page.goto("memoflow://app/settings");
     await page.getByText("أحمد محمد المدني", { exact: true }).waitFor();
     assert.equal(
