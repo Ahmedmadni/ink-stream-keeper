@@ -76,7 +76,7 @@ function PageMiniature({ page }: { page: NotebookPage }) {
   const preview = notebookPlainText({ version: 1, pages: [{ ...page, html: page.html.slice(0, 240) }] }).slice(0, 65);
   const { aspect } = pageLayout(page);
   return (
-    <span className="relative block h-16 w-12 overflow-hidden rounded border border-[#d1d8df] shadow-sm"
+    <span className="relative block h-12 w-9 overflow-hidden rounded border border-[#d1d8df] shadow-sm"
       style={{ ...paperStyle(page), backgroundSize: "10px 10px" }}>
       <PaperGuides page={page} preview/>
       <span dir="rtl" className="absolute inset-x-1 top-1 line-clamp-4 break-words text-right text-[5px] leading-[7px] text-[#263b53]">
@@ -665,19 +665,13 @@ export function NotebookWorkspace({
           event.preventDefault(); historyStep(key === "y" || event.shiftKey);
         }
       }}>
-      <header className="sticky top-2 z-40 rounded-2xl border border-border bg-card/95 p-3 shadow-sm backdrop-blur">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-base font-bold">دفتر المذاكرة</h2>
-            <p className="text-xs text-muted-foreground">{book.pages.length} صفحة · {SIZE_LABELS[page.size]} · {PAPER_LABELS[page.paper]}</p>
+      <header className="sticky top-2 z-40 rounded-2xl border border-border bg-card/95 p-2 shadow-sm backdrop-blur">
+        <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+          <div className="min-w-0 flex-1 sm:flex-none">
+            <h2 className="truncate text-sm font-bold">دفتر المذاكرة</h2>
+            <p className="truncate text-[11px] text-muted-foreground">{book.pages.length} صفحة · {SIZE_LABELS[page.size]} · {PAPER_LABELS[page.paper]}</p>
           </div>
-          <button type="button" aria-label="وضع التركيز" aria-pressed={focusMode} className={controlCls(focusMode)} onClick={() => { finish(); setFocusMode(!focusMode); }} title={focusMode ? "إظهار الأدوات" : "توسيع الورقة"}><ScanLine className="size-4"/><span className="hidden sm:inline">{focusMode ? "إظهار الأدوات" : "توسيع الورقة"}</span></button>
-          <button type="button" disabled={exporting || !!transformSession} onClick={() => { void exportPdf(); }}
-            className={controlCls(false)} aria-label="تصدير صفحات الدفتر PDF">
-            <FileDown className="size-4" /><span className="hidden sm:inline">{exporting ? "تصدير..." : "تصدير PDF"}</span>
-          </button>
-        </div>
-        <div className="mt-3 grid grid-cols-5 gap-1" role="tablist" aria-label="مجموعات أدوات الدفتر">
+          <div className="order-3 grid w-full grid-cols-5 gap-1 sm:order-none sm:mx-auto sm:flex sm:w-auto" role="tablist" aria-label="مجموعات أدوات الدفتر">
           {([
             ["text", "كتابة", PenLine],
             ["draw", "أقلام", Brush],
@@ -687,10 +681,20 @@ export function NotebookWorkspace({
           ] as const).map(([key, label, Icon]) => (
             <button type="button" role="tab" key={key} aria-selected={group === key}
               onClick={() => { finish(); if (key !== group) cancelTransform(); setFocusMode(false); setGroup(key); setSelectedSticker(null); }}
-              className={"flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-xl px-1 py-2 font-semibold " + (group === key ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground hover:bg-accent")}>
-              <Icon className="size-4 shrink-0" /><span className="text-xs">{label}</span>
+              aria-label={label}
+              title={label}
+              className={"grid size-11 min-w-0 place-items-center rounded-xl transition-colors " + (group === key ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground hover:bg-accent")}>
+              <Icon className="size-5" />
             </button>
           ))}
+          </div>
+          <div className="flex shrink-0 gap-1">
+            <button type="button" aria-label="وضع التركيز" aria-pressed={focusMode} className={controlCls(focusMode) + " !w-11 !px-0"} onClick={() => { finish(); setFocusMode(!focusMode); }} title={focusMode ? "إظهار الأدوات" : "توسيع الورقة"}><ScanLine className="size-4"/></button>
+            <button type="button" disabled={exporting || !!transformSession} onClick={() => { void exportPdf(); }}
+              className={controlCls(false) + " !w-11 !px-0"} aria-label="تصدير صفحات الدفتر PDF" title={exporting ? "تصدير..." : "تصدير PDF"}>
+              <FileDown className="size-4" />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -825,20 +829,26 @@ export function NotebookWorkspace({
         <p className="text-xs text-muted-foreground">اسحب على الورقة لرسم الشكل. يمكنك تحديده وتحريكه أو مسحه من مجموعة الأقلام.</p>
       </div>}
       {!focusMode && group === "stickers" && (
-        <div className="max-h-64 space-y-3 overflow-y-auto rounded-2xl border border-border bg-card p-3">
-          <div className="flex flex-wrap gap-2">
-            {STICKER_GROUPS.map((pack) => (
-              <button type="button" key={pack.id} aria-pressed={stickerGroup === pack.id}
-                onClick={() => { setStickerGroup(pack.id); setStickerQuery(""); }}
-                className={controlCls(stickerGroup === pack.id)}>{pack.label}</button>
-            ))}
+        <div className="max-h-56 space-y-3 overflow-y-auto rounded-2xl border border-border bg-card p-3 sm:max-h-[22rem]">
+          <div className="sticky top-0 z-10 -mt-3 space-y-2 bg-card pb-2 pt-3 before:absolute before:-top-4 before:inset-x-0 before:h-4 before:bg-card before:content-['']">
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <strong className="font-semibold">مكتبة الملصقات</strong>
+              <span className="text-muted-foreground">{searchStickers(stickerQuery, stickerGroup).length} ملصق</span>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="مجموعات الملصقات">
+              {STICKER_GROUPS.map((pack) => (
+                <button type="button" key={pack.id} aria-pressed={stickerGroup === pack.id}
+                  onClick={() => { setStickerGroup(pack.id); setStickerQuery(""); }}
+                  className={controlCls(stickerGroup === pack.id) + " shrink-0 whitespace-nowrap"}>{pack.label}</button>
+              ))}
+            </div>
+            <label className="flex min-h-11 items-center gap-2 rounded-xl border border-border bg-background px-3">
+              <Search className="size-4 text-muted-foreground"/>
+              <input type="search" aria-label="بحث الملصقات" value={stickerQuery} onChange={(e) => setStickerQuery(e.target.value)}
+                placeholder="ابحث: عظام، محاسبة، neuron..." className="min-h-11 w-full bg-transparent text-sm outline-none"/>
+            </label>
           </div>
-          <label className="flex min-h-11 items-center gap-2 rounded-xl border border-border bg-background px-3">
-            <Search className="size-4 text-muted-foreground"/>
-            <input type="search" aria-label="بحث الملصقات" value={stickerQuery} onChange={(e) => setStickerQuery(e.target.value)}
-              placeholder="ابحث: عظام، محاسبة، neuron..." className="min-h-11 w-full bg-transparent text-sm outline-none"/>
-          </label>
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-7" aria-label="مكتبة الملصقات">
+          <div className="grid grid-cols-3 gap-2 min-[375px]:grid-cols-4 sm:grid-cols-6 lg:grid-cols-7" aria-label="نتائج الملصقات">
             {searchStickers(stickerQuery, stickerGroup).map(([kind, label]) => {
               const Icon = stickerIcon(kind);
               return <button type="button" key={kind} title={label} aria-label={"إضافة ملصق " + label}
@@ -889,13 +899,17 @@ export function NotebookWorkspace({
         </div>
       )}
       {!focusMode && group === "paper" && (
-        <div className="max-h-64 space-y-3 overflow-y-auto rounded-2xl border border-border bg-card p-3">
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6" role="group" aria-label="خلفيات الورق">
+        <div className="max-h-56 space-y-3 overflow-y-auto rounded-2xl border border-border bg-card p-3 sm:max-h-[22rem]">
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <strong className="font-semibold">خلفية الورقة</strong>
+            <span className="text-muted-foreground">اسحب المعاينات لعرض بقية الأشكال</span>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="خلفيات الورق">
             {PAPER_TYPES.map((p) => (
               <button type="button" key={p} aria-pressed={page.paper === p}
                 onClick={() => updatePage((old) => ({ ...old, paper: p, lineSpacing: old.lineSpacing ?? 32, fontSize: old.fontSize ?? 16, texture: old.texture ?? "smooth" }))}
-                className={"flex min-h-28 flex-col items-center gap-2 rounded-xl border-2 p-2 text-xs " + (page.paper === p ? "border-primary bg-primary/10" : "border-border bg-background")}>
-                <span className="relative block h-16 w-12 overflow-hidden rounded border border-[#d2d8dc]" style={paperStyle({ ...page, paper: p })}>
+                className={"flex min-h-24 min-w-24 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border-2 p-1.5 text-xs " + (page.paper === p ? "border-primary bg-primary/10" : "border-border bg-background")}>
+                <span className="relative block h-12 w-9 overflow-hidden rounded border border-[#d2d8dc]" style={paperStyle({ ...page, paper: p })}>
                   <PaperGuides page={{ ...page, paper: p, lineSpacing: page.lineSpacing ?? 32 }} preview/>
                 </span>
                 {PAPER_LABELS[p]}
@@ -937,7 +951,7 @@ export function NotebookWorkspace({
       )}
 
       {!focusMode && group === "text" && activeTextEditor && (
-        <CompactToolbar editor={activeTextEditor} onAddAttachment={onAddAttachment} />
+        <CompactToolbar editor={activeTextEditor} onAddAttachment={onAddAttachment} workspace />
       )}
       <div className="flex min-h-12 items-center justify-between gap-2 rounded-xl border border-border bg-secondary/40 px-3 py-0.5 text-xs">
         <span className="min-w-0 truncate">صفحة {index + 1} · {pageW} × {pageH} مم</span>
@@ -1082,7 +1096,7 @@ export function NotebookWorkspace({
           setIndex(current.pages.length); setGroup("text"); setSelection(new Set());
           return true;
         }}/>}
-      <nav className={"sticky bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-40 rounded-2xl border border-border bg-card/95 shadow-lg backdrop-blur md:bottom-2 " + (focusMode && !pagePreviews ? "flex items-center gap-2 p-2" : "p-3")}
+      <nav className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-40 rounded-2xl border border-border bg-card/95 p-2 shadow-lg backdrop-blur md:bottom-2"
         aria-label="شريط صفحات المذكرة">
         {!focusMode && group === "draw" && <div className="mb-2 flex gap-1 overflow-x-auto border-b border-border pb-2" role="group" aria-label="أدوات القلم السريعة">
           {transformSession ? <>
@@ -1117,9 +1131,10 @@ export function NotebookWorkspace({
           <button type="button" className={controlCls(false)} aria-label="إعادة سريعة" disabled={!history.current.canRedo(page.id)} onClick={() => historyStep(true)}><Redo2 className="size-4"/></button>
           </>}
         </div>}
-        <div className={(focusMode && !pagePreviews ? "order-2 shrink-0 gap-1 " : "mb-2 justify-between gap-2 ") + "flex items-center"}>
-          <strong className={(focusMode && !pagePreviews ? "sr-only " : "") + "text-sm"}>الصفحات ({book.pages.length})</strong>
-          <button type="button" className="flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-lg px-2 text-xs" aria-label="عرض مصغرات الصفحات" aria-pressed={pagePreviews} onClick={() => setPagePreviews(!pagePreviews)}><Layers className="size-4"/><span className={focusMode && !pagePreviews ? "sr-only" : ""}>{pagePreviews ? "شريط مختصر" : "مصغرات"}</span></button>
+        <div className="flex items-center gap-2">
+        <div className="order-2 flex shrink-0 items-center gap-1">
+          <strong className="sr-only">الصفحات ({book.pages.length})</strong>
+          <button type="button" className="grid size-11 place-items-center rounded-xl bg-secondary" aria-label="عرض مصغرات الصفحات" title={pagePreviews ? "إخفاء المصغرات" : "عرض المصغرات"} aria-pressed={pagePreviews} onClick={() => setPagePreviews(!pagePreviews)}><Layers className="size-4"/></button>
           <div className="flex gap-1">
             <button type="button" aria-label="تكرار الصفحة" title="تكرار الصفحة"
               onClick={duplicatePage} disabled={!!transformSession} className="grid size-11 place-items-center rounded-xl bg-secondary disabled:opacity-40"><Copy className="size-4" /></button>
@@ -1130,22 +1145,23 @@ export function NotebookWorkspace({
             </button>
           </div>
         </div>
-        <div className={(focusMode && !pagePreviews ? "order-1 min-w-0 flex-1 gap-1 " : "gap-2 pb-1 ") + "flex overflow-x-auto"} role="tablist" aria-label="صفحات المذكرة">
+        <div className="order-1 flex min-w-0 flex-1 gap-1 overflow-x-auto" role="tablist" aria-label="صفحات المذكرة">
           {book.pages.map((p, n) => (
             <button type="button" role="tab" key={p.id} aria-selected={index === n}
               disabled={!!transformSession}
               aria-label={"صفحة " + (n + 1)}
               onClick={() => { finish(); setIndex(n); setSelectedSticker(null); setSelection(new Set()); }}
-              className={"flex min-h-11 min-w-12 flex-col items-center justify-center gap-1 rounded-xl border-2 p-1.5 " +
+              className={"flex min-h-11 min-w-12 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border-2 p-1 " +
                 (index === n ? "border-primary bg-primary-soft" : "border-border bg-background")}>
               {pagePreviews && <PageMiniature page={p} />}
-              <span className="whitespace-nowrap text-xs"><span className={focusMode && !pagePreviews ? "hidden sm:inline" : ""}>صفحة </span>{n + 1}</span>
+              <span className="whitespace-nowrap text-[11px]">{n + 1}</span>
             </button>
           ))}
           <button type="button" onClick={addPage} disabled={!!transformSession} aria-label="إضافة صفحة" title="إضافة صفحة"
-            className={"flex min-h-11 items-center justify-center gap-1 rounded-xl border-2 border-dashed border-primary/35 text-primary disabled:opacity-40 " + (focusMode && !pagePreviews ? "min-w-11 sm:min-w-20" : "min-w-20")}>
-            <Plus className="size-6"/><span className={(focusMode && !pagePreviews ? "hidden sm:inline " : "") + "whitespace-nowrap text-xs"}>صفحة جديدة</span>
+            className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-xl border-2 border-dashed border-primary/35 text-primary disabled:opacity-40">
+            <Plus className="size-5"/>
           </button>
+        </div>
         </div>
       </nav>
       {styleSession&&<InkStyleDialog session={styleSession} onApply={applyStyle} onCancel={()=>setStyleSession(null)}/>}

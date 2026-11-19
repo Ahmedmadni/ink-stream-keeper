@@ -72,6 +72,41 @@ async function checkStudioSpace(page, artifacts, readSaved) {
     assert.ok(await page.getByRole("button",{name:"نسخ المذكرة إلى الخزنة",exact:true}).isVisible());
     await page.getByRole("status").filter({hasText:/^(تم الحفظ في الخادم|محفوظة في الخادم)$/}).waitFor({timeout:20000});
   }
+  await page.setViewportSize({width:320,height:844});
+  const groupTabs=page.getByRole("tablist",{name:"مجموعات أدوات الدفتر",exact:true});
+  assert.ok(await groupTabs.getByRole("tab").evaluateAll(tabs=>tabs.every(tab=>{
+    const box=tab.getBoundingClientRect();
+    return !tab.textContent.trim()&&!!tab.title&&!!tab.getAttribute("aria-label")&&box.width>=44&&box.height>=44;
+  })),"tool groups use labeled icon-only touch targets at 320px");
+  await page.getByRole("tab",{name:"ملصقات",exact:true}).click();
+  const packs=page.getByRole("group",{name:"مجموعات الملصقات",exact:true});
+  assert.ok((await packs.boundingBox()).height<=50,"sticker packs remain in one horizontal row");
+  assert.ok(await packs.evaluate(el=>el.scrollWidth>el.clientWidth),"all packs remain accessible by horizontal scrolling");
+  const stickerPanel=packs.locator("..").locator("..");
+  assert.ok((await stickerPanel.boundingBox()).height<=224,"sticker picker leaves room for the paper on mobile");
+  await stickerPanel.evaluate(el=>{el.scrollTop=el.scrollHeight;});
+  const panelBox=await stickerPanel.boundingBox(),searchBox=await page.getByRole("searchbox",{name:"بحث الملصقات"}).boundingBox();
+  assert.ok(searchBox.y>=panelBox.y&&searchBox.y+searchBox.height<=panelBox.y+panelBox.height,
+    "sticker search stays inside the visible panel while results scroll");
+  await page.screenshot({path:artifacts+"/studio-stickers-mobile.png"});
+  await page.getByRole("tab",{name:"ورق",exact:true}).click();
+  const papers=page.getByRole("group",{name:"خلفيات الورق",exact:true});
+  assert.ok((await papers.boundingBox()).height<=104,"paper options fit one preview row");
+  assert.ok((await papers.locator("..").boundingBox()).height<=224,"paper picker leaves room for the paper on mobile");
+  assert.ok(await page.getByLabel("مقاس الصفحة",{exact:true}).isVisible());
+  await papers.getByRole("button",{name:"كورنيل",exact:true}).click();
+  assert.equal(await page.locator("[data-notebook-paper]").getAttribute("data-notebook-paper"),"cornell");
+  await page.screenshot({path:artifacts+"/studio-paper-mobile.png"});
+  await page.setViewportSize({width:1024,height:850});
+  await page.getByRole("tab",{name:"كتابة",exact:true}).click();
+  await page.getByRole("button",{name:"عرض مصغرات الصفحات",exact:true}).click();
+  const header=page.locator('section[aria-label="دفتر المذكرة متعدد الصفحات"] > header');
+  assert.ok((await header.boundingBox()).height<=70,"desktop notebook groups share one icon row");
+  const writing=page.getByRole("tablist",{name:"مجموعات أدوات الكتابة",exact:true}).locator("..");
+  assert.ok((await writing.boundingBox()).height<=70,"writing groups and formatting stay on one row");
+  assert.ok((await page.getByRole("navigation",{name:"شريط صفحات المذكرة",exact:true}).boundingBox()).height<=100,
+    "page previews and actions stay on one compact row");
+  await page.screenshot({path:artifacts+"/studio-icons-desktop.png"});
   page.once("dialog",dialog=>dialog.accept());await page.getByRole("button",{name:"حذف الصفحة",exact:true}).click();
   await page.setViewportSize({width:1024,height:768});await page.getByRole("tab",{name:"أقلام",exact:true}).click();
 }

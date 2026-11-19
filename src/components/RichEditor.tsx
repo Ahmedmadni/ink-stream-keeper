@@ -23,7 +23,7 @@ import {
   List, ListOrdered, ListChecks, Quote, Highlighter, Link as LinkIcon,
   Image as ImgIcon, AlignRight, AlignCenter, AlignLeft, Undo2, Redo2,
   Table as TableIcon, Code2, Minus, Superscript as SupIcon, Subscript as SubIcon,
-  Palette, Pilcrow,
+  Palette, Pilcrow, Type,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { DictateButton } from "@/components/speech/DictateButton";
@@ -130,7 +130,7 @@ export function RichEditor({
 
 
 /** Compact, keyboard-accessible groups for tablet and notebook writing. */
-export function CompactToolbar({ editor, onAddAttachment }: { editor: Editor; onAddAttachment?: (file: File) => void }) {
+export function CompactToolbar({ editor, onAddAttachment, workspace = false }: { editor: Editor; onAddAttachment?: (file: File) => void; workspace?: boolean }) {
   const [group, setGroup] = useState<"text" | "paragraph" | "insert">("text");
   const color = useRef<HTMLInputElement>(null);
   const upload = useRef<HTMLInputElement>(null);
@@ -138,25 +138,29 @@ export function CompactToolbar({ editor, onAddAttachment }: { editor: Editor; on
     ["text", "تنسيق النص"], ["paragraph", "الفقرات"], ["insert", "إدراج"],
   ] as const;
   return (
-    <div className="rounded-2xl border border-border bg-card/95 p-2 shadow-sm">
-      <div className="flex flex-wrap gap-1" role="tablist" aria-label="مجموعات أدوات الكتابة">
+    <div className={"rounded-2xl border border-border bg-card/95 p-2 shadow-sm " + (workspace ? "flex items-center gap-2" : "")}>
+      <div className="flex shrink-0 gap-1" role="tablist" aria-label="مجموعات أدوات الكتابة">
         {actions.map(([key, label]) => (
           <button key={key} type="button" role="tab" aria-selected={group === key}
+            aria-label={label} title={label}
             onClick={() => setGroup(key)}
-            className={"min-h-11 rounded-xl px-3 text-sm font-semibold " +
+            className={(workspace ? "grid size-11 place-items-center rounded-xl" : "min-h-11 rounded-xl px-3 text-sm font-semibold") + " " +
               (group === key ? "bg-primary text-primary-foreground" : "bg-secondary")}>
-            {label}
+            {workspace ? key === "text" ? <Type className="size-5"/> : key === "paragraph" ? <Pilcrow className="size-5"/> : <TableIcon className="size-5"/> : label}
           </button>
         ))}
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-1" role="tabpanel" aria-label="أدوات الكتابة">
+      <div className={(workspace ? "min-w-0 flex-1 overflow-x-auto whitespace-nowrap" : "mt-2 flex-wrap") + " flex items-center gap-1"} role="tabpanel" aria-label="أدوات الكتابة">
         {group === "text" && (
           <>
-            <select aria-label="خط الكتابة" value={editor.getAttributes("textStyle").fontFamily || "IBM Plex Sans Arabic"}
-              onChange={(e) => editor.chain().focus().setFontFamily(e.target.value).run()}
-              className="min-h-11 max-w-40 rounded-xl border border-border bg-background px-2 text-xs">
-              <option value="IBM Plex Sans Arabic">IBM عربي</option><option value="Aref Ruqaa">عارف رقعة</option>
-            </select>
+            <label className={workspace ? "relative grid size-11 shrink-0 place-items-center rounded-xl border border-border bg-background focus-within:ring-2 focus-within:ring-primary" : ""}>
+              {workspace && <Type className="size-4" aria-hidden="true"/>}
+              <select aria-label="خط الكتابة" title="خط الكتابة" value={editor.getAttributes("textStyle").fontFamily || "IBM Plex Sans Arabic"}
+                onChange={(e) => editor.chain().focus().setFontFamily(e.target.value).run()}
+                className={workspace ? "absolute inset-0 size-full cursor-pointer opacity-0" : "min-h-11 max-w-40 rounded-xl border border-border bg-background px-2 text-xs"}>
+                <option value="IBM Plex Sans Arabic">IBM عربي</option><option value="Aref Ruqaa">عارف رقعة</option>
+              </select>
+            </label>
             <Btn label="عريض" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}><Bold className="size-4" /></Btn>
             <Btn label="مائل" active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic className="size-4" /></Btn>
             <Btn label="تسطير" active={editor.isActive("underline")} onClick={() => editor.chain().focus().toggleUnderline().run()}><UIcon className="size-4" /></Btn>
