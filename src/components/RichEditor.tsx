@@ -23,9 +23,10 @@ import {
   List, ListOrdered, ListChecks, Quote, Highlighter, Link as LinkIcon,
   Image as ImgIcon, AlignRight, AlignCenter, AlignLeft, Undo2, Redo2,
   Table as TableIcon, Code2, Minus, Superscript as SupIcon, Subscript as SubIcon,
-  Palette, Pilcrow,
+  Palette, Pilcrow, Type, Plus,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { ToolButton } from "@/components/ToolButton";
 import { DictateButton } from "@/components/speech/DictateButton";
 
 export type RichEditorHandle = Editor;
@@ -135,26 +136,22 @@ export function CompactToolbar({ editor, onAddAttachment }: { editor: Editor; on
   const color = useRef<HTMLInputElement>(null);
   const upload = useRef<HTMLInputElement>(null);
   const actions = [
-    ["text", "تنسيق النص"], ["paragraph", "الفقرات"], ["insert", "إدراج"],
+    ["text", "تنسيق النص", Type], ["paragraph", "الفقرات", Pilcrow], ["insert", "إدراج", Plus],
   ] as const;
   return (
-    <div className="rounded-2xl border border-border bg-card/95 p-2 shadow-sm">
-      <div className="flex flex-wrap gap-1" role="tablist" aria-label="مجموعات أدوات الكتابة">
-        {actions.map(([key, label]) => (
-          <button key={key} type="button" role="tab" aria-selected={group === key}
-            onClick={() => setGroup(key)}
-            className={"min-h-11 rounded-xl px-3 text-sm font-semibold " +
-              (group === key ? "bg-primary text-primary-foreground" : "bg-secondary")}>
-            {label}
-          </button>
+    <div className="flex min-w-0 items-center gap-2 overflow-x-auto" data-writing-toolbar>
+      <div className="flex shrink-0 gap-1 border-e border-border pe-2" role="tablist" aria-label="مجموعات أدوات الكتابة">
+        {actions.map(([key, label, Icon]) => (
+          <ToolButton key={key} label={label} role="tab" aria-selected={group === key}
+            active={group === key} onClick={() => setGroup(key)}><Icon className="size-4" /></ToolButton>
         ))}
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-1" role="tabpanel" aria-label="أدوات الكتابة">
+      <div className="flex shrink-0 items-center gap-1" role="tabpanel" aria-label="أدوات الكتابة">
         {group === "text" && (
           <>
             <select aria-label="خط الكتابة" value={editor.getAttributes("textStyle").fontFamily || "IBM Plex Sans Arabic"}
               onChange={(e) => editor.chain().focus().setFontFamily(e.target.value).run()}
-              className="min-h-11 max-w-40 rounded-xl border border-border bg-background px-2 text-xs">
+              className="h-11 max-w-32 rounded-lg border border-border bg-background px-2 text-xs">
               <option value="IBM Plex Sans Arabic">IBM عربي</option><option value="Aref Ruqaa">عارف رقعة</option>
             </select>
             <Btn label="عريض" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}><Bold className="size-4" /></Btn>
@@ -293,19 +290,7 @@ function Toolbar({ editor, onAddAttachment }: { editor: Editor; onAddAttachment?
 function Btn({
   onClick, active, label, children,
 }: { onClick: () => void; active?: boolean; label: string; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      className={`grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-primary-soft hover:text-primary ${
-        active ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground" : ""
-      }`}
-    >
-      {children}
-    </button>
-  );
+  return <ToolButton label={label} active={active} onClick={onClick}>{children}</ToolButton>;
 }
 
 function Divider() {

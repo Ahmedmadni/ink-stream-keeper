@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent } from "rea
 import type { Editor } from "@tiptap/react";
 import {
   BookOpen, Brush, Eraser, FileDown, Layers, PenLine, Plus,
-  Copy, Trash2, Highlighter, Undo2, Redo2, Sticker, MousePointer2, ScanLine, ZoomIn, Shapes, Minus, Square, Circle, ArrowUpRight, Search, ScanText, Scissors, Waypoints, Check, RotateCw, X,
+  PanelTopClose, PanelTopOpen, Maximize, ChevronRight, ChevronLeft, Copy, Trash2, Highlighter, Undo2, Redo2, Sticker, MousePointer2, ScanLine, ZoomIn, Shapes, Minus, Square, Circle, ArrowUpRight, Search, ScanText, Scissors, Waypoints, Check, RotateCw, X,
 } from "lucide-react";
+import { ToolButton } from "@/components/ToolButton";
+import { Button } from "@/components/ui/button";
 import { RichEditor, CompactToolbar } from "@/components/RichEditor";
 import {
   createPage, dimensionsMm, fromLegacyNote, notebookPlainText, parseNotebook,
@@ -113,6 +115,7 @@ export function NotebookWorkspace({
   const [recognitionSource, setRecognitionSource] = useState<{ page: NotebookPage; selection: Set<string> } | null>(null);
   const closeRecognition = useCallback(() => setRecognitionSource(null), []);
   const [index, setIndex] = useState(0);
+  const [pagesOpen, setPagesOpen] = useState(false);
   const [group, setGroup] = useState<PaletteGroup>("text");
   const [shapeTool, setShapeTool] = useState<ShapeTool>("line");
   const [inkMode, setInkMode] = useState<InkMode>("pen");
@@ -600,7 +603,7 @@ export function NotebookWorkspace({
   const controlCls = (active: boolean) => "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed " +
     (active ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground hover:bg-accent");
   return (
-    <section className="space-y-3" aria-label="دفتر المذكرة متعدد الصفحات"
+    <section className="space-y-1" aria-label="دفتر المذكرة متعدد الصفحات"
       onKeyDown={(event) => {
         const inCanvas = (event.target as Element).closest("svg[data-ink-editor]");
         if (transformSession) {
@@ -631,32 +634,32 @@ export function NotebookWorkspace({
           event.preventDefault(); historyStep(key === "y" || event.shiftKey);
         }
       }}>
-      <header className="sticky top-2 z-40 rounded-2xl border border-border bg-card/95 p-3 shadow-sm backdrop-blur">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-base font-bold">دفتر المذاكرة</h2>
-            <p className="text-xs text-muted-foreground">{book.pages.length} صفحة · {SIZE_LABELS[page.size]} · {PAPER_LABELS[page.paper]}</p>
+      <header className="sticky top-0 z-40 border-y border-border bg-card/95 px-2 py-1 backdrop-blur" data-notebook-toolbar>
+        <div className="flex min-w-0 items-center justify-between gap-1">
+          <div className="flex shrink-0 items-center gap-1" role="tablist" aria-label="مجموعات أدوات الدفتر">
+            {([
+              ["text", "كتابة", PenLine], ["draw", "أقلام", Brush], ["shapes", "رسم", Shapes],
+              ["stickers", "ملصقات", Sticker], ["paper", "ورق", Layers],
+            ] as const).map(([key, label, Icon]) => (
+              <ToolButton key={key} label={label} role="tab" aria-selected={group === key} active={group === key}
+                onClick={() => { finish(); if (key !== group) cancelTransform(); setGroup(key); setSelectedSticker(null); }}>
+                <Icon className="size-5" />
+              </ToolButton>
+            ))}
           </div>
-          <button type="button" disabled={exporting || !!transformSession} onClick={() => { void exportPdf(); }}
-            className={controlCls(false)} aria-label="تصدير صفحات الدفتر PDF">
-            <FileDown className="size-4" /> {exporting ? "تصدير..." : "تصدير PDF"}
-          </button>
+          <div className="flex min-w-0 items-center gap-1">
+            <span className="hidden truncate px-2 text-xs text-muted-foreground lg:block">{SIZE_LABELS[page.size]} · {PAPER_LABELS[page.paper]}</span>
+            <ToolButton label={pagesOpen ? "إخفاء الصفحات" : "عرض الصفحات"} active={pagesOpen}
+              aria-expanded={pagesOpen} aria-controls="notebook-pages" onClick={() => setPagesOpen(!pagesOpen)}>
+              {pagesOpen ? <PanelTopClose /> : <PanelTopOpen />}
+            </ToolButton>
+            <ToolButton label="تصدير صفحات الدفتر PDF" disabled={exporting || !!transformSession}
+              onClick={() => { void exportPdf(); }}><FileDown className={exporting ? "animate-pulse" : ""} /></ToolButton>
+          </div>
         </div>
-        <div className="mt-3 grid grid-cols-5 gap-1" role="tablist" aria-label="مجموعات أدوات الدفتر">
-          {([
-            ["text", "كتابة", PenLine],
-            ["draw", "أقلام", Brush],
-            ["shapes", "رسم", Shapes],
-            ["stickers", "ملصقات", Sticker],
-            ["paper", "ورق", Layers],
-          ] as const).map(([key, label, Icon]) => (
-            <button type="button" role="tab" key={key} aria-selected={group === key}
-              onClick={() => { finish(); if (key !== group) cancelTransform(); setGroup(key); setSelectedSticker(null); }}
-              className={"flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 font-semibold sm:flex-row sm:gap-2 " + (group === key ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground hover:bg-accent")}>
-              <Icon className="size-4 shrink-0" /><span className="text-xs">{label}</span>
-            </button>
-          ))}
-        </div>
+        {group === "text" && activeTextEditor && <div className="border-t border-border pt-1 mt-1">
+          <CompactToolbar editor={activeTextEditor} onAddAttachment={onAddAttachment} />
+        </div>}
       </header>
 
       {group === "draw" && (
@@ -867,19 +870,85 @@ export function NotebookWorkspace({
         </div>
       )}
 
-      {group === "text" && activeTextEditor && (
-        <CompactToolbar editor={activeTextEditor} onAddAttachment={onAddAttachment} />
-      )}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2 text-xs">
-        <span>صفحة {index + 1} · {pageW} × {pageH} مم</span>
-        <div className="flex items-center gap-1" role="group" aria-label="تكبير صفحة الدفتر">
-          <ZoomIn className="mx-1 size-4"/>
-          <button type="button" className={controlCls(zoom === null)} disabled={transformDragging} onClick={() => setZoom(null)}>ملاءمة</button>
-          <button type="button" className={controlCls(zoom === 1)} disabled={transformDragging} onClick={() => setZoom(1)}>100%</button>
-          <button type="button" className={controlCls(zoom === 1.5)} disabled={transformDragging} onClick={() => setZoom(1.5)}>150%</button>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1 px-1 text-xs">
+        <div className="flex min-w-0 items-center gap-1">
+          <ToolButton label="الصفحة السابقة" disabled={index === 0 || !!transformSession} onClick={() => { finish(); setIndex(index - 1); setSelection(new Set()); }}><ChevronRight /></ToolButton>
+          <span dir="ltr" className="whitespace-nowrap text-muted-foreground">{index + 1} / {book.pages.length}</span>
+          <ToolButton label="الصفحة التالية" disabled={index === book.pages.length - 1 || !!transformSession} onClick={() => { finish(); setIndex(index + 1); setSelection(new Set()); }}><ChevronLeft /></ToolButton>
+          <ToolButton label="إضافة صفحة" disabled={!!transformSession} onClick={addPage}><Plus /></ToolButton>
+        </div>
+        <div className="flex shrink-0 items-center gap-1" role="group" aria-label="تكبير صفحة الدفتر">
+          <ToolButton label="ملاءمة الصفحة" active={zoom === null} disabled={transformDragging} onClick={() => setZoom(null)}><Maximize /></ToolButton>
+          <Button variant="ghost" className="h-11 px-2 text-xs" aria-label="حجم الصفحة الأصلي 100%" aria-pressed={zoom === 1} disabled={transformDragging} onClick={() => setZoom(1)}>100%</Button>
+          <ToolButton label="تكبير الصفحة 150%" active={zoom === 1.5} disabled={transformDragging} onClick={() => setZoom(1.5)}><ZoomIn /></ToolButton>
         </div>
       </div>
-      <div ref={viewport} className="w-full overflow-auto rounded-xl bg-secondary/40" dir="ltr" aria-label="منطقة عرض الورقة">
+      <nav id="notebook-pages" hidden={!pagesOpen} className="border-y border-border bg-card p-2"
+        aria-label="شريط صفحات المذكرة">
+        {group === "draw" && <div className="mb-2 flex gap-1 overflow-x-auto border-b border-border pb-2" role="group" aria-label="أدوات القلم السريعة">
+          {transformSession ? <>
+            <button type="button" className={controlCls(true)} aria-label="تطبيق التحويل السريع" disabled={transformDragging || !transformPreview?.changed || !!transformPreview.error}
+              onClick={() => { if (transformPreview) applyTransform(transformPreview); }}><Check className="size-4"/>تطبيق</button>
+            <button type="button" className={controlCls(false)} aria-label="إلغاء التحويل السريع" onClick={cancelTransform}><X className="size-4"/>إلغاء</button>
+            {transformPreview?.error && <span role="status" className="self-center px-2 text-xs text-destructive">معاينة غير صالحة</span>}
+          </> : <>
+          {inkMode !== "nodes" && <>
+            <button type="button" className={controlCls(inkMode === "pen")} aria-label="القلم السريع" onClick={() => { finish(); setInkMode("pen"); }}><PenLine className="size-4"/></button>
+            <button type="button" className={controlCls(inkMode === "eraser")} aria-label="الممحاة السريعة" onClick={() => { finish(); setInkMode("eraser"); }}><Eraser className="size-4"/></button>
+          </>}
+          {inkMode === "eraser" && <select aria-label="نوع الممحاة السريعة" value={eraserKind}
+            onChange={(e) => { finish(); setEraserKind(e.target.value as EraserKind); }}
+            className="min-h-11 shrink-0 rounded-xl border border-border bg-background px-2 text-xs">
+            <option value="segment">مسح جزء</option><option value="stroke">مسار كامل</option>
+          </select>}
+          {inkMode !== "nodes" && <button type="button" className={controlCls(inkMode === "select")} aria-label="التحديد السريع" onClick={() => { finish(); setInkMode("select"); }}><MousePointer2 className="size-4"/></button>}
+          {inkMode === "nodes" && selectedStroke && <>
+            <button type="button" className={controlCls(false)} aria-label="إضافة نقطة سريعة" title="إضافة نقطة للمسار"
+              disabled={!canInsertInkPoint(selectedStroke, insertionAfter)} onClick={() => insertNode(insertionAfter)}><Plus className="size-4"/></button>
+            <button type="button" className={controlCls(false) + " text-destructive"} aria-label="حذف نقطة سريع" title="حذف نقطة التحكم"
+              disabled={inkPoints(selectedStroke).length <= 2} onClick={removeNode}><Trash2 className="size-4"/></button>
+          </>}
+          {selectedStroke && <button type="button" className={controlCls(inkMode === "nodes")} aria-label={inkMode === "nodes" ? "إنهاء تحرير النقاط السريع" : "تحرير النقاط السريع"}
+            disabled={!nodeIndices.length} onClick={() => { if (inkMode === "nodes") { finish(); setInkMode("select"); } else enterNodes(); }}>
+            {inkMode === "nodes" ? <Check className="size-4"/> : <Waypoints className="size-4"/>}
+          </button>}
+          {inkMode === "select" && selection.size > 0 && <button type="button" className={controlCls(false)} aria-label="تحويل الرسم السريع" title="تغيير الحجم والتدوير"
+            onClick={beginTransform}><RotateCw className="size-4"/></button>}
+          <button type="button" className={controlCls(false)} aria-label="تراجع سريع" disabled={!history.current.canUndo(page.id)} onClick={() => historyStep(false)}><Undo2 className="size-4"/></button>
+          <button type="button" className={controlCls(false)} aria-label="إعادة سريعة" disabled={!history.current.canRedo(page.id)} onClick={() => historyStep(true)}><Redo2 className="size-4"/></button>
+          </>}
+        </div>}
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <strong className="text-sm">الصفحات ({book.pages.length})</strong>
+          <div className="flex gap-1">
+            <button type="button" aria-label="تكرار الصفحة" title="تكرار الصفحة"
+              onClick={duplicatePage} disabled={!!transformSession} className="grid size-10 place-items-center rounded-xl bg-secondary disabled:opacity-40"><Copy className="size-4" /></button>
+            <button type="button" aria-label="حذف الصفحة" title="حذف الصفحة"
+              onClick={removePage} disabled={book.pages.length === 1 || !!transformSession}
+              className="grid size-10 place-items-center rounded-xl bg-secondary text-destructive disabled:opacity-40">
+              <Trash2 className="size-4"/>
+            </button>
+          </div>
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="صفحات المذكرة">
+          {book.pages.map((p, n) => (
+            <button type="button" role="tab" key={p.id} aria-selected={index === n}
+              disabled={!!transformSession}
+              aria-label={"صفحة " + (n + 1)}
+              onClick={() => { finish(); setIndex(n); setSelectedSticker(null); setSelection(new Set()); }}
+              className={"flex min-w-20 flex-col items-center gap-1 rounded-lg border-2 p-1.5 " +
+                (index === n ? "border-primary bg-primary-soft" : "border-border bg-background")}>
+              <PageMiniature page={p} />
+              <span className="text-xs">صفحة {n + 1}</span>
+            </button>
+          ))}
+          <button type="button" onClick={addPage} disabled={!!transformSession} aria-label="إضافة صفحة" title="إضافة صفحة"
+            className="flex min-w-20 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-primary/35 text-primary disabled:opacity-40">
+            <Plus className="size-6"/>
+          </button>
+        </div>
+      </nav>
+      <div ref={viewport} className="w-full overflow-auto bg-secondary/40 p-2 sm:p-4" dir="ltr" aria-label="منطقة عرض الورقة">
         <div className="relative mx-auto" style={{ width: layout.width * displayScale, height: layout.height * displayScale }}>
         <div data-notebook-paper={page.paper} dir="rtl"
           className="notebook-sheet absolute left-0 top-0 isolate overflow-hidden shadow-md"
@@ -1005,71 +1074,7 @@ export function NotebookWorkspace({
           setIndex(current.pages.length); setGroup("text"); setSelection(new Set());
           return true;
         }}/>}
-      <nav className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-40 rounded-2xl border border-border bg-card/95 p-3 shadow-lg backdrop-blur md:bottom-2"
-        aria-label="شريط صفحات المذكرة">
-        {group === "draw" && <div className="mb-2 flex gap-1 overflow-x-auto border-b border-border pb-2" role="group" aria-label="أدوات القلم السريعة">
-          {transformSession ? <>
-            <button type="button" className={controlCls(true)} aria-label="تطبيق التحويل السريع" disabled={transformDragging || !transformPreview?.changed || !!transformPreview.error}
-              onClick={() => { if (transformPreview) applyTransform(transformPreview); }}><Check className="size-4"/>تطبيق</button>
-            <button type="button" className={controlCls(false)} aria-label="إلغاء التحويل السريع" onClick={cancelTransform}><X className="size-4"/>إلغاء</button>
-            {transformPreview?.error && <span role="status" className="self-center px-2 text-xs text-destructive">معاينة غير صالحة</span>}
-          </> : <>
-          {inkMode !== "nodes" && <>
-            <button type="button" className={controlCls(inkMode === "pen")} aria-label="القلم السريع" onClick={() => { finish(); setInkMode("pen"); }}><PenLine className="size-4"/></button>
-            <button type="button" className={controlCls(inkMode === "eraser")} aria-label="الممحاة السريعة" onClick={() => { finish(); setInkMode("eraser"); }}><Eraser className="size-4"/></button>
-          </>}
-          {inkMode === "eraser" && <select aria-label="نوع الممحاة السريعة" value={eraserKind}
-            onChange={(e) => { finish(); setEraserKind(e.target.value as EraserKind); }}
-            className="min-h-11 shrink-0 rounded-xl border border-border bg-background px-2 text-xs">
-            <option value="segment">مسح جزء</option><option value="stroke">مسار كامل</option>
-          </select>}
-          {inkMode !== "nodes" && <button type="button" className={controlCls(inkMode === "select")} aria-label="التحديد السريع" onClick={() => { finish(); setInkMode("select"); }}><MousePointer2 className="size-4"/></button>}
-          {inkMode === "nodes" && selectedStroke && <>
-            <button type="button" className={controlCls(false)} aria-label="إضافة نقطة سريعة" title="إضافة نقطة للمسار"
-              disabled={!canInsertInkPoint(selectedStroke, insertionAfter)} onClick={() => insertNode(insertionAfter)}><Plus className="size-4"/></button>
-            <button type="button" className={controlCls(false) + " text-destructive"} aria-label="حذف نقطة سريع" title="حذف نقطة التحكم"
-              disabled={inkPoints(selectedStroke).length <= 2} onClick={removeNode}><Trash2 className="size-4"/></button>
-          </>}
-          {selectedStroke && <button type="button" className={controlCls(inkMode === "nodes")} aria-label={inkMode === "nodes" ? "إنهاء تحرير النقاط السريع" : "تحرير النقاط السريع"}
-            disabled={!nodeIndices.length} onClick={() => { if (inkMode === "nodes") { finish(); setInkMode("select"); } else enterNodes(); }}>
-            {inkMode === "nodes" ? <Check className="size-4"/> : <Waypoints className="size-4"/>}
-          </button>}
-          {inkMode === "select" && selection.size > 0 && <button type="button" className={controlCls(false)} aria-label="تحويل الرسم السريع" title="تغيير الحجم والتدوير"
-            onClick={beginTransform}><RotateCw className="size-4"/></button>}
-          <button type="button" className={controlCls(false)} aria-label="تراجع سريع" disabled={!history.current.canUndo(page.id)} onClick={() => historyStep(false)}><Undo2 className="size-4"/></button>
-          <button type="button" className={controlCls(false)} aria-label="إعادة سريعة" disabled={!history.current.canRedo(page.id)} onClick={() => historyStep(true)}><Redo2 className="size-4"/></button>
-          </>}
-        </div>}
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <strong className="text-sm">الصفحات ({book.pages.length})</strong>
-          <div className="flex gap-1">
-            <button type="button" aria-label="تكرار الصفحة" title="تكرار الصفحة"
-              onClick={duplicatePage} disabled={!!transformSession} className="grid size-10 place-items-center rounded-xl bg-secondary disabled:opacity-40"><Copy className="size-4" /></button>
-            <button type="button" aria-label="حذف الصفحة" title="حذف الصفحة"
-              onClick={removePage} disabled={book.pages.length === 1 || !!transformSession}
-              className="grid size-10 place-items-center rounded-xl bg-secondary text-destructive disabled:opacity-40">
-              <Trash2 className="size-4"/>
-            </button>
-          </div>
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="صفحات المذكرة">
-          {book.pages.map((p, n) => (
-            <button type="button" role="tab" key={p.id} aria-selected={index === n}
-              disabled={!!transformSession}
-              aria-label={"صفحة " + (n + 1)}
-              onClick={() => { finish(); setIndex(n); setSelectedSticker(null); setSelection(new Set()); }}
-              className={"flex min-w-20 flex-col items-center gap-1 rounded-xl border-2 p-1.5 " +
-                (index === n ? "border-primary bg-primary-soft" : "border-border bg-background")}>
-              <PageMiniature page={p} />
-              <span className="text-xs">صفحة {n + 1}</span>
-            </button>
-          ))}
-          <button type="button" onClick={addPage} disabled={!!transformSession} aria-label="إضافة صفحة" title="إضافة صفحة"
-            className="flex min-w-20 flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-primary/35 text-primary disabled:opacity-40">
-            <Plus className="size-6"/><span className="text-xs">صفحة جديدة</span>
-          </button>
-        </div>
-      </nav>
+
     </section>
   );
 }

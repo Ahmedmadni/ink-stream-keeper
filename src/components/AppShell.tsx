@@ -20,6 +20,7 @@ const nav = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
+  const workspace = /^\/notes\/[^/]+$/.test(pathname);
   useTaskReminders();
   const { data: profile } = useProfile();
   useEffect(() => {
@@ -28,11 +29,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh bg-background text-foreground">
       <CommandPalette />
-      <div className="mx-auto max-w-6xl md:grid md:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="sticky top-0 hidden h-dvh border-e border-border px-4 py-8 md:flex md:flex-col">
-          <Link to="/" className="mb-10 flex items-center gap-3 px-3 text-xl font-semibold">
+      <div className={workspace ? "w-full md:grid md:grid-cols-[72px_minmax(0,1fr)]" : "mx-auto max-w-6xl md:grid md:grid-cols-[220px_minmax(0,1fr)]"}>
+        <aside className={"sticky top-0 hidden h-dvh border-e border-border md:flex md:flex-col " + (workspace ? "items-center px-2 py-4" : "px-4 py-8")}>
+          <Link to="/" aria-label="MemoFlow — الرئيسية" title="الرئيسية" className={"flex items-center gap-3 text-xl font-semibold " + (workspace ? "mb-6" : "mb-10 px-3")}>
             <BrandMark />
-            <span dir="ltr">MemoFlow</span>
+            {!workspace && <span dir="ltr">MemoFlow</span>}
           </Link>
           <nav aria-label="التنقل الجانبي" className="space-y-2">
             {nav.map(({ to, label, icon: Icon, exact }) => {
@@ -41,11 +42,12 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <Link
                   key={to}
                   to={to}
+                  aria-label={label} title={label}
                   aria-current={active ? "page" : undefined}
-                  className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${active ? "bg-primary-soft text-primary" : "text-muted-foreground hover:bg-secondary"}`}
+                  className={`flex items-center gap-3 rounded-lg ${workspace ? "size-12 justify-center" : "px-4 py-3"} text-sm font-medium transition-colors ${active ? "bg-primary-soft text-primary" : "text-muted-foreground hover:bg-secondary"}`}
                 >
                   <Icon className="size-5" />
-                  {label}
+                  {!workspace && label}
                 </Link>
               );
             })}
@@ -55,7 +57,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           id="main"
           className="min-w-0 pb-[calc(env(safe-area-inset-bottom)+6rem)] safe-x md:pb-12"
         >
-          <div className="mx-auto flex max-w-3xl items-center justify-between px-4 pt-[max(env(safe-area-inset-top),0.75rem)] sm:px-5 md:pt-8">
+          <div className={"mx-auto flex items-center justify-between px-4 pt-[max(env(safe-area-inset-top),0.75rem)] sm:px-5 " + (workspace ? "md:pt-2" : "max-w-3xl md:pt-8")}>
             <Link
               to="/"
               className="flex items-center gap-2 text-sm font-semibold md:hidden"
@@ -71,7 +73,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             )}
           </div>
           <OfflineModeNotice />
-          <PageFade key={pathname} className="mx-auto max-w-3xl">
+          <PageFade key={pathname} className={workspace ? "mx-auto w-full" : "mx-auto max-w-3xl"}>
             {children}
           </PageFade>
         </main>
@@ -87,11 +89,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Link
                 key={to}
                 to={to}
+                aria-label={label} title={label}
                 aria-current={active ? "page" : undefined}
-                className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-xs font-medium transition-colors ${active ? "bg-primary-soft text-primary" : "text-muted-foreground"}`}
+                className={`flex ${workspace ? "min-h-11" : "min-h-14"} flex-col items-center justify-center gap-1 rounded-2xl text-xs font-medium transition-colors ${active ? "bg-primary-soft text-primary" : "text-muted-foreground"}`}
               >
                 <Icon className="size-6" strokeWidth={active ? 2.25 : 1.75} />
-                <span>{label}</span>
+                {!workspace && <span>{label}</span>}
               </Link>
             );
           })}
