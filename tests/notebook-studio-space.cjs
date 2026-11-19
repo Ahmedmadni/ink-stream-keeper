@@ -20,6 +20,8 @@ async function checkStudioSpace(page, artifacts, readSaved) {
   await page.getByRole("button",{name:"وضع التركيز",exact:true}).click();
   assert.equal(await page.getByRole("button",{name:"قلم سلس",exact:true}).count(),0);
   assert.ok(await canvas.isVisible());
+  const tabletStrip=await page.getByRole("navigation",{name:"شريط صفحات المذكرة",exact:true}).boundingBox();
+  assert.ok(tabletStrip.height<=64,"focus page actions and page tabs share one tablet row");
   await page.screenshot({path:artifacts+"/studio-focus-tablet.png"});
   await page.getByRole("status").filter({hasText:/^(تم الحفظ في الخادم|محفوظة في الخادم)$/}).waitFor({timeout:20000});
   const book=JSON.parse(Buffer.from(readSaved().match(/data-json="([^"]+)"/)[1],"base64").toString());
@@ -60,7 +62,12 @@ async function checkStudioSpace(page, artifacts, readSaved) {
   await page.screenshot({path:artifacts+"/studio-focus-mobile.png"});
   for (const width of [320,390]) {
     await page.setViewportSize({width,height:844});
-    const compact=await page.getByRole("navigation",{name:"شريط صفحات المذكرة",exact:true}).boundingBox();assert.ok(compact.height<=80,"focus page strip must fit one row");
+    const compact=await page.getByRole("navigation",{name:"شريط صفحات المذكرة",exact:true}).boundingBox();assert.ok(compact.height<=64,"focus page strip must fit one row");
+    const zoomBar=await page.getByLabel("مستوى تكبير صفحة الدفتر",{exact:true}).locator("..").locator("..").boundingBox();
+    assert.ok(zoomBar.height<=52,"page size and zoom stay on one mobile row");
+    const zoom=page.getByLabel("مستوى تكبير صفحة الدفتر",{exact:true});
+    await zoom.selectOption("1.5");assert.equal(await zoom.inputValue(),"1.5");
+    await zoom.selectOption("fit");assert.equal(await zoom.inputValue(),"fit");
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2));
     assert.ok(await page.getByRole("button",{name:"نسخ المذكرة إلى الخزنة",exact:true}).isVisible());
     await page.getByRole("status").filter({hasText:/^(تم الحفظ في الخادم|محفوظة في الخادم)$/}).waitFor({timeout:20000});

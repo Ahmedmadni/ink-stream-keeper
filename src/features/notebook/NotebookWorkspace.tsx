@@ -721,16 +721,24 @@ export function NotebookWorkspace({
             value={{color:penColor,width:penWidth,brush:penBrush??"solid",smooth,stabilization,pressureEnabled,sensitivity}}
             onUse={(pen)=>{finish();setInkMode("pen");setPenColor(pen.color);setPenWidth(pen.width);setPenBrush(pen.brush==="solid"?undefined:pen.brush);
               setSmooth(pen.smooth);setStabilization(pen.stabilization);setPressureEnabled(pen.pressureEnabled);setSensitivity(pen.sensitivity);}}/>}
-          <div className="flex flex-wrap gap-2" role="group" aria-label="أنواع أقلام الكتابة">
-            <button type="button" className={controlCls(!penBrush && stabilization === 0 && inkMode === "pen")} onClick={() => { finish(); setPenBrush(undefined); setInkMode("pen"); setStabilization(0); setPenWidth(3); }}>قلم دقيق</button>
-            <button type="button" className={controlCls(!penBrush && stabilization === .55 && inkMode === "pen")} onClick={() => { finish(); setPenBrush(undefined); setInkMode("pen"); setStabilization(.55); setPenWidth(4); setSmooth(true); }}>قلم سلس</button>
-            <button type="button" className={controlCls(!penBrush && stabilization === .75 && inkMode === "pen")} onClick={() => { finish(); setPenBrush(undefined); setInkMode("pen"); setStabilization(.75); setPenWidth(8); setSmooth(true); setPressureEnabled(true); }}>قلم رسم ناعم</button>
-          </div>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="خامات الرسم">
-            <button type="button" className={controlCls(!penBrush && inkMode === "pen")} aria-pressed={!penBrush && inkMode === "pen"}
-              onClick={() => { finish(); setPenBrush(undefined); setInkMode("pen"); }}>حبر مصمت</button>
-            <button type="button" className={controlCls(penBrush === "pencil" && inkMode === "pen")} aria-pressed={penBrush === "pencil" && inkMode === "pen"}
-              onClick={() => { finish(); setPenBrush("pencil"); setInkMode("pen"); setPenWidth(8); setPenColor("#4b5563"); setStabilization(.55); setSmooth(true); }}>قلم رصاص</button>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="space-y-2 rounded-xl border border-border bg-secondary/30 p-3">
+              <h3 className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><PenLine className="size-4"/>أقلام الكتابة</h3>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="أنواع أقلام الكتابة">
+                <button type="button" className={controlCls(!penBrush && stabilization === 0 && inkMode === "pen")} onClick={() => { finish(); setPenBrush(undefined); setInkMode("pen"); setStabilization(0); setPenWidth(3); }}>قلم دقيق</button>
+                <button type="button" className={controlCls(!penBrush && stabilization === .55 && inkMode === "pen")} onClick={() => { finish(); setPenBrush(undefined); setInkMode("pen"); setStabilization(.55); setPenWidth(4); setSmooth(true); }}>قلم سلس</button>
+                <button type="button" className={controlCls(!penBrush && stabilization === .75 && inkMode === "pen")} onClick={() => { finish(); setPenBrush(undefined); setInkMode("pen"); setStabilization(.75); setPenWidth(8); setSmooth(true); setPressureEnabled(true); }}>قلم رسم ناعم</button>
+              </div>
+            </div>
+            <div className="space-y-2 rounded-xl border border-border bg-secondary/30 p-3">
+              <h3 className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><Brush className="size-4"/>خامات الرسم</h3>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="خامات الرسم">
+                <button type="button" className={controlCls(!penBrush && inkMode === "pen")} aria-pressed={!penBrush && inkMode === "pen"}
+                  onClick={() => { finish(); setPenBrush(undefined); setInkMode("pen"); }}>حبر مصمت</button>
+                <button type="button" className={controlCls(penBrush === "pencil" && inkMode === "pen")} aria-pressed={penBrush === "pencil" && inkMode === "pen"}
+                  onClick={() => { finish(); setPenBrush("pencil"); setInkMode("pen"); setPenWidth(8); setPenColor("#4b5563"); setStabilization(.55); setSmooth(true); }}>قلم رصاص</button>
+              </div>
+            </div>
           </div>
           <p className="text-xs text-muted-foreground">قلم الرصاص بخامة حبيبية ثابتة على الورق. التنعيم يحسن المسار، ولا يتعرف على الحروف. الإعدادات للرسم الجديد.</p>
           <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -931,9 +939,17 @@ export function NotebookWorkspace({
       {!focusMode && group === "text" && activeTextEditor && (
         <CompactToolbar editor={activeTextEditor} onAddAttachment={onAddAttachment} />
       )}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2 text-xs">
-        <span>صفحة {index + 1} · {pageW} × {pageH} مم</span>
-        <div className="flex items-center gap-1" role="group" aria-label="تكبير صفحة الدفتر">
+      <div className="flex min-h-12 items-center justify-between gap-2 rounded-xl border border-border bg-secondary/40 px-3 py-0.5 text-xs">
+        <span className="min-w-0 truncate">صفحة {index + 1} · {pageW} × {pageH} مم</span>
+        <label className="flex shrink-0 items-center gap-1 sm:hidden"><ZoomIn className="size-4"/>
+          <span className="sr-only">تكبير صفحة الدفتر</span>
+          <select aria-label="مستوى تكبير صفحة الدفتر" value={zoom === null ? "fit" : String(zoom)}
+            disabled={transformDragging} onChange={(event) => setZoom(event.target.value === "fit" ? null : Number(event.target.value))}
+            className="min-h-11 rounded-xl border border-border bg-background px-2 font-semibold">
+            <option value="fit">ملاءمة</option><option value="1">100%</option><option value="1.5">150%</option>
+          </select>
+        </label>
+        <div className="hidden items-center gap-1 sm:flex" role="group" aria-label="تكبير صفحة الدفتر">
           <ZoomIn className="mx-1 size-4"/>
           <button type="button" className={controlCls(zoom === null)} disabled={transformDragging} onClick={() => setZoom(null)}>ملاءمة</button>
           <button type="button" className={controlCls(zoom === 1)} disabled={transformDragging} onClick={() => setZoom(1)}>100%</button>
@@ -1066,7 +1082,7 @@ export function NotebookWorkspace({
           setIndex(current.pages.length); setGroup("text"); setSelection(new Set());
           return true;
         }}/>}
-      <nav className={"sticky bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-40 rounded-2xl border border-border bg-card/95 p-3 shadow-lg backdrop-blur md:bottom-2 " + (focusMode && !pagePreviews ? "grid grid-cols-[auto_minmax(0,1fr)] gap-2 sm:block" : "")}
+      <nav className={"sticky bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-40 rounded-2xl border border-border bg-card/95 shadow-lg backdrop-blur md:bottom-2 " + (focusMode && !pagePreviews ? "flex items-center gap-2 p-2" : "p-3")}
         aria-label="شريط صفحات المذكرة">
         {!focusMode && group === "draw" && <div className="mb-2 flex gap-1 overflow-x-auto border-b border-border pb-2" role="group" aria-label="أدوات القلم السريعة">
           {transformSession ? <>
@@ -1101,9 +1117,9 @@ export function NotebookWorkspace({
           <button type="button" className={controlCls(false)} aria-label="إعادة سريعة" disabled={!history.current.canRedo(page.id)} onClick={() => historyStep(true)}><Redo2 className="size-4"/></button>
           </>}
         </div>}
-        <div className={(focusMode && !pagePreviews ? "sm:mb-2 " : "mb-2 ") + "flex items-center justify-between gap-2"}>
-          <strong className={(focusMode && !pagePreviews ? "hidden sm:block " : "") + "text-sm"}>الصفحات ({book.pages.length})</strong>
-          <button type="button" className="flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-lg px-2 text-xs" aria-label="عرض مصغرات الصفحات" aria-pressed={pagePreviews} onClick={() => setPagePreviews(!pagePreviews)}><Layers className="size-4 sm:hidden"/><span className={focusMode && !pagePreviews ? "hidden sm:inline" : ""}>{pagePreviews ? "شريط مختصر" : "مصغرات"}</span></button>
+        <div className={(focusMode && !pagePreviews ? "order-2 shrink-0 gap-1 " : "mb-2 justify-between gap-2 ") + "flex items-center"}>
+          <strong className={(focusMode && !pagePreviews ? "sr-only " : "") + "text-sm"}>الصفحات ({book.pages.length})</strong>
+          <button type="button" className="flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-lg px-2 text-xs" aria-label="عرض مصغرات الصفحات" aria-pressed={pagePreviews} onClick={() => setPagePreviews(!pagePreviews)}><Layers className="size-4"/><span className={focusMode && !pagePreviews ? "sr-only" : ""}>{pagePreviews ? "شريط مختصر" : "مصغرات"}</span></button>
           <div className="flex gap-1">
             <button type="button" aria-label="تكرار الصفحة" title="تكرار الصفحة"
               onClick={duplicatePage} disabled={!!transformSession} className="grid size-11 place-items-center rounded-xl bg-secondary disabled:opacity-40"><Copy className="size-4" /></button>
@@ -1114,7 +1130,7 @@ export function NotebookWorkspace({
             </button>
           </div>
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="صفحات المذكرة">
+        <div className={(focusMode && !pagePreviews ? "order-1 min-w-0 flex-1 gap-1 " : "gap-2 pb-1 ") + "flex overflow-x-auto"} role="tablist" aria-label="صفحات المذكرة">
           {book.pages.map((p, n) => (
             <button type="button" role="tab" key={p.id} aria-selected={index === n}
               disabled={!!transformSession}
