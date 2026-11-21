@@ -6,6 +6,7 @@ import { pageLayout } from "./page-layout";
 import { PageArtwork } from "./PageArtwork";
 import { collectPdfText } from "./pdf-text";
 import { buildNotebookPdf, MAX_EXPORT_BYTES } from "./pdf-writer";
+import fluentLicense from "./assets/fluent/LICENSE.txt?raw";
 export type PdfExportOptions = { searchable?: boolean };
 
 export const PDF_DPI = 216;
@@ -47,7 +48,10 @@ export async function renderNotebookPage(page: NotebookPage, { searchable = fals
   host.inert = true;
   host.style.cssText = "position:fixed;left:-20000px;top:0;pointer-events:none;z-index:-1";
   const template = document.createElement("template");
-  template.innerHTML = renderToStaticMarkup(createElement(PageArtwork, { page, remoteImages: true }));
+  // Export is a separate React render root inside the live document. Prefix
+  // useId paint-server references so they cannot collide with hydrated artwork.
+  template.innerHTML = renderToStaticMarkup(createElement(PageArtwork, { page, remoteImages: true }),
+    { identifierPrefix: "mf-pdf-" + crypto.randomUUID() + "-" });
   const sheet = template.content.firstElementChild as HTMLElement;
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), 20_000);
@@ -88,7 +92,8 @@ export async function renderNotebookPage(page: NotebookPage, { searchable = fals
     const stream = new Blob([rgb]).stream().pipeThrough(new CompressionStream("deflate"));
     const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
     return { bytes, width: canvas.width, height: canvas.height,
-      widthPt: layout.widthMm * 72 / 25.4, heightPt: layout.heightMm * 72 / 25.4, fontEmbedCSS, text };
+      widthPt: layout.widthMm * 72 / 25.4, heightPt: layout.heightMm * 72 / 25.4, fontEmbedCSS, text,
+      licenseText: page.stickers.some((s) => s.kind.startsWith("fl-")) ? fluentLicense : undefined };
   } finally {
     clearTimeout(timer); abort.abort(); host.remove();
     if (canvas) { canvas.width = 0; canvas.height = 0; }

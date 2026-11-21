@@ -123,7 +123,13 @@ async function checkSegmentEraser(page, artifacts) {
   await page.getByRole("button", { name: "ممحاة", exact: true }).click();
   await canvas.evaluate((el) => el.scrollIntoView({ block: "center" }));
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  const pageBar = await page.getByRole("navigation", { name: "شريط صفحات المذكرة", exact: true }).boundingBox();
+  const pageNav = page.getByRole("navigation", { name: "شريط صفحات المذكرة", exact: true });
+  const paper = await page.locator("[data-notebook-paper]").boundingBox();
+  let pageBar = await pageNav.boundingBox();
+  assert.ok(pageBar.y >= paper.y + paper.height - 1,
+    "page controls remain in document flow below the paper rather than covering it");
+  await pageNav.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  pageBar = await pageNav.boundingBox();
   const appBar = await page.getByRole("navigation", { name: "التنقل الرئيسي", exact: true }).boundingBox();
   assert.ok(pageBar.y >= 0 && pageBar.y + pageBar.height <= appBar.y - 6,
     "mobile page/pen controls must stay above the application navigation bar");
@@ -154,9 +160,12 @@ async function checkPdf(page, artifacts) {
       points: [[300, 700], [400, 750], [600, 700]], pressures: [.2, 1, .4], smoothing: true }];
     first.strokes.push({ id: crypto.randomUUID(), tool: "pen", color: "#ef7800", width: 8,
       points: [[100, 900], [700, 900]], pressures: [.5, .5], smoothing: false, cuts: [[.45, .55]] });
+    first.strokes.push({ id: crypto.randomUUID(), tool: "pen", color: "#713bc9", width: 20,
+      points: [[120, 600], [400, 600]], pressures: [.25, .25], pressureResponse: .5, smoothing: false });
     const second = createPage({ size: "letter", paper: "ledger" });
     second.html = '<p><span style="font-family:Aref Ruqaa">الصفحة الثانية — كتابة عربية بخط رقعة</span></p>';
     second.stickers = [{ id: crypto.randomUUID(), kind: "sci-neuron", x: .5, y: .5, scale: .24, color: "#224466", rotation: 25, presentation: "cutout" }];
+    second.stickers.push({ id: crypto.randomUUID(), kind: "fl-stethoscope", x: .8, y: .75, scale: .15, color: "#224466", presentation: "cutout" });
     await document.fonts.load('20px "Aref Ruqaa"', "كتابة عربية");
     if (!document.fonts.check('20px "Aref Ruqaa"', "كتابة عربية")) throw new Error("Local Ruqaa font failed to load");
     const blob = await createNotebookPdf({ version: 1, pages: [first, second] }, { searchable: true });
@@ -190,6 +199,8 @@ async function checkPdf(page, artifacts) {
   assert.ok(!result.safe.includes("https://") && !result.safe.includes("script"), "secure reader cannot request remote resources");
   assert.ok(pdf.includes(Buffer.from("/MediaBox [0 0 595.276 419.528]")), "A5 landscape physical dimensions");
   assert.ok(pdf.includes(Buffer.from("/MediaBox [0 0 612.000 792.000]")), "Letter physical dimensions");
+  const license = require("node:fs").readFileSync(require("node:path").resolve(__dirname, "../src/features/notebook/assets/fluent/LICENSE.txt"), "utf8");
+  assert.ok(pdf.includes(Buffer.from(Buffer.from(license, "utf16le").swap16().toString("hex").toUpperCase())), "export retains the full MIT license in document properties");
   const header = /\/Subtype \/Image \/Width (\d+) \/Height (\d+)[\s\S]*?\/Filter \/FlateDecode \/Length (\d+) >>\nstream\n/.exec(pdf.toString("latin1"));
   assert.ok(header, "lossless PDF image must be present");
   const start = header.index + header[0].length;
@@ -206,6 +217,15 @@ async function checkPdf(page, artifacts) {
   assert.ok(green > 1000, "embedded image must be visible in PDF");
   assert.ok(blue > 1000, "accounting sticker must be visible in PDF");
   const width = Number(header[1]), height = Number(header[2]);
+  // The soft response radius is 6.25 page-width units; legacy is 4.375.
+  // Check pixels outside the legacy footprint but inside the displayed one.
+  let softPressurePixels=0;
+  for(let y=Math.ceil(height*.6+width*.0048);y<=Math.floor(height*.6+width*.0057);y++)
+    for(let x=Math.ceil(width*.2);x<=Math.floor(width*.3);x++){
+      const o=(y*width+x)*3;
+      if(pixels[o]>90&&pixels[o]<140&&pixels[o+1]>35&&pixels[o+1]<85&&pixels[o+2]>175)softPressurePixels++;
+    }
+  assert.ok(softPressurePixels>20,"PDF must apply the saved pressure response instead of reverting to legacy pressure");
   let visibleOrange = 0, gapOrange = 0;
   for (let y = Math.floor(height * .89); y <= Math.ceil(height * .91); y++)
     for (let x = Math.floor(width * .15); x <= Math.ceil(width * .41); x++) {
@@ -309,11 +329,24 @@ async function checkInkEditing(page, artifacts, source) {
     });
   };
   await page.getByRole("button", { name: "تحديد وتحريك", exact: true }).click();
-  const pick = await screenPoint(path(source.id)); await page.mouse.click(pick.x, pick.y);
+  // Path-length positions can lie on the outline edge and miss hit testing
+  // under another Chromium rasterizer. Aim through the center of a retained
+  // fragment and verify the intended source was selected before splitting.
+  await path(source.id).evaluate((el) => el.scrollIntoView({ block: "center" }));
+  const sourceBounds = await path(source.id).boundingBox();
+  let picked = false;
+  for (const fraction of [.18, .82, .3, .7]) {
+    await page.mouse.click(sourceBounds.x + sourceBounds.width * fraction, sourceBounds.y + sourceBounds.height / 2);
+    picked = await path(source.id).evaluate((el) => el.style.filter.includes("drop-shadow"));
+    if (picked) break;
+  }
+  assert.ok(picked, "the cut stroke is selected through its visible centerline");
   const before = await paths.evaluateAll((els) => els.map((el) => ({ id: el.dataset.strokeId, d: el.getAttribute("d") })));
   await page.getByRole("button", { name: "فصل الأجزاء الممسوحة", exact: true }).click();
   assert.equal(await paths.count(), before.length + 1);
   assert.equal(await path(source.id).count(), 0);
+  for (const other of before.filter((stroke) => stroke.id !== source.id))
+    assert.equal(await path(other.id).getAttribute("d"), other.d, "uncut strokes retain their paint when splitting the selection");
   const oldIds = new Set(before.map((s) => s.id));
   const created = (await paths.evaluateAll((els) => els.map((el) => ({ id: el.dataset.strokeId, d: el.getAttribute("d") })))).filter((s) => !oldIds.has(s.id));
   assert.equal(created.length, 2);
@@ -401,7 +434,9 @@ async function checkInkEditing(page, artifacts, source) {
   assert.equal(await pointCount(), originalCount + 2);
   await page.getByRole("button", { name: "تراجع سريع", exact: true }).click();
   assert.equal(await first.getAttribute("d"), topology);
-  const pageBar = await page.getByRole("navigation", { name: "شريط صفحات المذكرة", exact: true }).boundingBox();
+  const pageNav = page.getByRole("navigation", { name: "شريط صفحات المذكرة", exact: true });
+  await pageNav.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  const pageBar = await pageNav.boundingBox();
   const appBar = await page.getByRole("navigation", { name: "التنقل الرئيسي", exact: true }).boundingBox();
   assert.ok(pageBar.y >= 0 && pageBar.y + pageBar.height <= appBar.y - 6, "point actions remain above mobile navigation");
   await page.screenshot({ path: artifacts + "/notebook-path-edit-mobile.png" });
@@ -534,7 +569,9 @@ async function checkInkTransforms(page, artifacts, source, readSavedContent) {
   await size.fill("90"); await angle.fill("15");
   const final = await first.getAttribute("d"); assert.notEqual(final, transformed);
   await first.evaluate((el) => el.scrollIntoView({ block: "center" }));
-  const bar = await page.getByRole("navigation", { name: "شريط صفحات المذكرة", exact: true }).boundingBox();
+  const transformPageNav = page.getByRole("navigation", { name: "شريط صفحات المذكرة", exact: true });
+  await transformPageNav.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  const bar = await transformPageNav.boundingBox();
   const app = await page.getByRole("navigation", { name: "التنقل الرئيسي", exact: true }).boundingBox();
   assert.ok(bar.y >= 0 && bar.y + bar.height <= app.y - 6);
   await page.screenshot({ path: artifacts + "/notebook-transform-mobile.png" });

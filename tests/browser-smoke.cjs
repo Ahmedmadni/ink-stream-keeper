@@ -634,9 +634,11 @@ const vaultPinWrites = [];
     await drawing.scrollIntoViewIfNeeded();
     const bounds = await drawing.boundingBox();
     assert.ok(bounds);
-    await page.mouse.move(bounds.x + bounds.width * .42, bounds.y + bounds.height * .57);
+    const firstInkBar = await page.getByRole("navigation", { name: "شريط صفحات المذكرة", exact: true }).boundingBox();
+    const firstInkY = Math.min(bounds.y + bounds.height * .57, firstInkBar.y - 50);
+    await page.mouse.move(bounds.x + bounds.width * .42, firstInkY);
     await page.mouse.down();
-    await page.mouse.move(bounds.x + bounds.width * .47, bounds.y + bounds.height * .61, { steps: 8 });
+    await page.mouse.move(bounds.x + bounds.width * .47, firstInkY + 20, { steps: 8 });
     await page.mouse.up();
     await require("./notebook-browser-checks.cjs").checkInk(page);
     const partialInk = await require("./notebook-browser-checks.cjs").checkSegmentEraser(page, artifacts);
@@ -644,6 +646,7 @@ const vaultPinWrites = [];
     editedInk = await require("./notebook-browser-checks.cjs").checkInkTransforms(page, artifacts, editedInk, () => notes[0].content);
     editedInk = await require("./notebook-transform-handle-checks.cjs").checkTransformHandles(page, artifacts, editedInk, () => notes[0].content);
     await require("./notebook-browser-checks.cjs").checkStudy(page, artifacts);
+    await require("./notebook-studio-space.cjs").checkStudioSpace(page, artifacts, () => notes[0].content);
     await page.getByRole("button", { name: "إضافة صفحة", exact: true }).click();
     await page.getByRole("tab", { name: "صفحة 2", exact: true }).waitFor();
     const secondPageEditor = page.locator("[data-notebook-paper] .ProseMirror");
@@ -651,6 +654,11 @@ const vaultPinWrites = [];
     await page.getByRole("status").filter({ hasText: "النص يتجاوز مساحة هذه الورقة" }).waitFor();
     await secondPageEditor.fill("");
     await page.getByRole("status").filter({ hasText: "النص يتجاوز مساحة هذه الورقة" }).waitFor({ state: "hidden" });
+    const vaultPencil = await require("./notebook-pencil-checks.cjs").drawPencil(page);
+    const vaultDot = await require("./notebook-stationary.cjs").drawStationaryDot(page);
+    await require("./notebook-ink-style.cjs").stylePencilForVault(page);
+    const vaultDotPath = await page.locator(`[data-notebook-paper] path[data-stroke-id="${vaultDot.id}"]`).getAttribute("d");
+    await page.getByRole("tab", { name: "كتابة", exact: true }).click();
     assert.equal(await page.getByRole("tab", { name: /^صفحة [12]$/ }).count(), 2);
     await page.getByRole("button", { name: "تكرار الصفحة", exact: true }).click();
     await page.getByRole("tab", { name: "صفحة 3", exact: true }).waitFor();
@@ -662,6 +670,9 @@ const vaultPinWrites = [];
     await page.getByRole("button", { name: "تصدير صفحات الدفتر PDF" }).click();
     const pdf = await downloadPending;
     const pdfBytes = readFileSync(await pdf.path());
+    writeFileSync(resolve(artifacts,"notebook-restyled-ui.pdf"),pdfBytes);
+    require("./notebook-ink-style.cjs").assertStyledPdf(pdfBytes);
+    require("./notebook-stationary.cjs").assertStationaryPdf(pdfBytes,vaultDotPath);
     assert.equal(pdfBytes.subarray(0, 8).toString("utf8"), "%PDF-1.7");
     assert.ok(pdfBytes.includes(Buffer.from("/Count 2")));
     assert.ok(!pdfBytes.includes(Buffer.from("/ToUnicode")), "default export remains image-only");
@@ -676,8 +687,10 @@ const vaultPinWrites = [];
     assert.ok(searchablePages[0].text.includes("مساحة"), "opt-in PDF contains the keyboard text in source and native bundles");
     await searchableOption.uncheck();
 
-    if (process.env.MEMOFLOW_BROWSER_NATIVE_BUNDLE !== "1")
+    if (process.env.MEMOFLOW_BROWSER_NATIVE_BUNDLE !== "1") {
       await require("./notebook-browser-checks.cjs").checkPdf(page, artifacts);
+      await require("./notebook-pencil-pdf.cjs").checkPencilPdf(page, artifacts);
+    }
     const notebookDeadline = Date.now() + 20000;
     while (!notes[0].content.includes("data-mf-notebook-v1")) {
       if (Date.now() > notebookDeadline) throw Error("Notebook was not saved remotely");
@@ -747,6 +760,14 @@ const vaultPinWrites = [];
       .getByRole("link", { name: "الخزنة" }).click();
     await page.getByRole("button", { name: "عرض المذكرة المحمية" }).click();
     await page.getByRole("tab", { name: "صفحة 2", exact: true }).waitFor();
+    await page.getByRole("tab", { name: "صفحة 2", exact: true }).click();
+    assert.equal(await page.locator('[data-notebook-paper] path[data-ink-brush="pencil"]').getAttribute("d"), vaultPencil.d,
+      "pencil geometry survives real vault encrypt/decrypt and secure rendering");
+    assert.equal(await page.locator(`[data-notebook-paper] path[data-stroke-id="${vaultDot.id}"]`).getAttribute("d"),vaultDotPath,
+      "stationary pressure ink remains visible after vault encryption/decryption");
+    assert.equal(await page.locator('[data-notebook-paper] path[data-ink-brush="pencil"]').getAttribute("stroke-width"),"12");
+    assert.equal(await page.locator('[data-notebook-paper] pattern rect').first().getAttribute("fill"),"#f04372");
+    assert.equal(await page.locator('[data-notebook-paper] pattern[data-pencil-grain="1"]').count(), 1);
     await page.getByRole("tab", { name: "صفحة 1", exact: true }).click();
     await page.getByText("مساحة هادئة لأفكاري الجديدة", { exact: false }).waitFor();
     assert.equal(await page.locator(`[data-notebook-paper] [data-stroke-id="${editedInk.id}"]`).getAttribute("d"), editedInk.path,

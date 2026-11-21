@@ -6,6 +6,7 @@ export const PAPER_SIZES = ["a4", "a5", "letter", "square"] as const;
 export const PAPER_TINTS = ["white", "ivory", "mint", "blue", "rose"] as const;
 export const PAPER_TEXTURES = ["smooth", "grain", "linen"] as const;
 export const STICKER_TYPES = [
+  "fl-stethoscope", "fl-syringe", "fl-pill", "fl-microscope", "fl-abacus", "fl-moneybag", "fl-chart", "fl-coins", "fl-books", "fl-graduation", "fl-memo", "fl-lightbulb",
   "stethoscope", "heart-pulse", "pill", "microscope", "flask-conical",
   "dna", "atom", "book-open", "graduation-cap", "lightbulb", "pencil-ruler",
   "calculator", "chart-no-axes-combined", "wallet", "receipt", "landmark",
@@ -34,8 +35,14 @@ const strokeSchema = z.object({
   times: z.array(z.number().finite().int().nonnegative().max(Number.MAX_SAFE_INTEGER)).min(1).max(4000).optional(),
   // Optional fields preserve every existing v1 notebook and its original samples.
   pressures: z.array(z.number().finite().min(0).max(1)).min(1).max(4000).optional(),
+  // New captures retain raw pressure. Older strokes already contain the old
+  // response; absence must keep their rendering unchanged.
+  pressureResponse: z.number().finite().min(.5).max(1.5).optional(),
+  brush: z.literal("pencil").optional(),
   smoothing: z.boolean().optional(),
 }).strict().refine((stroke) => (!stroke.pressures || stroke.pressures.length === stroke.points.length) &&
+  (stroke.pressureResponse === undefined || (stroke.tool === "pen" && !!stroke.pressures)) &&
+  (stroke.brush === undefined || stroke.tool === "pen") &&
   (!stroke.controlPoints || !!stroke.controlKnots || stroke.controlPoints.length === stroke.points.length) &&
   (!stroke.controlKnots || (!!stroke.controlPoints && stroke.controlPoints.length === stroke.controlKnots.length &&
     stroke.controlKnots.every((t, i) => i === 0 || t - stroke.controlKnots![i - 1] >= 1e-8))) &&

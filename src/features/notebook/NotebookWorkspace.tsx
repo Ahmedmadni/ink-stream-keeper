@@ -2,17 +2,22 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent } from "rea
 import type { Editor } from "@tiptap/react";
 import {
   BookOpen, Brush, Eraser, FileDown, Layers, PenLine, Plus,
-  PanelTopClose, PanelTopOpen, Maximize, ChevronRight, ChevronLeft, Copy, Trash2, Highlighter, Undo2, Redo2, Sticker, MousePointer2, ScanLine, ZoomIn, Shapes, Minus, Square, Circle, ArrowUpRight, Search, ScanText, Scissors, Waypoints, Check, RotateCw, X,
+  Copy, Trash2, Highlighter, Undo2, Redo2, Sticker, MousePointer2, ScanLine, ZoomIn, Shapes, Minus, Square, Circle, ArrowUpRight, Search, ScanText, Scissors, Waypoints, Check, RotateCw, X,
 } from "lucide-react";
-import { ToolButton } from "@/components/ToolButton";
-import { Button } from "@/components/ui/button";
 import { RichEditor, CompactToolbar } from "@/components/RichEditor";
+import { ToolButton } from "@/components/ToolButton";
 import {
   createPage, dimensionsMm, fromLegacyNote, notebookPlainText, parseNotebook,
   serializeNotebook, PAPER_SIZES, PAPER_TINTS, PAPER_TYPES, PAPER_TEXTURES, MAX_NOTEBOOK_BYTES,
   type Notebook, type NotebookPage, type InkStroke, type PageSticker,
 } from "./model";
 import { STICKER_GROUPS, stickerIcon, searchStickers } from "./sticker-packs";
+import { stabilizePen } from "./pen-stabilizer";
+import { PenResponsePreview } from "./PenResponsePreview";
+import { PenFavorites } from "./PenFavorites";
+import { InkStyleDialog,type InkStyleSession } from "./InkStyleDialog";
+import type { InkStylePreview } from "./ink-style";
+import {shouldCaptureInkSample} from "./ink-capture";
 import { InkMark, InkLayer } from "./InkMark";
 import { StickerArtwork, stickerStyle, ScienceAttribution } from "./StickerArtwork";
 import { shapePoints, type ShapeTool, hitStroke, inkBounds, InkHistory, moveInk as translateInk, type Point, type InkBounds } from "./ink";
@@ -72,7 +77,7 @@ function PageMiniature({ page }: { page: NotebookPage }) {
   const preview = notebookPlainText({ version: 1, pages: [{ ...page, html: page.html.slice(0, 240) }] }).slice(0, 65);
   const { aspect } = pageLayout(page);
   return (
-    <span className="relative block h-16 w-12 overflow-hidden rounded border border-[#d1d8df] shadow-sm"
+    <span className="relative block h-12 w-9 overflow-hidden rounded border border-[#d1d8df] shadow-sm"
       style={{ ...paperStyle(page), backgroundSize: "10px 10px" }}>
       <PaperGuides page={page} preview/>
       <span dir="rtl" className="absolute inset-x-1 top-1 line-clamp-4 break-words text-right text-[5px] leading-[7px] text-[#263b53]">
@@ -99,12 +104,13 @@ function readInitial(content: string): { book: Notebook | null; error: string } 
   catch { return { book: null, error: "تنسيق صفحات المذكرة غير صالح. لن يتم تعديل بياناتها حتى تُستعاد نسخة صحيحة." }; }
 }
 export function NotebookWorkspace({
-  content, onChange, onAddAttachment, filename,
+  content, onChange, onAddAttachment, filename, preferenceScope,
 }: {
   content: string;
   onChange: (html: string) => void;
   onAddAttachment?: (file: File) => void;
   filename: string;
+  preferenceScope?: string;
 }) {
   const [initial] = useState(() => readInitial(content));
   const [book, setBook] = useState<Notebook | null>(initial.book);
@@ -115,13 +121,16 @@ export function NotebookWorkspace({
   const [recognitionSource, setRecognitionSource] = useState<{ page: NotebookPage; selection: Set<string> } | null>(null);
   const closeRecognition = useCallback(() => setRecognitionSource(null), []);
   const [index, setIndex] = useState(0);
-  const [pagesOpen, setPagesOpen] = useState(false);
   const [group, setGroup] = useState<PaletteGroup>("text");
   const [shapeTool, setShapeTool] = useState<ShapeTool>("line");
   const [inkMode, setInkMode] = useState<InkMode>("pen");
   const [penColor, setPenColor] = useState("#293648");
   const [penWidth, setPenWidth] = useState(4);
+  const [penBrush, setPenBrush] = useState<InkStroke["brush"]>(undefined);
   const [smooth, setSmooth] = useState(true);
+  const [stabilization, setStabilization] = useState(0);
+  const [focusMode, setFocusMode] = useState(true);
+  const [pagePreviews, setPagePreviews] = useState(false);
   const [live, setLive] = useState<InkStroke | null>(null);
   const liveRef = useRef<InkStroke | null>(null);
   const history = useRef(new InkHistory());
@@ -135,6 +144,7 @@ export function NotebookWorkspace({
   const [eraserPoint, setEraserPoint] = useState<Point | null>(null);
   const [erased, setErased] = useState<Set<string>>(new Set());
   const [selection, setSelection] = useState<Set<string>>(new Set());
+  const [styleSession,setStyleSession]=useState<InkStyleSession|null>(null);
   const [selectionBox, setSelectionBox] = useState<InkBounds | null>(null);
   const [offset, setOffset] = useState<Point | null>(null);
   const [nodePreview, setNodePreview] = useState<InkStroke | null>(null);
@@ -151,6 +161,7 @@ export function NotebookWorkspace({
   }, []);
   useEffect(() => {
     setNodePreview(null); setActiveNode(0);
+    setStyleSession(null);
     cancelTransform();
     setInkMode((mode) => mode === "nodes" ? "select" : mode);
   }, [index, group, cancelTransform]);
@@ -207,6 +218,7 @@ export function NotebookWorkspace({
     gesture.current = null; liveRef.current = null;
     setLive(null); setErased(new Set()); setErasePreview(null); setEraserPoint(null); setSelection(new Set()); setSelectionBox(null); setOffset(null);
     setNodePreview(null); setActiveNode(0); setInkMode((mode) => mode === "nodes" ? "select" : mode);
+    setStyleSession(null);
     cancelTransform();
     setIndex((prev) => Math.min(prev, Math.max(0, (next.book?.pages.length ?? 1) - 1)));
   }, [content, cancelTransform]);
@@ -349,7 +361,7 @@ export function NotebookWorkspace({
       if (p.id !== activeGesture.pageId) return p;
       if (activeGesture.mode === "nodes" && activeGesture.nodeDraft && activeGesture.nodeDraft !== activeGesture.nodeSource)
         return { ...p, strokes: p.strokes.map((s) => s.id === activeGesture.nodeDraft!.id ? activeGesture.nodeDraft! : s) };
-      if (stroke?.points.length) return { ...p, strokes: [...p.strokes, stroke] };
+      if (stroke?.points.length) return { ...p, strokes: [...p.strokes, group === "draw" ? stabilizePen(stroke, stabilization, aspect) : stroke] };
       if (activeGesture.mode === "eraser" && activeGesture.partialStrokes && activeGesture.partialStrokes !== p.strokes)
         return { ...p, strokes: activeGesture.partialStrokes };
       if (activeGesture.mode === "eraser" && activeGesture.erased.size)
@@ -415,8 +427,9 @@ export function NotebookWorkspace({
       tool: mode, color: mode === "highlighter" ? "#f2c94c" : penColor,
       width: mode === "highlighter" ? penWidth * 4 : penWidth,
       points: [position], smoothing: group === "shapes" ? false : smooth,
+      ...(group === "draw" && mode === "pen" && penBrush ? { brush: penBrush } : {}),
       ...(group === "draw" ? { times: [Math.round(performance.timeOrigin + event.nativeEvent.timeStamp)] } : {}),
-      ...(pressured ? { pressures: [Math.pow(Math.max(.05, event.pressure), sensitivity)] } : {}),
+      ...(pressured ? { pressures: [event.pressure], ...(sensitivity !== 1 ? { pressureResponse: sensitivity } : {}) } : {}),
     };
     setLive(liveRef.current);
   };
@@ -448,15 +461,14 @@ export function NotebookWorkspace({
       } else if (liveRef.current && group === "shapes") {
         liveRef.current = { ...liveRef.current, points: shapePoints(active.start, next, shapeTool, aspect) };
       } else if (liveRef.current) {
-        const prev = liveRef.current.points[liveRef.current.points.length - 1];
-        if (Math.hypot(next[0] - prev[0], (next[1] - prev[1]) * aspect) >= .35) {
+        if (shouldCaptureInkSample(liveRef.current,next,aspect,sample)) {
           if (liveRef.current.points.length >= 4000) {
             finish(); setWarning("تم حفظ المسار الطويل. ارفع القلم لبدء مسار جديد."); return;
           }
           const stroke = liveRef.current;
           liveRef.current = { ...stroke, points: [...stroke.points, next],
             ...(stroke.times ? { times: [...stroke.times, Math.max(stroke.times[stroke.times.length - 1], Math.round(performance.timeOrigin + sample.timeStamp))] } : {}),
-            ...(stroke.pressures ? { pressures: [...stroke.pressures, Math.pow(Math.max(.05, sample.pressure), sensitivity)] } : {}) };
+            ...(stroke.pressures ? { pressures: [...stroke.pressures, sample.pressure] } : {}) };
         }
       }
       active.last = next;
@@ -531,6 +543,21 @@ export function NotebookWorkspace({
       setSelection(new Set([result.created[0]])); setInkMode("select"); setActiveNode(0);
     } catch (error) { setWarning(error instanceof Error ? error.message : "تعذر فصل الأجزاء؛ بقي الأصل محفوظًا."); }
   };
+  const beginStyle = () => {
+    finish();const current=bookRef.current,active=current?.pages[index];
+    if(!current||!active||!selection.size)return;
+    setStyleSession({pageId:active.id,source:active.strokes,ids:new Set(selection),aspect,
+      remainingBytes:Math.max(0,MAX_NOTEBOOK_BYTES-new TextEncoder().encode(JSON.stringify(current)).byteLength)});
+  };
+  const applyStyle = (preview:InkStylePreview) => {
+    const current=bookRef.current,active=current?.pages[index];
+    if(!styleSession||!preview.changed||preview.error)return false;
+    if(!current||!active||active.id!==styleSession.pageId||active.strokes!==styleSession.source||preview.source!==styleSession.source){
+      setStyleSession(null);setWarning("تغير الحبر أثناء المعاينة؛ أعد تحديده لتعديل النمط.");return false;
+    }
+    const saved=commit({...current,pages:current.pages.map(p=>p.id===active.id?{...p,strokes:preview.strokes}:p)});
+    if(saved)setStyleSession(null);return saved;
+  };
   const beginTransform = () => {
     finish(); const current = bookRef.current, active = current?.pages[index];
     if (!current || !active || !selection.size) return;
@@ -552,7 +579,7 @@ export function NotebookWorkspace({
       if (p.stickers.length >= 120) { setWarning("الصفحة تحتوي الحد الأقصى من الملصقات."); return p; }
       const stamp: PageSticker = {
         id: crypto.randomUUID(), kind, color: "#3275ba",
-        presentation: kind.startsWith("sci-") ? "cutout" : "badge", rotation: 0,
+        presentation: (kind.startsWith("sci-") || kind.startsWith("fl-")) ? "cutout" : "badge", rotation: 0,
         x: 0.35 + ((p.stickers.length % 5) * 0.08), y: 0.35 + ((p.stickers.length % 4) * 0.07),
         scale: 0.12,
       };
@@ -603,8 +630,9 @@ export function NotebookWorkspace({
   const controlCls = (active: boolean) => "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed " +
     (active ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground hover:bg-accent");
   return (
-    <section className="space-y-1" aria-label="دفتر المذكرة متعدد الصفحات"
+    <section className="space-y-3" aria-label="دفتر المذكرة متعدد الصفحات"
       onKeyDown={(event) => {
+        if(styleSession)return;
         const inCanvas = (event.target as Element).closest("svg[data-ink-editor]");
         if (transformSession) {
           if (event.key === "Escape" && transformCancelDrag.current) {
@@ -627,6 +655,10 @@ export function NotebookWorkspace({
         if (inCanvas && inkMode === "nodes" && ["Delete", "Backspace"].includes(event.key)) {
           event.preventDefault(); removeNode(); return;
         }
+        if (inCanvas && !gesture.current && !event.ctrlKey && !event.metaKey && !event.altKey && !event.repeat) {
+          const tool=({KeyP:"pen",KeyE:"eraser",KeyV:"select",KeyH:"highlighter"} as const)[event.code as "KeyP"|"KeyE"|"KeyV"|"KeyH"];
+          if(tool){event.preventDefault();setGroup("draw");setInkMode(tool);return;}
+        }
         if (!isDrawing || !(event.ctrlKey || event.metaKey) ||
           (event.target as Element).closest("input,textarea,[contenteditable=true]")) return;
         const key = event.key.toLowerCase();
@@ -634,36 +666,38 @@ export function NotebookWorkspace({
           event.preventDefault(); historyStep(key === "y" || event.shiftKey);
         }
       }}>
-      <header className="sticky top-0 z-40 border-y border-border bg-card/95 px-2 py-1 backdrop-blur" data-notebook-toolbar>
-        <div className="flex min-w-0 items-center justify-between gap-1">
-          <div className="flex shrink-0 items-center gap-1" role="tablist" aria-label="مجموعات أدوات الدفتر">
-            {([
-              ["text", "كتابة", PenLine], ["draw", "أقلام", Brush], ["shapes", "رسم", Shapes],
-              ["stickers", "ملصقات", Sticker], ["paper", "ورق", Layers],
-            ] as const).map(([key, label, Icon]) => (
-              <ToolButton key={key} label={label} role="tab" aria-selected={group === key} active={group === key}
-                onClick={() => { finish(); if (key !== group) cancelTransform(); setGroup(key); setSelectedSticker(null); }}>
-                <Icon className="size-5" />
-              </ToolButton>
-            ))}
+      <header className="sticky top-2 z-40 rounded-2xl border border-border bg-card/95 p-2 shadow-sm backdrop-blur">
+        <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+          <div className="min-w-0 flex-1 sm:flex-none">
+            <h2 className="truncate text-sm font-bold">دفتر المذاكرة</h2>
+            <p className="truncate text-[11px] text-muted-foreground">{book.pages.length} صفحة · {SIZE_LABELS[page.size]} · {PAPER_LABELS[page.paper]}</p>
           </div>
-          <div className="flex min-w-0 items-center gap-1">
-            <span className="hidden truncate px-2 text-xs text-muted-foreground lg:block">{SIZE_LABELS[page.size]} · {PAPER_LABELS[page.paper]}</span>
-            <ToolButton label={pagesOpen ? "إخفاء الصفحات" : "عرض الصفحات"} active={pagesOpen}
-              aria-expanded={pagesOpen} aria-controls="notebook-pages" onClick={() => setPagesOpen(!pagesOpen)}>
-              {pagesOpen ? <PanelTopClose /> : <PanelTopOpen />}
+          <div className="order-3 grid w-full grid-cols-5 gap-1 sm:order-none sm:mx-auto sm:flex sm:w-auto" role="tablist" aria-label="مجموعات أدوات الدفتر">
+          {([
+            ["text", "كتابة", PenLine],
+            ["draw", "أقلام", Brush],
+            ["shapes", "رسم", Shapes],
+            ["stickers", "ملصقات", Sticker],
+            ["paper", "ورق", Layers],
+          ] as const).map(([key, label, Icon]) => (
+            <ToolButton role="tab" key={key} label={label} active={group === key} aria-selected={group === key}
+              onClick={() => { finish(); if (key !== group) cancelTransform(); setFocusMode(false); setGroup(key); setSelectedSticker(null); }}
+              className="min-w-0 rounded-xl">
+              <Icon className="size-5" />
             </ToolButton>
-            <ToolButton label="تصدير صفحات الدفتر PDF" disabled={exporting || !!transformSession}
-              onClick={() => { void exportPdf(); }}><FileDown className={exporting ? "animate-pulse" : ""} /></ToolButton>
+          ))}
+          </div>
+          <div className="flex shrink-0 gap-1">
+            <ToolButton label="وضع التركيز" active={focusMode} aria-pressed={focusMode} onClick={() => { finish(); setFocusMode(!focusMode); }}><ScanLine className="size-4"/></ToolButton>
+            <ToolButton label={exporting ? "تصدير..." : "تصدير صفحات الدفتر PDF"} disabled={exporting || !!transformSession} onClick={() => { void exportPdf(); }}>
+              <FileDown className="size-4" />
+            </ToolButton>
           </div>
         </div>
-        {group === "text" && activeTextEditor && <div className="border-t border-border pt-1 mt-1">
-          <CompactToolbar editor={activeTextEditor} onAddAttachment={onAddAttachment} />
-        </div>}
       </header>
 
-      {group === "draw" && (
-        <div className="space-y-2 rounded-2xl border border-border bg-card p-3">
+      {!focusMode && group === "draw" && (
+        <div className="max-h-64 space-y-2 overflow-y-auto rounded-2xl border border-border bg-card p-3">
           {activeTransform ? <InkTransformPanel source={activeTransform.source} ids={activeTransform.ids} aspect={aspect}
             remainingBytes={activeTransform.remainingBytes} draft={transformDraft} onDraft={setTransformDraft} dragging={transformDragging}
             onPreview={handleTransformPreview} onApply={applyTransform} onCancel={cancelTransform}/> : <>
@@ -685,6 +719,30 @@ export function NotebookWorkspace({
             <button type="button" className={controlCls(false)} aria-label="إعادة الرسم"
               disabled={!history.current.canRedo(page.id)} onClick={() => historyStep(true)}><Redo2 className="size-4"/>إعادة</button>
           </div>
+          {preferenceScope && <PenFavorites key={preferenceScope} scope={preferenceScope}
+            value={{color:penColor,width:penWidth,brush:penBrush??"solid",smooth,stabilization,pressureEnabled,sensitivity}}
+            onUse={(pen)=>{finish();setInkMode("pen");setPenColor(pen.color);setPenWidth(pen.width);setPenBrush(pen.brush==="solid"?undefined:pen.brush);
+              setSmooth(pen.smooth);setStabilization(pen.stabilization);setPressureEnabled(pen.pressureEnabled);setSensitivity(pen.sensitivity);}}/>}
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="space-y-2 rounded-xl border border-border bg-secondary/30 p-3">
+              <h3 className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><PenLine className="size-4"/>أقلام الكتابة</h3>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="أنواع أقلام الكتابة">
+                <button type="button" className={controlCls(!penBrush && stabilization === 0 && inkMode === "pen")} onClick={() => { finish(); setPenBrush(undefined); setInkMode("pen"); setStabilization(0); setPenWidth(3); }}>قلم دقيق</button>
+                <button type="button" className={controlCls(!penBrush && stabilization === .55 && inkMode === "pen")} onClick={() => { finish(); setPenBrush(undefined); setInkMode("pen"); setStabilization(.55); setPenWidth(4); setSmooth(true); }}>قلم سلس</button>
+                <button type="button" className={controlCls(!penBrush && stabilization === .75 && inkMode === "pen")} onClick={() => { finish(); setPenBrush(undefined); setInkMode("pen"); setStabilization(.75); setPenWidth(8); setSmooth(true); setPressureEnabled(true); }}>قلم رسم ناعم</button>
+              </div>
+            </div>
+            <div className="space-y-2 rounded-xl border border-border bg-secondary/30 p-3">
+              <h3 className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><Brush className="size-4"/>خامات الرسم</h3>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="خامات الرسم">
+                <button type="button" className={controlCls(!penBrush && inkMode === "pen")} aria-pressed={!penBrush && inkMode === "pen"}
+                  onClick={() => { finish(); setPenBrush(undefined); setInkMode("pen"); }}>حبر مصمت</button>
+                <button type="button" className={controlCls(penBrush === "pencil" && inkMode === "pen")} aria-pressed={penBrush === "pencil" && inkMode === "pen"}
+                  onClick={() => { finish(); setPenBrush("pencil"); setInkMode("pen"); setPenWidth(8); setPenColor("#4b5563"); setStabilization(.55); setSmooth(true); }}>قلم رصاص</button>
+              </div>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">قلم الرصاص بخامة حبيبية ثابتة على الورق. التنعيم يحسن المسار، ولا يتعرف على الحروف. الإعدادات للرسم الجديد.</p>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <label className="flex items-center gap-2">لون القلم
               <input type="color" aria-label="لون قلم الدفتر" value={penColor} onChange={(e) => setPenColor(e.target.value)} />
@@ -707,12 +765,20 @@ export function NotebookWorkspace({
             <label className="flex items-center gap-2">استجابة الضغط
               <input type="range" aria-label="استجابة ضغط القلم" min={.5} max={1.5} step={.1} value={sensitivity}
                 disabled={!pressureEnabled} onChange={(e) => setSensitivity(Number(e.target.value))} />
+              <output>{sensitivity.toFixed(1)}</output>
             </label>
             {inkMode === "eraser" && <label className="flex items-center gap-2">عرض الممحاة
               <input type="range" aria-label="عرض ممحاة المسارات" min={6} max={60} value={eraserWidth}
                 onChange={(e) => setEraserWidth(Number(e.target.value))}/>
             </label>}
           </div>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="إعدادات استجابة الضغط">
+            {([{ value: .6, label: "ضغط خفيف" }, { value: 1, label: "ضغط متوازن" }, { value: 1.4, label: "ضغط قوي" }]).map(({ value, label }) => (
+              <button key={value} type="button" className={controlCls(sensitivity === value)} aria-pressed={sensitivity === value}
+                disabled={!pressureEnabled} onClick={() => { finish(); setSensitivity(value); }}>{label}</button>
+            ))}
+          </div>
+          <PenResponsePreview response={sensitivity} width={penWidth} color={penColor} enabled={pressureEnabled} brush={penBrush}/>
           {inkMode === "eraser" && <div className="space-y-2 rounded-xl bg-secondary/50 p-3">
             <div className="flex flex-wrap gap-2" role="group" aria-label="نوع ممحاة الحبر">
               <button type="button" aria-label="مسح جزء من المسار" aria-pressed={eraserKind === "segment"}
@@ -727,6 +793,7 @@ export function NotebookWorkspace({
             <button type="button" className={controlCls(false)} disabled={!canSplit} onClick={separateSelection}><Scissors className="size-4"/>فصل الأجزاء الممسوحة</button>
             <button type="button" className={controlCls(false)} disabled={!selectedStroke || !nodeIndices.length} onClick={enterNodes}><Waypoints className="size-4"/>تحرير نقاط المسار</button>
             <button type="button" className={controlCls(false)} disabled={!selection.size} onClick={beginTransform}><RotateCw className="size-4"/>تغيير الحجم والتدوير</button>
+            <button type="button" className={controlCls(false)} disabled={!selection.size} onClick={beginStyle}><Brush className="size-4"/>تعديل نمط الحبر</button>
             <button type="button" className={controlCls(false)} disabled={!selection.size} onClick={() => {
               updatePage((p) => ({ ...p, strokes: p.strokes.filter((s) => !selection.has(s.id)) })); setSelection(new Set());
             }}><Trash2 className="size-4"/>حذف المحدد ({selection.size})</button>
@@ -738,13 +805,14 @@ export function NotebookWorkspace({
             onDelete={removeNode}
             onReset={() => { applySelectedEdit(resetInkGeometry); }} onDone={() => { finish(); setInkMode("select"); }}/>}
           <p className="text-xs leading-6 text-muted-foreground">
+            عند تركيز مساحة الرسم: P قلم، E ممحاة، V تحديد، H مظلل.
             الضغط يعمل مع الأقلام التي ترسل بيانات ضغط. اختر للممحاة مسح مقطع أو ضربة كاملة، وكلاهما قابل للتراجع.
             للتحديد اسحب إطارًا حول الرسم، ثم اسحب أي خط محدد لتحريكه. تنعيم المسار لا يتعرف على الحروف العربية.
           </p>
           </>}
         </div>
       )}
-      {group === "shapes" && <div className="space-y-3 rounded-2xl border border-border bg-card p-3">
+      {!focusMode && group === "shapes" && <div className="max-h-64 space-y-3 overflow-y-auto rounded-2xl border border-border bg-card p-3">
         <div className="flex flex-wrap gap-2" role="group" aria-label="أشكال الرسم الهندسي">
           {([["line", "خط", Minus], ["arrow", "سهم", ArrowUpRight], ["rectangle", "مستطيل", Square], ["ellipse", "دائرة وبيضاوي", Circle]] as const).map(([key, label, Icon]) =>
             <button type="button" key={key} className={controlCls(shapeTool === key)} aria-pressed={shapeTool === key}
@@ -758,27 +826,33 @@ export function NotebookWorkspace({
         </div>
         <p className="text-xs text-muted-foreground">اسحب على الورقة لرسم الشكل. يمكنك تحديده وتحريكه أو مسحه من مجموعة الأقلام.</p>
       </div>}
-      {group === "stickers" && (
-        <div className="space-y-3 rounded-2xl border border-border bg-card p-3">
-          <div className="flex flex-wrap gap-2">
-            {STICKER_GROUPS.map((pack) => (
-              <button type="button" key={pack.id} aria-pressed={stickerGroup === pack.id}
-                onClick={() => { setStickerGroup(pack.id); setStickerQuery(""); }}
-                className={controlCls(stickerGroup === pack.id)}>{pack.label}</button>
-            ))}
+      {!focusMode && group === "stickers" && (
+        <div className="max-h-56 space-y-3 overflow-y-auto rounded-2xl border border-border bg-card p-3 sm:max-h-[22rem]">
+          <div className="sticky top-0 z-10 -mt-3 space-y-2 bg-card pb-2 pt-3 before:absolute before:-top-4 before:inset-x-0 before:h-4 before:bg-card before:content-['']">
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <strong className="font-semibold">مكتبة الملصقات</strong>
+              <span className="text-muted-foreground">{searchStickers(stickerQuery, stickerGroup).length} ملصق</span>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="مجموعات الملصقات">
+              {STICKER_GROUPS.map((pack) => (
+                <button type="button" key={pack.id} aria-pressed={stickerGroup === pack.id}
+                  onClick={() => { setStickerGroup(pack.id); setStickerQuery(""); }}
+                  className={controlCls(stickerGroup === pack.id) + " shrink-0 whitespace-nowrap"}>{pack.label}</button>
+              ))}
+            </div>
+            <label className="flex min-h-11 items-center gap-2 rounded-xl border border-border bg-background px-3">
+              <Search className="size-4 text-muted-foreground"/>
+              <input type="search" aria-label="بحث الملصقات" value={stickerQuery} onChange={(e) => setStickerQuery(e.target.value)}
+                placeholder="ابحث: عظام، محاسبة، neuron..." className="min-h-11 w-full bg-transparent text-sm outline-none"/>
+            </label>
           </div>
-          <label className="flex min-h-11 items-center gap-2 rounded-xl border border-border bg-background px-3">
-            <Search className="size-4 text-muted-foreground"/>
-            <input type="search" aria-label="بحث الملصقات" value={stickerQuery} onChange={(e) => setStickerQuery(e.target.value)}
-              placeholder="ابحث: عظام، محاسبة، neuron..." className="min-h-11 w-full bg-transparent text-sm outline-none"/>
-          </label>
-          <div className="grid max-h-80 grid-cols-4 gap-2 overflow-y-auto sm:grid-cols-7" aria-label="مكتبة الملصقات">
+          <div className="grid grid-cols-3 gap-2 min-[375px]:grid-cols-4 sm:grid-cols-6 lg:grid-cols-7" aria-label="نتائج الملصقات">
             {searchStickers(stickerQuery, stickerGroup).map(([kind, label]) => {
               const Icon = stickerIcon(kind);
               return <button type="button" key={kind} title={label} aria-label={"إضافة ملصق " + label}
                 onClick={() => addSticker(kind)}
                 className="flex min-h-24 flex-col items-center justify-center gap-1 rounded-xl border border-border bg-secondary/60 p-2 hover:border-primary">
-                <span className="grid size-12 place-items-center rounded-xl bg-[#f6faff] text-[#2564ad]"><Icon size={kind.startsWith("sci-") ? 42 : 25} strokeWidth={1.9}/></span>
+                <span className="grid size-12 place-items-center rounded-xl bg-[#f6faff] text-[#2564ad]"><Icon size={(kind.startsWith("sci-") || kind.startsWith("fl-")) ? 42 : 25} strokeWidth={1.9}/></span>
                 <span className="text-center text-[10px] leading-4">{label}</span>
               </button>;
             })}
@@ -799,8 +873,8 @@ export function NotebookWorkspace({
                   }))} />
               </label>
               <input type="color" aria-label="لون الملصق" value={selected.color}
-                disabled={selected.kind.startsWith("sci-") && (selected.presentation ?? "cutout") === "cutout"}
-                title={selected.kind.startsWith("sci-") ? "لتغيير لون خلفية الرسم فعّل خلفية الختم أولًا" : "لون الملصق"}
+                disabled={(selected.kind.startsWith("sci-") || selected.kind.startsWith("fl-")) && (selected.presentation ?? "cutout") === "cutout"}
+                title={(selected.kind.startsWith("sci-") || selected.kind.startsWith("fl-")) ? "لتغيير لون خلفية الرسم فعّل خلفية الختم أولًا" : "لون الملصق"}
                 onChange={(e) => updatePage((p) => ({
                   ...p, stickers: p.stickers.map((s) => s.id === selected.id ? { ...s, color: e.target.value } : s),
                 }))} />
@@ -810,26 +884,30 @@ export function NotebookWorkspace({
                 <span dir="ltr">{selected.rotation ?? 0}°</span>
               </label>
               <button type="button" className={controlCls(false)} onClick={() => updatePage((p) => ({ ...p,
-                stickers: p.stickers.map((s) => s.id === selected.id ? { ...s, presentation: (s.presentation ?? (s.kind.startsWith("sci-") ? "cutout" : "badge")) === "badge" ? "cutout" : "badge" } : s),
+                stickers: p.stickers.map((s) => s.id === selected.id ? { ...s, presentation: (s.presentation ?? ((s.kind.startsWith("sci-") || s.kind.startsWith("fl-")) ? "cutout" : "badge")) === "badge" ? "cutout" : "badge" } : s),
               }))}>تبديل خلفية الملصق</button>
               <button type="button" className={controlCls(false)} onClick={() => {
                 updatePage((p) => ({ ...p, stickers: p.stickers.filter((s) => s.id !== selected.id) }));
                 setSelectedSticker(null);
               }}><Trash2 className="size-4"/>حذف الملصق</button>
-              {selected.kind.startsWith("sci-") && <p className="w-full text-xs text-muted-foreground">ألوان الرسم العلمي الأصلية محفوظة. يمكنك تلوين خلفيته بعد تفعيل الختم.</p>}
+              {(selected.kind.startsWith("sci-") || selected.kind.startsWith("fl-")) && <p className="w-full text-xs text-muted-foreground">ألوان الملصق الأصلية محفوظة. يمكنك تلوين خلفيته بعد تفعيل الختم.</p>}
             </div>
           )}
           <p className="text-xs text-muted-foreground">اضغط لإضافة الملصق، واسحبه على الصفحة لتحريك موضعه.</p>
         </div>
       )}
-      {group === "paper" && (
-        <div className="space-y-3 rounded-2xl border border-border bg-card p-3">
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6" role="group" aria-label="خلفيات الورق">
+      {!focusMode && group === "paper" && (
+        <div className="max-h-56 space-y-3 overflow-y-auto rounded-2xl border border-border bg-card p-3 sm:max-h-[22rem]">
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <strong className="font-semibold">خلفية الورقة</strong>
+            <span className="text-muted-foreground">اسحب المعاينات لعرض بقية الأشكال</span>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="خلفيات الورق">
             {PAPER_TYPES.map((p) => (
               <button type="button" key={p} aria-pressed={page.paper === p}
                 onClick={() => updatePage((old) => ({ ...old, paper: p, lineSpacing: old.lineSpacing ?? 32, fontSize: old.fontSize ?? 16, texture: old.texture ?? "smooth" }))}
-                className={"flex min-h-28 flex-col items-center gap-2 rounded-xl border-2 p-2 text-xs " + (page.paper === p ? "border-primary bg-primary/10" : "border-border bg-background")}>
-                <span className="relative block h-16 w-12 overflow-hidden rounded border border-[#d2d8dc]" style={paperStyle({ ...page, paper: p })}>
+                className={"flex min-h-24 min-w-24 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border-2 p-1.5 text-xs " + (page.paper === p ? "border-primary bg-primary/10" : "border-border bg-background")}>
+                <span className="relative block h-12 w-9 overflow-hidden rounded border border-[#d2d8dc]" style={paperStyle({ ...page, paper: p })}>
                   <PaperGuides page={{ ...page, paper: p, lineSpacing: page.lineSpacing ?? 32 }} preview/>
                 </span>
                 {PAPER_LABELS[p]}
@@ -870,85 +948,27 @@ export function NotebookWorkspace({
         </div>
       )}
 
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1 px-1 text-xs">
-        <div className="flex min-w-0 items-center gap-1">
-          <ToolButton label="الصفحة السابقة" disabled={index === 0 || !!transformSession} onClick={() => { finish(); setIndex(index - 1); setSelection(new Set()); }}><ChevronRight /></ToolButton>
-          <span dir="ltr" className="whitespace-nowrap text-muted-foreground">{index + 1} / {book.pages.length}</span>
-          <ToolButton label="الصفحة التالية" disabled={index === book.pages.length - 1 || !!transformSession} onClick={() => { finish(); setIndex(index + 1); setSelection(new Set()); }}><ChevronLeft /></ToolButton>
-          <ToolButton label="إضافة صفحة" disabled={!!transformSession} onClick={addPage}><Plus /></ToolButton>
-        </div>
-        <div className="flex shrink-0 items-center gap-1" role="group" aria-label="تكبير صفحة الدفتر">
-          <ToolButton label="ملاءمة الصفحة" active={zoom === null} disabled={transformDragging} onClick={() => setZoom(null)}><Maximize /></ToolButton>
-          <Button variant="ghost" className="h-11 px-2 text-xs" aria-label="حجم الصفحة الأصلي 100%" aria-pressed={zoom === 1} disabled={transformDragging} onClick={() => setZoom(1)}>100%</Button>
-          <ToolButton label="تكبير الصفحة 150%" active={zoom === 1.5} disabled={transformDragging} onClick={() => setZoom(1.5)}><ZoomIn /></ToolButton>
+      {!focusMode && group === "text" && activeTextEditor && (
+        <CompactToolbar editor={activeTextEditor} onAddAttachment={onAddAttachment} workspace />
+      )}
+      <div className="flex min-h-12 items-center justify-between gap-2 rounded-xl border border-border bg-secondary/40 px-3 py-0.5 text-xs">
+        <span className="min-w-0 truncate">صفحة {index + 1} · {pageW} × {pageH} مم</span>
+        <label className="flex shrink-0 items-center gap-1 sm:hidden"><ZoomIn className="size-4"/>
+          <span className="sr-only">تكبير صفحة الدفتر</span>
+          <select aria-label="مستوى تكبير صفحة الدفتر" value={zoom === null ? "fit" : String(zoom)}
+            disabled={transformDragging} onChange={(event) => setZoom(event.target.value === "fit" ? null : Number(event.target.value))}
+            className="min-h-11 rounded-xl border border-border bg-background px-2 font-semibold">
+            <option value="fit">ملاءمة</option><option value="1">100%</option><option value="1.5">150%</option>
+          </select>
+        </label>
+        <div className="hidden items-center gap-1 sm:flex" role="group" aria-label="تكبير صفحة الدفتر">
+          <ZoomIn className="mx-1 size-4"/>
+          <button type="button" className={controlCls(zoom === null)} disabled={transformDragging} onClick={() => setZoom(null)}>ملاءمة</button>
+          <button type="button" className={controlCls(zoom === 1)} disabled={transformDragging} onClick={() => setZoom(1)}>100%</button>
+          <button type="button" className={controlCls(zoom === 1.5)} disabled={transformDragging} onClick={() => setZoom(1.5)}>150%</button>
         </div>
       </div>
-      <nav id="notebook-pages" hidden={!pagesOpen} className="border-y border-border bg-card p-2"
-        aria-label="شريط صفحات المذكرة">
-        {group === "draw" && <div className="mb-2 flex gap-1 overflow-x-auto border-b border-border pb-2" role="group" aria-label="أدوات القلم السريعة">
-          {transformSession ? <>
-            <button type="button" className={controlCls(true)} aria-label="تطبيق التحويل السريع" disabled={transformDragging || !transformPreview?.changed || !!transformPreview.error}
-              onClick={() => { if (transformPreview) applyTransform(transformPreview); }}><Check className="size-4"/>تطبيق</button>
-            <button type="button" className={controlCls(false)} aria-label="إلغاء التحويل السريع" onClick={cancelTransform}><X className="size-4"/>إلغاء</button>
-            {transformPreview?.error && <span role="status" className="self-center px-2 text-xs text-destructive">معاينة غير صالحة</span>}
-          </> : <>
-          {inkMode !== "nodes" && <>
-            <button type="button" className={controlCls(inkMode === "pen")} aria-label="القلم السريع" onClick={() => { finish(); setInkMode("pen"); }}><PenLine className="size-4"/></button>
-            <button type="button" className={controlCls(inkMode === "eraser")} aria-label="الممحاة السريعة" onClick={() => { finish(); setInkMode("eraser"); }}><Eraser className="size-4"/></button>
-          </>}
-          {inkMode === "eraser" && <select aria-label="نوع الممحاة السريعة" value={eraserKind}
-            onChange={(e) => { finish(); setEraserKind(e.target.value as EraserKind); }}
-            className="min-h-11 shrink-0 rounded-xl border border-border bg-background px-2 text-xs">
-            <option value="segment">مسح جزء</option><option value="stroke">مسار كامل</option>
-          </select>}
-          {inkMode !== "nodes" && <button type="button" className={controlCls(inkMode === "select")} aria-label="التحديد السريع" onClick={() => { finish(); setInkMode("select"); }}><MousePointer2 className="size-4"/></button>}
-          {inkMode === "nodes" && selectedStroke && <>
-            <button type="button" className={controlCls(false)} aria-label="إضافة نقطة سريعة" title="إضافة نقطة للمسار"
-              disabled={!canInsertInkPoint(selectedStroke, insertionAfter)} onClick={() => insertNode(insertionAfter)}><Plus className="size-4"/></button>
-            <button type="button" className={controlCls(false) + " text-destructive"} aria-label="حذف نقطة سريع" title="حذف نقطة التحكم"
-              disabled={inkPoints(selectedStroke).length <= 2} onClick={removeNode}><Trash2 className="size-4"/></button>
-          </>}
-          {selectedStroke && <button type="button" className={controlCls(inkMode === "nodes")} aria-label={inkMode === "nodes" ? "إنهاء تحرير النقاط السريع" : "تحرير النقاط السريع"}
-            disabled={!nodeIndices.length} onClick={() => { if (inkMode === "nodes") { finish(); setInkMode("select"); } else enterNodes(); }}>
-            {inkMode === "nodes" ? <Check className="size-4"/> : <Waypoints className="size-4"/>}
-          </button>}
-          {inkMode === "select" && selection.size > 0 && <button type="button" className={controlCls(false)} aria-label="تحويل الرسم السريع" title="تغيير الحجم والتدوير"
-            onClick={beginTransform}><RotateCw className="size-4"/></button>}
-          <button type="button" className={controlCls(false)} aria-label="تراجع سريع" disabled={!history.current.canUndo(page.id)} onClick={() => historyStep(false)}><Undo2 className="size-4"/></button>
-          <button type="button" className={controlCls(false)} aria-label="إعادة سريعة" disabled={!history.current.canRedo(page.id)} onClick={() => historyStep(true)}><Redo2 className="size-4"/></button>
-          </>}
-        </div>}
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <strong className="text-sm">الصفحات ({book.pages.length})</strong>
-          <div className="flex gap-1">
-            <button type="button" aria-label="تكرار الصفحة" title="تكرار الصفحة"
-              onClick={duplicatePage} disabled={!!transformSession} className="grid size-10 place-items-center rounded-xl bg-secondary disabled:opacity-40"><Copy className="size-4" /></button>
-            <button type="button" aria-label="حذف الصفحة" title="حذف الصفحة"
-              onClick={removePage} disabled={book.pages.length === 1 || !!transformSession}
-              className="grid size-10 place-items-center rounded-xl bg-secondary text-destructive disabled:opacity-40">
-              <Trash2 className="size-4"/>
-            </button>
-          </div>
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="صفحات المذكرة">
-          {book.pages.map((p, n) => (
-            <button type="button" role="tab" key={p.id} aria-selected={index === n}
-              disabled={!!transformSession}
-              aria-label={"صفحة " + (n + 1)}
-              onClick={() => { finish(); setIndex(n); setSelectedSticker(null); setSelection(new Set()); }}
-              className={"flex min-w-20 flex-col items-center gap-1 rounded-lg border-2 p-1.5 " +
-                (index === n ? "border-primary bg-primary-soft" : "border-border bg-background")}>
-              <PageMiniature page={p} />
-              <span className="text-xs">صفحة {n + 1}</span>
-            </button>
-          ))}
-          <button type="button" onClick={addPage} disabled={!!transformSession} aria-label="إضافة صفحة" title="إضافة صفحة"
-            className="flex min-w-20 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-primary/35 text-primary disabled:opacity-40">
-            <Plus className="size-6"/>
-          </button>
-        </div>
-      </nav>
-      <div ref={viewport} className="w-full overflow-auto bg-secondary/40 p-2 sm:p-4" dir="ltr" aria-label="منطقة عرض الورقة">
+      <div ref={viewport} className="w-full overflow-auto rounded-xl bg-secondary/40" dir="ltr" aria-label="منطقة عرض الورقة">
         <div className="relative mx-auto" style={{ width: layout.width * displayScale, height: layout.height * displayScale }}>
         <div data-notebook-paper={page.paper} dir="rtl"
           className="notebook-sheet absolute left-0 top-0 isolate overflow-hidden shadow-md"
@@ -976,7 +996,7 @@ export function NotebookWorkspace({
               className={"absolute inset-0 z-20 size-full " + (isDrawing ? transformSession ? "cursor-default" : "cursor-crosshair" : "pointer-events-none")}
               style={{ touchAction: isDrawing && !transformSession && !penOnly ? "none" : "pan-x pan-y" }}>
               <InkLayer strokes={shownStrokes.filter((s) => !erased.has(s.id))} aspect={aspect} selected={isDrawing ? selection : undefined}/>
-              {live && <InkMark stroke={live} aspect={aspect} />}
+              {live && <InkMark stroke={group === "draw" ? stabilizePen(live, stabilization, aspect) : live} aspect={aspect} />}
               {isDrawing && eraserPoint && <circle cx={eraserPoint[0]} cy={eraserPoint[1] * aspect} r={eraserWidth / 2}
                 fill="#4488ff12" stroke="#3275ba" strokeWidth={1.5} strokeDasharray="3 3" pointerEvents="none"/>}
               {isDrawing && !activeTransform && inkMode === "select" && (selectionBox || selectedBounds) && (() => {
@@ -1074,7 +1094,75 @@ export function NotebookWorkspace({
           setIndex(current.pages.length); setGroup("text"); setSelection(new Set());
           return true;
         }}/>}
-
+      <nav className="rounded-2xl border border-border bg-card/95 p-2 shadow-sm"
+        aria-label="شريط صفحات المذكرة">
+        {!focusMode && group === "draw" && <div className="mb-2 flex gap-1 overflow-x-auto border-b border-border pb-2" role="group" aria-label="أدوات القلم السريعة">
+          {transformSession ? <>
+            <button type="button" className={controlCls(true)} aria-label="تطبيق التحويل السريع" disabled={transformDragging || !transformPreview?.changed || !!transformPreview.error}
+              onClick={() => { if (transformPreview) applyTransform(transformPreview); }}><Check className="size-4"/>تطبيق</button>
+            <button type="button" className={controlCls(false)} aria-label="إلغاء التحويل السريع" onClick={cancelTransform}><X className="size-4"/>إلغاء</button>
+            {transformPreview?.error && <span role="status" className="self-center px-2 text-xs text-destructive">معاينة غير صالحة</span>}
+          </> : <>
+          {inkMode !== "nodes" && <>
+            <button type="button" className={controlCls(inkMode === "pen")} aria-label="القلم السريع" onClick={() => { finish(); setInkMode("pen"); }}><PenLine className="size-4"/></button>
+            <button type="button" className={controlCls(inkMode === "eraser")} aria-label="الممحاة السريعة" onClick={() => { finish(); setInkMode("eraser"); }}><Eraser className="size-4"/></button>
+          </>}
+          {inkMode === "eraser" && <select aria-label="نوع الممحاة السريعة" value={eraserKind}
+            onChange={(e) => { finish(); setEraserKind(e.target.value as EraserKind); }}
+            className="min-h-11 shrink-0 rounded-xl border border-border bg-background px-2 text-xs">
+            <option value="segment">مسح جزء</option><option value="stroke">مسار كامل</option>
+          </select>}
+          {inkMode !== "nodes" && <button type="button" className={controlCls(inkMode === "select")} aria-label="التحديد السريع" onClick={() => { finish(); setInkMode("select"); }}><MousePointer2 className="size-4"/></button>}
+          {inkMode === "nodes" && selectedStroke && <>
+            <button type="button" className={controlCls(false)} aria-label="إضافة نقطة سريعة" title="إضافة نقطة للمسار"
+              disabled={!canInsertInkPoint(selectedStroke, insertionAfter)} onClick={() => insertNode(insertionAfter)}><Plus className="size-4"/></button>
+            <button type="button" className={controlCls(false) + " text-destructive"} aria-label="حذف نقطة سريع" title="حذف نقطة التحكم"
+              disabled={inkPoints(selectedStroke).length <= 2} onClick={removeNode}><Trash2 className="size-4"/></button>
+          </>}
+          {selectedStroke && <button type="button" className={controlCls(inkMode === "nodes")} aria-label={inkMode === "nodes" ? "إنهاء تحرير النقاط السريع" : "تحرير النقاط السريع"}
+            disabled={!nodeIndices.length} onClick={() => { if (inkMode === "nodes") { finish(); setInkMode("select"); } else enterNodes(); }}>
+            {inkMode === "nodes" ? <Check className="size-4"/> : <Waypoints className="size-4"/>}
+          </button>}
+          {inkMode === "select" && selection.size > 0 && <button type="button" className={controlCls(false)} aria-label="تحويل الرسم السريع" title="تغيير الحجم والتدوير"
+            onClick={beginTransform}><RotateCw className="size-4"/></button>}
+          <button type="button" className={controlCls(false)} aria-label="تراجع سريع" disabled={!history.current.canUndo(page.id)} onClick={() => historyStep(false)}><Undo2 className="size-4"/></button>
+          <button type="button" className={controlCls(false)} aria-label="إعادة سريعة" disabled={!history.current.canRedo(page.id)} onClick={() => historyStep(true)}><Redo2 className="size-4"/></button>
+          </>}
+        </div>}
+        <div className="flex items-center gap-2">
+        <div className="order-2 flex shrink-0 items-center gap-1">
+          <strong className="sr-only">الصفحات ({book.pages.length})</strong>
+          <ToolButton label="عرض مصغرات الصفحات" active={pagePreviews} aria-pressed={pagePreviews} onClick={() => setPagePreviews(!pagePreviews)}><Layers className="size-4"/></ToolButton>
+          <div className="flex gap-1">
+            <ToolButton label="تكرار الصفحة"
+              onClick={duplicatePage} disabled={!!transformSession}><Copy className="size-4" /></ToolButton>
+            <ToolButton label="حذف الصفحة"
+              onClick={removePage} disabled={book.pages.length === 1 || !!transformSession}
+              className="text-destructive">
+              <Trash2 className="size-4"/>
+            </ToolButton>
+          </div>
+        </div>
+        <div className="order-1 flex min-w-0 flex-1 gap-1 overflow-x-auto" role="tablist" aria-label="صفحات المذكرة">
+          {book.pages.map((p, n) => (
+            <button type="button" role="tab" key={p.id} aria-selected={index === n}
+              disabled={!!transformSession}
+              aria-label={"صفحة " + (n + 1)}
+              onClick={() => { finish(); setIndex(n); setSelectedSticker(null); setSelection(new Set()); }}
+              className={"flex min-h-11 min-w-12 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border-2 p-1 " +
+                (index === n ? "border-primary bg-primary-soft" : "border-border bg-background")}>
+              {pagePreviews && <PageMiniature page={p} />}
+              <span className="whitespace-nowrap text-[11px]">{n + 1}</span>
+            </button>
+          ))}
+          <button type="button" onClick={addPage} disabled={!!transformSession} aria-label="إضافة صفحة" title="إضافة صفحة"
+            className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-xl border-2 border-dashed border-primary/35 text-primary disabled:opacity-40">
+            <Plus className="size-5"/>
+          </button>
+        </div>
+        </div>
+      </nav>
+      {styleSession&&<InkStyleDialog session={styleSession} onApply={applyStyle} onCancel={()=>setStyleSession(null)}/>}
     </section>
   );
 }

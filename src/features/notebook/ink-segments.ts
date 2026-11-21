@@ -36,9 +36,13 @@ function pressureAt(stroke: InkStroke, t: number): number {
 function segments(stroke: InkStroke, aspect: number): Segment[] {
   const count = inkPoints(stroke).length, knots = inkKnots(stroke);
   const p = inkWorldPoints(stroke).map(([x, y], i): Center => ({ x, y: y * aspect, t: knots[i],
-    r: stroke.width * (stroke.pressures && stroke.tool === "pen" ? .25 + .75 * (stroke.controlKnots ? pressureAt(stroke, knots[i]) : stroke.pressures[i]) : 1) / 2 }));
+    r: stroke.width * (stroke.pressures && stroke.tool === "pen" ? .25 + .75 * Math.pow(
+      stroke.controlKnots ? pressureAt(stroke, knots[i]) : stroke.pressures[i], stroke.pressureResponse ?? 1) : 1) / 2 }));
   if (count < 2) return [{ a: p[0], b: p[0] }];
-  if (stroke.smoothing === false || count < 3) return p.slice(1).map((b, i) => ({ a: p[i], b }));
+  // A stationary mark accumulates disks. Smoothing its pressure as a curve
+  // can shrink a previously painted disk when the user relaxes pressure.
+  if (stroke.smoothing === false || count < 3 || p.every(point=>point.x===p[0].x&&point.y===p[0].y))
+    return p.slice(1).map((b, i) => ({ a: p[i], b }));
   let a = p[0]; const result: Segment[] = [];
   for (let i = 1; i < count - 1; i++) {
     const b = { ...midpoint(p[i], p[i + 1]), t: knots[i] };
@@ -52,6 +56,7 @@ function evaluate(s: Segment, t: number): Center {
   return { ...p, t: s.a.t + (s.b.t - s.a.t) * t };
 }
 const cache = new WeakMap<InkStroke["points"], { pressures: InkStroke["pressures"]; width: number;
+  pressureResponse: InkStroke["pressureResponse"];
   smoothing: boolean | undefined; tool: InkStroke["tool"]; aspect: number; segments: Segment[]; samples: Center[];
   dx: number; dy: number;
   knots: InkStroke["controlKnots"];
@@ -59,7 +64,7 @@ const cache = new WeakMap<InkStroke["points"], { pressures: InkStroke["pressures
 function geometry(stroke: InkStroke, aspect: number) {
   const key = stroke.controlPoints ?? stroke.points, [dx, dy] = stroke.offset ?? [0, 0];
   const old = cache.get(key);
-  if (old && old.pressures === stroke.pressures && old.width === stroke.width && old.smoothing === stroke.smoothing &&
+  if (old && old.pressures === stroke.pressures && old.pressureResponse === stroke.pressureResponse && old.width === stroke.width && old.smoothing === stroke.smoothing &&
       old.tool === stroke.tool && old.aspect === aspect && old.dx === dx && old.dy === dy && old.knots === stroke.controlKnots) return old;
   const curves = segments(stroke, aspect), samples = [curves[0].a];
   const pressured = !!stroke.pressures && stroke.tool === "pen";
@@ -78,7 +83,7 @@ function geometry(stroke: InkStroke, aspect: number) {
     bounds.left = Math.min(bounds.left, x); bounds.right = Math.max(bounds.right, x);
     bounds.top = Math.min(bounds.top, y * aspect); bounds.bottom = Math.max(bounds.bottom, y * aspect);
   }
-  const value = { pressures: stroke.pressures, width: stroke.width, smoothing: stroke.smoothing, tool: stroke.tool,
+  const value = { pressures: stroke.pressures, pressureResponse: stroke.pressureResponse, width: stroke.width, smoothing: stroke.smoothing, tool: stroke.tool,
     aspect, segments: curves, samples, bounds, dx, dy, knots: stroke.controlKnots };
   cache.set(key, value); return value;
 }
@@ -161,6 +166,16 @@ export function cutInkPath(stroke: InkStroke, aspect = 1): string {
 }
 export function inkOutline(centers: Center[]): string {
   if (!centers.length) return "";
+  // Coincident samples are valid: a stationary pen can change pressure and
+  // edited vertices can collapse. Merge only this paint copy, keeping the
+  // largest visible disk; never rewrite capture or cut-parameter samples.
+  const distinct:Center[]=[];
+  for(const p of centers){
+    const last=distinct[distinct.length-1];
+    if(last&&last.x===p.x&&last.y===p.y){if(p.r>last.r)distinct[distinct.length-1]={...last,r:p.r};}
+    else distinct.push(p);
+  }
+  centers=distinct;
   if (centers.length === 1) {
     const { x, y, r } = centers[0];
     return `M ${f(x - r)} ${f(y)} a ${f(r)} ${f(r)} 0 1 0 ${f(r * 2)} 0 a ${f(r)} ${f(r)} 0 1 0 ${f(-r * 2)} 0`;

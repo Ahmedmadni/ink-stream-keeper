@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from "react";
+import { memo, useId, type ReactNode } from "react";
 import { inkShape } from "./ink";
 import type { InkStroke } from "./model";
 
@@ -6,11 +6,30 @@ export const InkMark = memo(function InkMark({ stroke, aspect = 1, selected = fa
   stroke: InkStroke; aspect?: number; selected?: boolean; opacity?: number;
 }) {
   const shape = inkShape(stroke, aspect);
-  return <path data-stroke-id={stroke.id} d={shape.d}
-    fill={shape.fill ? stroke.color : "none"} stroke={shape.fill ? "none" : stroke.color}
+  const patternId = "pencil-" + useId().replace(/:/g, "");
+  const paint = stroke.brush === "pencil" ? `url(#${patternId})` : stroke.color;
+  return <>{stroke.brush === "pencil" && <defs>
+    {/* Original procedural graphite grain, fixed to paper coordinates. No
+      filter, random seed, remote bitmap, mask or change to hit/erase geometry.
+      Shared by editor, vault, thumbnails and PDF; fragments keep the same phase. */}
+    <pattern id={patternId} data-pencil-grain="1" patternUnits="userSpaceOnUse" width="8" height="8">
+      <rect width="8" height="8" fill={stroke.color} opacity=".28"/>
+      <g fill={stroke.color}>
+        <rect x=".2" y=".5" width="1.4" height=".9" opacity=".68"/>
+        <rect x="3.5" y=".1" width=".7" height="1.7" opacity=".48"/>
+        <rect x="6" y="1.8" width="1.3" height=".6" opacity=".7"/>
+        <rect x="1.8" y="3" width="1" height="1.4" opacity=".55"/>
+        <rect x="4.6" y="4" width="1.8" height=".8" opacity=".7"/>
+        <rect x=".3" y="6" width=".8" height="1.2" opacity=".45"/>
+        <rect x="3.1" y="6.5" width="1.1" height=".7" opacity=".62"/>
+        <rect x="6.8" y="6.2" width=".9" height="1.4" opacity=".52"/>
+      </g>
+    </pattern>
+  </defs>}<path data-stroke-id={stroke.id} data-ink-brush={stroke.brush} d={shape.d}
+    fill={shape.fill ? paint : "none"} stroke={shape.fill ? "none" : paint}
     strokeWidth={stroke.width} strokeLinecap="round" strokeLinejoin="round"
     opacity={opacity ?? (stroke.tool === "highlighter" ? .34 : 1)}
-    style={{ pointerEvents: "none", filter: selected ? "drop-shadow(0 0 3px #4c96ff)" : undefined }} />;
+    style={{ pointerEvents: "none", filter: selected ? "drop-shadow(0 0 3px #4c96ff)" : undefined }} /></>;
 });
 
 /** Keep split highlighter fragments in one compositing group, without tying

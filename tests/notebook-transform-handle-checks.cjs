@@ -85,7 +85,9 @@ async function checkTransformHandles(page, artifacts, source, readSavedContent) 
   await page.mouse.up(); await unchanged(baseline, "window blur cancels a held gesture");
 
   active = await beginMouse(scale(2), 1.05);
-  await page.setViewportSize({ width: 900, height: 768 });
+  // The expanded desktop editor keeps an A4 sheet at its natural width at 900px.
+  // Narrow below the sheet width so the displayed geometry actually resizes.
+  await page.setViewportSize({ width: 700, height: 768 });
   await page.waitForFunction((input) => !input.disabled, await size.elementHandle(), { timeout: 5000 });
   await page.mouse.up(); await unchanged(baseline, "resizing the displayed sheet rejects the held gesture");
   await page.setViewportSize({ width: 1024, height: 768 });
@@ -122,7 +124,9 @@ async function checkTransformHandles(page, artifacts, source, readSavedContent) 
   await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await touch.send("Emulation.setTouchEmulationEnabled", { enabled: false }); await touch.detach();
   assert.ok(Math.abs(Number(await size.inputValue()) - 72) <= .2, "a finger resizes the mobile control");
-  const bar = await page.getByRole("navigation", { name: "شريط صفحات المذكرة", exact: true }).boundingBox();
+  const pageNav = page.getByRole("navigation", { name: "شريط صفحات المذكرة", exact: true });
+  await pageNav.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  const bar = await pageNav.boundingBox();
   const app = await page.getByRole("navigation", { name: "التنقل الرئيسي", exact: true }).boundingBox();
   assert.ok(bar.y >= 0 && bar.y + bar.height <= app.y - 6);
   await page.screenshot({ path: artifacts + "/notebook-direct-handles-mobile.png" });

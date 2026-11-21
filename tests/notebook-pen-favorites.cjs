@@ -1,0 +1,62 @@
+const assert=require("node:assert/strict");
+async function checkPenFavorites(page,readSaved){
+  const key="memoflow:pen-favorites:v1:11111111-1111-4111-8111-111111111111";
+  const otherKey="memoflow:pen-favorites:v1:22222222-2222-4222-8222-222222222222";
+  const unchanged=readSaved();
+  const paths=()=>page.locator('[data-notebook-paper] path[data-stroke-id]').evaluateAll(els=>els.map(e=>e.getAttribute("d")));
+  const before=await paths();
+  await page.getByRole("tab",{name:"أقلام",exact:true}).click();
+  const canvas=page.getByRole("img",{name:"مساحة الرسم بالقلم",exact:true});
+  for(const [code,label] of [["e","ممحاة"],["v","تحديد وتحريك"],["h","مظلل"],["p","قلم"]]){
+    await canvas.focus();await page.keyboard.press(code);
+    assert.equal(await page.getByRole("button",{name:label,exact:true}).getAttribute("aria-pressed"),"true");
+  }
+  await canvas.focus();await page.keyboard.press("Control+e");
+  assert.equal(await page.getByRole("button",{name:"قلم",exact:true}).getAttribute("aria-pressed"),"true");
+  const title=page.getByLabel("عنوان الملاحظة",{exact:true}),oldTitle=await title.inputValue();
+  await title.focus();await page.keyboard.press("End");await page.keyboard.press("e");
+  assert.equal(await title.inputValue(),oldTitle+"e");
+  assert.equal(await page.getByRole("button",{name:"قلم",exact:true}).getAttribute("aria-pressed"),"true");
+  await title.fill(oldTitle);
+  await page.getByRole("button",{name:"قلم رصاص",exact:true}).click();
+  await page.getByLabel("لون قلم الدفتر",{exact:true}).fill("#1a2b3c");
+  const width=page.getByLabel("سمك قلم الدفتر",{exact:true});await width.focus();await page.keyboard.press("End");
+  await page.getByRole("button",{name:"ضغط خفيف",exact:true}).click();
+  const summary=page.getByText("أقلامي المفضلة",{exact:true});await summary.click();
+  const save=i=>page.getByRole("button",{name:`حفظ الإعدادات في القلم ${i}`,exact:true});
+  const use=i=>page.getByRole("button",{name:`استخدام القلم المفضل ${i}`,exact:true});
+  await save(1).click();
+  const first=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)).pens[0],key);
+  assert.deepEqual(first,{color:"#1a2b3c",width:10,brush:"pencil",smooth:true,stabilization:.55,pressureEnabled:true,sensitivity:.6});
+  await page.getByRole("button",{name:"قلم دقيق",exact:true}).click();await save(2).click();
+  await use(1).click();assert.equal(await width.inputValue(),"10");
+  assert.equal(await page.getByRole("button",{name:"قلم رصاص",exact:true}).getAttribute("aria-pressed"),"true");
+  assert.deepEqual(await paths(),before);assert.equal(readSaved(),unchanged);
+  await page.reload();await page.getByRole("tab",{name:"صفحة 2",exact:true}).click();
+  await page.getByRole("tab",{name:"أقلام",exact:true}).click();await summary.click();await use(1).click();
+  assert.equal(await width.inputValue(),"10");assert.equal(await page.getByLabel("لون قلم الدفتر",{exact:true}).inputValue(),"#1a2b3c");
+  assert.equal(await page.getByLabel("استجابة ضغط القلم",{exact:true}).inputValue(),"0.6");assert.deepEqual(await paths(),before);
+  await page.evaluate(({key,otherKey})=>{
+    localStorage.setItem(otherKey,JSON.stringify({version:1,pens:[null,null,null]}));
+    localStorage.setItem("pen-favorites-unrelated-fixture","keep");
+    window.__favoriteWrite=Storage.prototype.setItem;
+    Storage.prototype.setItem=function(k,v){if(k===key)throw new DOMException("fixture quota","QuotaExceededError");return window.__favoriteWrite.call(this,k,v);};
+  },{key,otherKey});
+  const prior=await page.evaluate(key=>localStorage.getItem(key),key);await save(3).click();
+  await page.getByRole("alert").filter({hasText:"تعذر حفظ إعدادات الأقلام"}).waitFor();
+  assert.equal(await page.evaluate(key=>localStorage.getItem(key),key),prior);assert.equal(await use(3).isDisabled(),true);
+  await page.evaluate(()=>{Storage.prototype.setItem=window.__favoriteWrite;delete window.__favoriteWrite;});
+  await save(3).click();assert.equal(await use(3).isDisabled(),false);
+  await page.getByRole("button",{name:"مسح القلم المفضل 2",exact:true}).click();assert.equal(await use(2).isDisabled(),true);
+  const others=await page.evaluate(key=>localStorage.getItem(key),otherKey);
+  await page.evaluate(key=>{localStorage.setItem(key,"{broken");dispatchEvent(new StorageEvent("storage",{key,storageArea:localStorage}));},key);
+  await page.getByRole("alert").filter({hasText:"تعذر قراءة الأقلام المفضلة"}).waitFor();assert.equal(await save(1).isDisabled(),true);
+  assert.equal(await page.evaluate(key=>localStorage.getItem(key),key),"{broken");
+  await page.getByRole("button",{name:"إعادة ضبط الأقلام المفضلة",exact:true}).click();
+  assert.equal(await page.evaluate(key=>localStorage.getItem(key),key),null);
+  assert.equal(await page.evaluate(key=>localStorage.getItem(key),otherKey),others);
+  assert.equal(await page.evaluate(()=>localStorage.getItem("pen-favorites-unrelated-fixture")),"keep");
+  assert.deepEqual(await paths(),before);assert.equal(readSaved(),unchanged);
+  await page.getByRole("button",{name:"قلم سلس",exact:true}).click();
+}
+module.exports={checkPenFavorites};

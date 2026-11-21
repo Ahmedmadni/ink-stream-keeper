@@ -295,6 +295,7 @@ function NoteEditor({ note }: { note: Note }) {
 
         <div className="mt-3">
           <NotebookWorkspace
+            preferenceScope={note.user_id}
             content={draft}
             onChange={(html) => controller.edit({ content: html })}
             onAddAttachment={(file) => upload.mutate({ noteId: note.id, file })}
