@@ -1,5 +1,9 @@
 # Native application updates
 
+## Writing workspace layout
+- [x] Expand the note editor, compact its icon menus and keep page previews from covering the paper.
+- [x] Verify authenticated page/tool switching and layouts on desktop and mobile; 106 targeted regression tests passed.
+
 - [x] Polish the home page, cards, branding, connection indicators and shared page metadata without duplicated sections.
 - [x] Verify authenticated navigation and layouts at desktop, 547px and 393px widths; all 126 regression tests passed.
 - [x] Complete the deep security review and sanitize unsafe note previews.

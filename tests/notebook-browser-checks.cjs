@@ -123,7 +123,13 @@ async function checkSegmentEraser(page, artifacts) {
   await page.getByRole("button", { name: "ممحاة", exact: true }).click();
   await canvas.evaluate((el) => el.scrollIntoView({ block: "center" }));
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  const pageBar = await page.getByRole("navigation", { name: "شريط صفحات المذكرة", exact: true }).boundingBox();
+  const pageNav = page.getByRole("navigation", { name: "شريط صفحات المذكرة", exact: true });
+  const paper = await page.locator("[data-notebook-paper]").boundingBox();
+  let pageBar = await pageNav.boundingBox();
+  assert.ok(pageBar.y >= paper.y + paper.height - 1,
+    "page controls remain in document flow below the paper rather than covering it");
+  await pageNav.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  pageBar = await pageNav.boundingBox();
   const appBar = await page.getByRole("navigation", { name: "التنقل الرئيسي", exact: true }).boundingBox();
   assert.ok(pageBar.y >= 0 && pageBar.y + pageBar.height <= appBar.y - 6,
     "mobile page/pen controls must stay above the application navigation bar");
@@ -428,7 +434,9 @@ async function checkInkEditing(page, artifacts, source) {
   assert.equal(await pointCount(), originalCount + 2);
   await page.getByRole("button", { name: "تراجع سريع", exact: true }).click();
   assert.equal(await first.getAttribute("d"), topology);
-  const pageBar = await page.getByRole("navigation", { name: "شريط صفحات المذكرة", exact: true }).boundingBox();
+  const pageNav = page.getByRole("navigation", { name: "شريط صفحات المذكرة", exact: true });
+  await pageNav.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  const pageBar = await pageNav.boundingBox();
   const appBar = await page.getByRole("navigation", { name: "التنقل الرئيسي", exact: true }).boundingBox();
   assert.ok(pageBar.y >= 0 && pageBar.y + pageBar.height <= appBar.y - 6, "point actions remain above mobile navigation");
   await page.screenshot({ path: artifacts + "/notebook-path-edit-mobile.png" });
@@ -561,7 +569,9 @@ async function checkInkTransforms(page, artifacts, source, readSavedContent) {
   await size.fill("90"); await angle.fill("15");
   const final = await first.getAttribute("d"); assert.notEqual(final, transformed);
   await first.evaluate((el) => el.scrollIntoView({ block: "center" }));
-  const bar = await page.getByRole("navigation", { name: "شريط صفحات المذكرة", exact: true }).boundingBox();
+  const transformPageNav = page.getByRole("navigation", { name: "شريط صفحات المذكرة", exact: true });
+  await transformPageNav.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  const bar = await transformPageNav.boundingBox();
   const app = await page.getByRole("navigation", { name: "التنقل الرئيسي", exact: true }).boundingBox();
   assert.ok(bar.y >= 0 && bar.y + bar.height <= app.y - 6);
   await page.screenshot({ path: artifacts + "/notebook-transform-mobile.png" });

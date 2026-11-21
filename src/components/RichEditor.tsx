@@ -26,6 +26,7 @@ import {
   Palette, Pilcrow, Type,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { ToolButton } from "@/components/ToolButton";
 import { DictateButton } from "@/components/speech/DictateButton";
 
 export type RichEditorHandle = Editor;
@@ -141,13 +142,11 @@ export function CompactToolbar({ editor, onAddAttachment, workspace = false }: {
     <div className={"rounded-2xl border border-border bg-card/95 p-2 shadow-sm " + (workspace ? "flex items-center gap-2" : "")}>
       <div className="flex shrink-0 gap-1" role="tablist" aria-label="مجموعات أدوات الكتابة">
         {actions.map(([key, label]) => (
-          <button key={key} type="button" role="tab" aria-selected={group === key}
-            aria-label={label} title={label}
+          <ToolButton key={key} role="tab" aria-selected={group === key} label={label} active={group === key}
             onClick={() => setGroup(key)}
-            className={(workspace ? "grid size-11 place-items-center rounded-xl" : "min-h-11 rounded-xl px-3 text-sm font-semibold") + " " +
-              (group === key ? "bg-primary text-primary-foreground" : "bg-secondary")}>
+            className={workspace ? "rounded-xl" : "min-w-11 px-3 text-sm font-semibold"}>
             {workspace ? key === "text" ? <Type className="size-5"/> : key === "paragraph" ? <Pilcrow className="size-5"/> : <TableIcon className="size-5"/> : label}
-          </button>
+          </ToolButton>
         ))}
       </div>
       <div className={(workspace ? "min-w-0 flex-1 overflow-x-auto whitespace-nowrap" : "mt-2 flex-wrap") + " flex items-center gap-1"} role="tabpanel" aria-label="أدوات الكتابة">
@@ -297,19 +296,7 @@ function Toolbar({ editor, onAddAttachment }: { editor: Editor; onAddAttachment?
 function Btn({
   onClick, active, label, children,
 }: { onClick: () => void; active?: boolean; label: string; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      className={`grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-primary-soft hover:text-primary ${
-        active ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground" : ""
-      }`}
-    >
-      {children}
-    </button>
-  );
+  return <ToolButton label={label} active={active} onClick={onClick}>{children}</ToolButton>;
 }
 
 function Divider() {

@@ -1,3 +1,4 @@
+import { ToolButton } from "@/components/ToolButton";
 import { pageHead } from "@/lib/page-head";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -98,7 +99,7 @@ function NoteEditor({ note }: { note: Note }) {
 
   return (
     <AppShell>
-      <header className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto] items-center gap-2 px-4 pb-2 pt-5">
+      <header className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto_auto_auto_auto] items-center gap-1 px-4 pb-2 pt-2">
         <Link
           to="/notes"
           className="grid size-10 shrink-0 place-items-center rounded-full bg-card shadow-card"
@@ -109,6 +110,44 @@ function NoteEditor({ note }: { note: Note }) {
         <div className="min-w-0">
           <SaveStatus snapshot={snapshot} />
         </div>
+
+          <ToolButton label="نسخ المذكرة إلى الخزنة"
+            disabled={saveVaultCopy.isPending}
+            onClick={async () => {
+              if (vaultLocked) {
+                toast.info("افتح الخزنة برمزك أولًا، ثم ارجع إلى هذه المذكرة لنسخ نسخة مشفّرة.");
+                await router.navigate({ to: "/vault" });
+                return;
+              }
+              if (!window.confirm(
+                "سيتم إنشاء نسخة مشفّرة داخل الخزنة؛ المذكرة الأصلية ستبقى في قسم المذكرات ويمكن رؤيتها هناك. المرفقات لا تُنسخ. هل تريد المتابعة؟",
+              )) return;
+              try {
+                await controller.flush();
+                const current = controller.getSnapshot();
+                if (current.state !== "clean" && current.state !== "saved")
+                  throw new Error("لا يمكن إنشاء النسخة حتى يكتمل حفظ المذكرة وتُحل أي تعارضات.");
+                const payload = serializeVaultNoteCopy(
+                  current.draft.title || "مذكرة بدون عنوان", current.draft.content,
+                );
+                await saveVaultCopy.mutateAsync({
+                  categoryId: null,
+                  label: "مذكرة: " + (current.draft.title || "بدون عنوان"),
+                  username: "", url: "", password: "", notes: payload,
+                });
+                toast.success("حُفظت نسخة مشفّرة في الخزنة. المذكرة الأصلية لم تُحذف.");
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : "تعذر نسخ المذكرة إلى الخزنة.");
+              } finally {
+                // Do not retain the full plaintext note in mutation variables
+                // after a copy succeeds, fails, or the vault locks mid-request.
+                saveVaultCopy.reset();
+              }
+            }}
+            >
+            <ShieldPlus className="size-4 text-primary" />
+          </ToolButton>
+
         <AudioRecorder
           onRecorded={(file) => {
             upload.mutate({ noteId: note.id, file });
@@ -158,7 +197,7 @@ function NoteEditor({ note }: { note: Note }) {
         </button>
       </header>
 
-      <div className="px-5 pt-2 sm:pt-4">
+      <div className="px-3 pt-1 sm:px-5">
         {snapshot.localError && !["clean", "saved"].includes(snapshot.state) && (
           <p
             role="alert"
@@ -239,10 +278,10 @@ function NoteEditor({ note }: { note: Note }) {
             onChange={(e) => controller.edit({ title: e.target.value })}
             placeholder="بدون عنوان"
             aria-label="عنوان الملاحظة"
-            className="w-full bg-transparent text-xl font-extrabold leading-tight outline-none placeholder:text-muted-foreground/50 sm:text-2xl"
+            className="min-w-0 w-full bg-transparent text-xl font-extrabold leading-tight outline-none placeholder:text-muted-foreground/50"
           />
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-2 sm:mt-3">
+        <div className="mt-1 flex flex-wrap items-center gap-2">
           {cat && (
             <span className="rounded-full bg-primary-soft px-3 py-1 text-xs font-semibold text-primary">
               {cat.name}
@@ -251,47 +290,10 @@ function NoteEditor({ note }: { note: Note }) {
           <span className="text-xs text-muted-foreground">
             آخر تعديل {formatRelative(tsOf(note.updated_at))}
           </span>
-          <button type="button" aria-label="نسخ المذكرة إلى الخزنة"
-            disabled={saveVaultCopy.isPending}
-            onClick={async () => {
-              if (vaultLocked) {
-                toast.info("افتح الخزنة برمزك أولًا، ثم ارجع إلى هذه المذكرة لنسخ نسخة مشفّرة.");
-                await router.navigate({ to: "/vault" });
-                return;
-              }
-              if (!window.confirm(
-                "سيتم إنشاء نسخة مشفّرة داخل الخزنة؛ المذكرة الأصلية ستبقى في قسم المذكرات ويمكن رؤيتها هناك. المرفقات لا تُنسخ. هل تريد المتابعة؟",
-              )) return;
-              try {
-                await controller.flush();
-                const current = controller.getSnapshot();
-                if (current.state !== "clean" && current.state !== "saved")
-                  throw new Error("لا يمكن إنشاء النسخة حتى يكتمل حفظ المذكرة وتُحل أي تعارضات.");
-                const payload = serializeVaultNoteCopy(
-                  current.draft.title || "مذكرة بدون عنوان", current.draft.content,
-                );
-                await saveVaultCopy.mutateAsync({
-                  categoryId: null,
-                  label: "مذكرة: " + (current.draft.title || "بدون عنوان"),
-                  username: "", url: "", password: "", notes: payload,
-                });
-                toast.success("حُفظت نسخة مشفّرة في الخزنة. المذكرة الأصلية لم تُحذف.");
-              } catch (error) {
-                toast.error(error instanceof Error ? error.message : "تعذر نسخ المذكرة إلى الخزنة.");
-              } finally {
-                // Do not retain the full plaintext note in mutation variables
-                // after a copy succeeds, fails, or the vault locks mid-request.
-                saveVaultCopy.reset();
-              }
-            }}
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card px-3 text-sm font-semibold text-foreground disabled:opacity-50">
-            <ShieldPlus className="size-4 text-primary" />
-            <span className="hidden sm:inline">{saveVaultCopy.isPending ? "تشفير النسخة..." : "نسخ المذكرة إلى الخزنة"}</span>
-            <span className="sm:hidden">{saveVaultCopy.isPending ? "تشفير..." : "نسخ للخزنة"}</span>
-          </button>
         </div>
 
-        <div className="mt-3 sm:mt-5">
+
+        <div className="mt-3">
           <NotebookWorkspace
             preferenceScope={note.user_id}
             content={draft}

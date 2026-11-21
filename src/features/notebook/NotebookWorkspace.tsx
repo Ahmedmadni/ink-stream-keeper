@@ -5,6 +5,7 @@ import {
   Copy, Trash2, Highlighter, Undo2, Redo2, Sticker, MousePointer2, ScanLine, ZoomIn, Shapes, Minus, Square, Circle, ArrowUpRight, Search, ScanText, Scissors, Waypoints, Check, RotateCw, X,
 } from "lucide-react";
 import { RichEditor, CompactToolbar } from "@/components/RichEditor";
+import { ToolButton } from "@/components/ToolButton";
 import {
   createPage, dimensionsMm, fromLegacyNote, notebookPlainText, parseNotebook,
   serializeNotebook, PAPER_SIZES, PAPER_TINTS, PAPER_TYPES, PAPER_TEXTURES, MAX_NOTEBOOK_BYTES,
@@ -679,21 +680,18 @@ export function NotebookWorkspace({
             ["stickers", "ملصقات", Sticker],
             ["paper", "ورق", Layers],
           ] as const).map(([key, label, Icon]) => (
-            <button type="button" role="tab" key={key} aria-selected={group === key}
+            <ToolButton role="tab" key={key} label={label} active={group === key} aria-selected={group === key}
               onClick={() => { finish(); if (key !== group) cancelTransform(); setFocusMode(false); setGroup(key); setSelectedSticker(null); }}
-              aria-label={label}
-              title={label}
-              className={"grid size-11 min-w-0 place-items-center rounded-xl transition-colors " + (group === key ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground hover:bg-accent")}>
+              className="min-w-0 rounded-xl">
               <Icon className="size-5" />
-            </button>
+            </ToolButton>
           ))}
           </div>
           <div className="flex shrink-0 gap-1">
-            <button type="button" aria-label="وضع التركيز" aria-pressed={focusMode} className={controlCls(focusMode) + " !w-11 !px-0"} onClick={() => { finish(); setFocusMode(!focusMode); }} title={focusMode ? "إظهار الأدوات" : "توسيع الورقة"}><ScanLine className="size-4"/></button>
-            <button type="button" disabled={exporting || !!transformSession} onClick={() => { void exportPdf(); }}
-              className={controlCls(false) + " !w-11 !px-0"} aria-label="تصدير صفحات الدفتر PDF" title={exporting ? "تصدير..." : "تصدير PDF"}>
+            <ToolButton label="وضع التركيز" active={focusMode} aria-pressed={focusMode} onClick={() => { finish(); setFocusMode(!focusMode); }}><ScanLine className="size-4"/></ToolButton>
+            <ToolButton label={exporting ? "تصدير..." : "تصدير صفحات الدفتر PDF"} disabled={exporting || !!transformSession} onClick={() => { void exportPdf(); }}>
               <FileDown className="size-4" />
-            </button>
+            </ToolButton>
           </div>
         </div>
       </header>
@@ -1096,7 +1094,7 @@ export function NotebookWorkspace({
           setIndex(current.pages.length); setGroup("text"); setSelection(new Set());
           return true;
         }}/>}
-      <nav className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-40 rounded-2xl border border-border bg-card/95 p-2 shadow-lg backdrop-blur md:bottom-2"
+      <nav className="rounded-2xl border border-border bg-card/95 p-2 shadow-sm"
         aria-label="شريط صفحات المذكرة">
         {!focusMode && group === "draw" && <div className="mb-2 flex gap-1 overflow-x-auto border-b border-border pb-2" role="group" aria-label="أدوات القلم السريعة">
           {transformSession ? <>
@@ -1134,15 +1132,15 @@ export function NotebookWorkspace({
         <div className="flex items-center gap-2">
         <div className="order-2 flex shrink-0 items-center gap-1">
           <strong className="sr-only">الصفحات ({book.pages.length})</strong>
-          <button type="button" className="grid size-11 place-items-center rounded-xl bg-secondary" aria-label="عرض مصغرات الصفحات" title={pagePreviews ? "إخفاء المصغرات" : "عرض المصغرات"} aria-pressed={pagePreviews} onClick={() => setPagePreviews(!pagePreviews)}><Layers className="size-4"/></button>
+          <ToolButton label="عرض مصغرات الصفحات" active={pagePreviews} aria-pressed={pagePreviews} onClick={() => setPagePreviews(!pagePreviews)}><Layers className="size-4"/></ToolButton>
           <div className="flex gap-1">
-            <button type="button" aria-label="تكرار الصفحة" title="تكرار الصفحة"
-              onClick={duplicatePage} disabled={!!transformSession} className="grid size-11 place-items-center rounded-xl bg-secondary disabled:opacity-40"><Copy className="size-4" /></button>
-            <button type="button" aria-label="حذف الصفحة" title="حذف الصفحة"
+            <ToolButton label="تكرار الصفحة"
+              onClick={duplicatePage} disabled={!!transformSession}><Copy className="size-4" /></ToolButton>
+            <ToolButton label="حذف الصفحة"
               onClick={removePage} disabled={book.pages.length === 1 || !!transformSession}
-              className="grid size-11 place-items-center rounded-xl bg-secondary text-destructive disabled:opacity-40">
+              className="text-destructive">
               <Trash2 className="size-4"/>
-            </button>
+            </ToolButton>
           </div>
         </div>
         <div className="order-1 flex min-w-0 flex-1 gap-1 overflow-x-auto" role="tablist" aria-label="صفحات المذكرة">
