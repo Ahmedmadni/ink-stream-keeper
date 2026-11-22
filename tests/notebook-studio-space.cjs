@@ -1,6 +1,16 @@
 const assert = require("node:assert/strict");
 async function checkStudioSpace(page, artifacts, readSaved) {
   await page.getByRole("button", { name: "إضافة صفحة", exact: true }).click();
+  await page.setViewportSize({width:320,height:844});
+  const quickPages=page.getByRole("group",{name:"التنقل السريع بين الصفحات",exact:true});
+  assert.ok(await quickPages.getByRole("button",{name:"الصفحة التالية",exact:true}).isDisabled());
+  await quickPages.getByRole("button",{name:"الصفحة السابقة",exact:true}).click();
+  assert.equal(await page.getByRole("tab",{name:"صفحة 1",exact:true}).getAttribute("aria-selected"),"true");
+  await quickPages.getByRole("button",{name:"الصفحة التالية",exact:true}).click();
+  assert.equal(await page.getByRole("tab",{name:"صفحة 2",exact:true}).getAttribute("aria-selected"),"true");
+  assert.ok(await quickPages.locator("../..").evaluate(el=>el.scrollWidth<=el.clientWidth+1),
+    "quick page controls and zoom fit the 320px workspace without horizontal overflow");
+  await page.setViewportSize({width:1024,height:768});
   await page.getByRole("tab", { name: "ملصقات", exact: true }).click();
   await page.getByRole("button", { name: "ملصقات ملونة", exact: true }).click();
   await page.getByRole("button", { name: "إضافة ملصق سماعة ملونة", exact: true }).click();

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent } from "rea
 import type { Editor } from "@tiptap/react";
 import {
   BookOpen, Brush, Eraser, FileDown, Layers, PenLine, Plus,
-  Copy, Trash2, Highlighter, Undo2, Redo2, Sticker, MousePointer2, ScanLine, ZoomIn, Shapes, Minus, Square, Circle, ArrowUpRight, Search, ScanText, Scissors, Waypoints, Check, RotateCw, X,
+  ChevronLeft, ChevronRight, Copy, Trash2, Highlighter, Undo2, Redo2, Sticker, MousePointer2, ScanLine, ZoomIn, Shapes, Minus, Square, Circle, ArrowUpRight, Search, ScanText, Scissors, Waypoints, Check, RotateCw, X,
 } from "lucide-react";
 import { RichEditor, CompactToolbar } from "@/components/RichEditor";
 import { ToolButton } from "@/components/ToolButton";
@@ -952,7 +952,16 @@ export function NotebookWorkspace({
         <CompactToolbar editor={activeTextEditor} onAddAttachment={onAddAttachment} workspace />
       )}
       <div className="flex min-h-12 items-center justify-between gap-2 rounded-xl border border-border bg-secondary/40 px-3 py-0.5 text-xs">
-        <span className="min-w-0 truncate">صفحة {index + 1} · {pageW} × {pageH} مم</span>
+        <div className="flex min-w-0 items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1" role="group" aria-label="التنقل السريع بين الصفحات">
+            <ToolButton label="الصفحة السابقة" disabled={index === 0 || !!transformSession}
+              onClick={() => { finish(); setIndex(index - 1); setSelectedSticker(null); setSelection(new Set()); }}><ChevronRight className="size-4"/></ToolButton>
+            <span dir="ltr" aria-label={`الصفحة ${index + 1} من ${book.pages.length}`} aria-live="polite" className="min-w-10 text-center tabular-nums">{index + 1} / {book.pages.length}</span>
+            <ToolButton label="الصفحة التالية" disabled={index === book.pages.length - 1 || !!transformSession}
+              onClick={() => { finish(); setIndex(index + 1); setSelectedSticker(null); setSelection(new Set()); }}><ChevronLeft className="size-4"/></ToolButton>
+          </div>
+          <span className="hidden min-w-0 truncate text-muted-foreground md:inline">{pageW} × {pageH} مم</span>
+        </div>
         <label className="flex shrink-0 items-center gap-1 sm:hidden"><ZoomIn className="size-4"/>
           <span className="sr-only">تكبير صفحة الدفتر</span>
           <select aria-label="مستوى تكبير صفحة الدفتر" value={zoom === null ? "fit" : String(zoom)}
