@@ -8,6 +8,7 @@
 /* One logical page across the editor, PDF renderer and secure reader. The
  * viewport scales the entire sheet, so ink cannot drift relative to text. */
 .notebook-content { left: 6%; right: 6%; top: 7%; bottom: 6%; padding: 4px; }
+.notebook-pen-cursor { cursor: url("./assets/pen-cursor.svg") 3 29, default; }
 .notebook-content .prose-mf { font-size: 15px; line-height: 1.625; min-height: 0; overflow-wrap: anywhere; }
 .notebook-content > .prose-mf { height: 100%; }
 .notebook-sheet .prose-mf { color: #17263b; }

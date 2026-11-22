@@ -1,6 +1,7 @@
 # Native application updates
 
 ## Writing workspace layout
+- [x] Replace the drawing/handwriting crosshair with a bundled nib-aligned pen cursor, preserving the latest quick-page controls; 20 regression tests passed and authenticated drawing/save/reload plus 393px layout checks passed. Temporary test note removed.
 - [x] Expand the note editor, compact its icon menus and keep page previews from covering the paper.
 - [x] Verify authenticated page/tool switching and layouts on desktop and mobile; 106 targeted regression tests passed.
 

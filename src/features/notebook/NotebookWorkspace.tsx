@@ -1002,7 +1002,7 @@ export function NotebookWorkspace({
               onPointerCancel={(e) => { if (gesture.current?.pointerId === e.pointerId) clearGesture(); }}
               onLostPointerCapture={(e) => { if (gesture.current?.pointerId === e.pointerId) finish(); }}
               onPointerLeave={() => { if (!gesture.current) setEraserPoint(null); }}
-              className={"absolute inset-0 z-20 size-full " + (isDrawing ? transformSession ? "cursor-default" : "cursor-crosshair" : "pointer-events-none")}
+              className={"absolute inset-0 z-20 size-full " + (isDrawing ? transformSession ? "cursor-default" : group === "draw" && (inkMode === "pen" || inkMode === "highlighter") ? "notebook-pen-cursor" : "cursor-crosshair" : "pointer-events-none")}
               style={{ touchAction: isDrawing && !transformSession && !penOnly ? "none" : "pan-x pan-y" }}>
               <InkLayer strokes={shownStrokes.filter((s) => !erased.has(s.id))} aspect={aspect} selected={isDrawing ? selection : undefined}/>
               {live && <InkMark stroke={group === "draw" ? stabilizePen(live, stabilization, aspect) : live} aspect={aspect} />}
